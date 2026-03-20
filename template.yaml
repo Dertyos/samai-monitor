@@ -1,0 +1,389 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: SAMAI Monitor — Monitoreo de estados judiciales
+
+Globals:
+  Function:
+    Runtime: python3.13
+    Architectures:
+      - arm64
+    Timeout: 120
+    MemorySize: 256
+    Environment:
+      Variables:
+        RADICADOS_TABLE: !Ref RadicadosTable
+        ACTUACIONES_TABLE: !Ref ActuacionesTable
+        ALERTAS_TABLE: !Ref AlertasTable
+    Layers:
+      - !Ref SharedLayer
+
+Parameters:
+  Stage:
+    Type: String
+    Default: prod
+    AllowedValues:
+      - prod
+      - dev
+
+Resources:
+  # ============================================
+  # LAMBDA LAYER — Código compartido
+  # ============================================
+  SharedLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: samai-shared
+      Description: Shared code - samai_client, db, models, radicado_utils
+      ContentUri: backend/layers/shared/python/
+      CompatibleRuntimes:
+        - python3.13
+      RetentionPolicy: Delete
+    Metadata:
+      BuildMethod: python3.13
+
+  # ============================================
+  # LAMBDA FUNCTIONS
+  # ============================================
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: samai-api
+      Handler: app.handler
+      CodeUri: backend/functions/api_handler/
+      Description: API Gateway handler - CRUD radicados, alertas, búsqueda
+      MemorySize: 256
+      Timeout: 120
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref RadicadosTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ActuacionesTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AlertasTable
+      Events:
+        PostRadicados:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /radicados
+            Method: POST
+        GetRadicados:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /radicados
+            Method: GET
+        DeleteRadicado:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /radicados/{id}
+            Method: DELETE
+        GetHistorial:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /radicados/{id}/historial
+            Method: GET
+        GetAlertas:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /alertas
+            Method: GET
+        GetBuscar:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /buscar/{numProceso}
+            Method: GET
+
+  MonitorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: samai-monitor
+      Handler: app.handler
+      CodeUri: backend/functions/monitor/
+      Description: Daily monitor - poll SAMAI, detect changes, create alerts
+      MemorySize: 512
+      Timeout: 300
+      Environment:
+        Variables:
+          USER_POOL_ID: !Ref UserPool
+          SES_SENDER: juliansalcedo4@gmail.com
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref RadicadosTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ActuacionesTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AlertasTable
+        - SESCrudPolicy:
+            IdentityName: "*"
+        - Statement:
+            - Effect: Allow
+              Action:
+                - cognito-idp:AdminGetUser
+              Resource: !GetAtt UserPool.Arn
+      Events:
+        DailySchedule:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 12 * * ? *)
+            Description: Daily at 7am COT (12:00 UTC)
+            Enabled: true
+
+  # ============================================
+  # API GATEWAY
+  # ============================================
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: !Ref Stage
+      CorsConfiguration:
+        AllowOrigins:
+          - "*"
+        AllowMethods:
+          - GET
+          - POST
+          - DELETE
+          - OPTIONS
+        AllowHeaders:
+          - Content-Type
+          - Authorization
+      Auth:
+        DefaultAuthorizer: CognitoAuthorizer
+        Authorizers:
+          CognitoAuthorizer:
+            IdentitySource: $request.header.Authorization
+            JwtConfiguration:
+              issuer: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}"
+              audience:
+                - !Ref UserPoolClient
+
+  # ============================================
+  # COGNITO — Autenticación
+  # ============================================
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: samai-users
+      AutoVerifiedAttributes:
+        - email
+      UsernameAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+      Schema:
+        - Name: email
+          Required: true
+          Mutable: true
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: samai-web
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      SupportedIdentityProviders:
+        - COGNITO
+      AllowedOAuthFlows:
+        - implicit
+      AllowedOAuthScopes:
+        - openid
+        - email
+        - profile
+      AllowedOAuthFlowsUserPoolClient: true
+      CallbackURLs:
+        - http://localhost:5173/callback
+        - !Sub "https://${CloudFrontDistribution.DomainName}/callback"
+        - https://samai-monitor.dertyos.com/callback
+      LogoutURLs:
+        - http://localhost:5173/
+        - !Sub "https://${CloudFrontDistribution.DomainName}/"
+        - https://samai-monitor.dertyos.com/
+
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Sub "samai-${AWS::AccountId}"
+      UserPoolId: !Ref UserPool
+
+  # ============================================
+  # DYNAMODB — Tablas
+  # ============================================
+  RadicadosTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: samai-radicados
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+        - AttributeName: radicado
+          KeyType: RANGE
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: radicado
+          AttributeType: S
+        - AttributeName: corporacion
+          AttributeType: S
+      GlobalSecondaryIndexes:
+        - IndexName: radicado-index
+          KeySchema:
+            - AttributeName: radicado
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        - IndexName: corporacion-index
+          KeySchema:
+            - AttributeName: corporacion
+              KeyType: HASH
+            - AttributeName: radicado
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  ActuacionesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: samai-actuaciones
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: radicado
+          KeyType: HASH
+        - AttributeName: orden
+          KeyType: RANGE
+      AttributeDefinitions:
+        - AttributeName: radicado
+          AttributeType: S
+        - AttributeName: orden
+          AttributeType: "N"
+
+  AlertasTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: samai-alertas
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  # ============================================
+  # FRONTEND — S3 + CloudFront
+  # ============================================
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "samai-frontend-${AWS::AccountId}"
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Statement:
+          - Sid: AllowCloudFrontOAC
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub "${FrontendBucket.Arn}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}"
+
+  CloudFrontOAC:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: samai-frontend-oac
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        Origins:
+          - Id: S3Origin
+            DomainName: !GetAtt FrontendBucket.RegionalDomainName
+            OriginAccessControlId: !Ref CloudFrontOAC
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          Compress: true
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+        PriceClass: PriceClass_100
+
+# ============================================
+# OUTPUTS
+# ============================================
+Outputs:
+  ApiUrl:
+    Description: URL de la API
+    Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/${Stage}"
+
+  UserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref UserPool
+
+  UserPoolClientId:
+    Description: Cognito App Client ID
+    Value: !Ref UserPoolClient
+
+  CognitoDomain:
+    Description: Cognito Hosted UI domain
+    Value: !Sub "https://samai-${AWS::AccountId}.auth.${AWS::Region}.amazoncognito.com"
+
+  MonitorFunctionArn:
+    Description: ARN del Monitor Lambda
+    Value: !GetAtt MonitorFunction.Arn
+
+  FrontendUrl:
+    Description: CloudFront URL del frontend
+    Value: !Sub "https://${CloudFrontDistribution.DomainName}"
+
+  FrontendBucketName:
+    Description: S3 bucket para el frontend
+    Value: !Ref FrontendBucket

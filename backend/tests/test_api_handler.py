@@ -1,0 +1,236 @@
+"""Tests for api_handler Lambda — TDD: tests primero."""
+from __future__ import annotations
+
+import json
+from unittest.mock import MagicMock, patch
+
+import pytest
+from moto import mock_aws
+
+from models import Actuacion
+
+
+# Helper: simula evento API Gateway v2
+def _make_event(
+    method: str = "GET",
+    path: str = "/radicados",
+    body: dict | None = None,
+    path_params: dict | None = None,
+    user_id: str = "user-123",
+    stage: str = "$default",
+) -> dict:
+    event = {
+        "rawPath": path,
+        "requestContext": {
+            "http": {"method": method, "path": path},
+            "authorizer": {"jwt": {"claims": {"sub": user_id}}},
+            "stage": stage,
+        },
+        "pathParameters": path_params or {},
+        "body": json.dumps(body) if body else None,
+        "queryStringParameters": {},
+    }
+    return event
+
+
+def _context() -> MagicMock:
+    return MagicMock()
+
+
+class TestPostRadicados:
+    """POST /radicados — agregar radicado a monitorear."""
+
+    def test_crear_radicado_201(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        event = _make_event(
+            method="POST",
+            path="/radicados",
+            body={"radicado": "73001-23-33-000-2019-00343-00", "alias": "Caso Aviles"},
+        )
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 201
+        data = json.loads(resp["body"])
+        assert data["radicado"] == "73001233300020190034300"
+        assert data["corporacion"] == "7300123"
+
+    def test_radicado_invalido_400(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        event = _make_event(
+            method="POST",
+            path="/radicados",
+            body={"radicado": "12345"},
+        )
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 400
+
+    def test_sin_body_400(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        event = _make_event(method="POST", path="/radicados")
+        event["body"] = None
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 400
+
+    def test_duplicado_409(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        body = {"radicado": "73001-23-33-000-2019-00343-00"}
+        event1 = _make_event(method="POST", path="/radicados", body=body)
+        event2 = _make_event(method="POST", path="/radicados", body=body)
+
+        resp1 = handler(event1, _context())
+        assert resp1["statusCode"] == 201
+
+        resp2 = handler(event2, _context())
+        assert resp2["statusCode"] == 409
+
+
+class TestGetRadicados:
+    """GET /radicados — listar mis radicados."""
+
+    def test_lista_vacia(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        event = _make_event(method="GET", path="/radicados")
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 200
+        data = json.loads(resp["body"])
+        assert data == []
+
+    def test_lista_con_radicados(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        # Crear uno primero
+        create_event = _make_event(
+            method="POST",
+            path="/radicados",
+            body={"radicado": "73001-23-33-000-2019-00343-00", "alias": "Caso Aviles"},
+        )
+        handler(create_event, _context())
+
+        # Listar
+        event = _make_event(method="GET", path="/radicados")
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 200
+        data = json.loads(resp["body"])
+        assert len(data) == 1
+        assert data[0]["radicado"] == "73001233300020190034300"
+
+
+class TestDeleteRadicados:
+    """DELETE /radicados/{id} — dejar de monitorear."""
+
+    def test_eliminar_existente_204(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        # Crear
+        create_event = _make_event(
+            method="POST",
+            path="/radicados",
+            body={"radicado": "73001-23-33-000-2019-00343-00"},
+        )
+        handler(create_event, _context())
+
+        # Eliminar
+        delete_event = _make_event(
+            method="DELETE",
+            path="/radicados/73001233300020190034300",
+            path_params={"id": "73001233300020190034300"},
+        )
+        resp = handler(delete_event, _context())
+        assert resp["statusCode"] == 204
+
+    def test_eliminar_inexistente_404(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        delete_event = _make_event(
+            method="DELETE",
+            path="/radicados/73001233300020190034300",
+            path_params={"id": "73001233300020190034300"},
+        )
+        resp = handler(delete_event, _context())
+        assert resp["statusCode"] == 404
+
+
+class TestGetAlertas:
+    """GET /alertas — listar mis alertas."""
+
+    def test_alertas_vacias(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        event = _make_event(method="GET", path="/alertas")
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 200
+        data = json.loads(resp["body"])
+        assert data == []
+
+
+class TestGetHistorial:
+    """GET /radicados/{id}/historial — actuaciones del proceso via SAMAI."""
+
+    def test_historial_retorna_actuaciones(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        # Crear radicado primero
+        create_event = _make_event(
+            method="POST",
+            path="/radicados",
+            body={"radicado": "73001-23-33-000-2019-00343-00"},
+        )
+        handler(create_event, _context())
+
+        # Mock SAMAI client
+        mock_actuaciones = [
+            Actuacion(
+                radicado="73001233300020190034300",
+                orden=177,
+                nombre="Fijacion estado",
+                fecha="2026-03-20T00:00:00",
+                anotacion="LMB-",
+                registro="2026-03-19T16:31:57.1",
+            )
+        ]
+
+        with patch(
+            "functions.api_handler.app.samai_client"
+        ) as mock_client:
+            mock_client.get_actuaciones.return_value = mock_actuaciones
+
+            event = _make_event(
+                method="GET",
+                path="/radicados/73001233300020190034300/historial",
+                path_params={"id": "73001233300020190034300"},
+            )
+            resp = handler(event, _context())
+
+        assert resp["statusCode"] == 200
+        data = json.loads(resp["body"])
+        assert len(data) == 1
+        assert data[0]["orden"] == 177
+
+
+class TestGetBuscar:
+    """GET /buscar/{numProceso} — buscar proceso en SAMAI."""
+
+    def test_buscar_retorna_resultados(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        mock_result = [{"NumProceso": "73001233300020190034300", "Corporacion": "7300123"}]
+
+        with patch(
+            "functions.api_handler.app.samai_client"
+        ) as mock_client:
+            mock_client.buscar_proceso.return_value = mock_result
+
+            event = _make_event(
+                method="GET",
+                path="/buscar/73001233300020190034300",
+                path_params={"numProceso": "73001233300020190034300"},
+            )
+            resp = handler(event, _context())
+
+        assert resp["statusCode"] == 200
+        data = json.loads(resp["body"])
+        assert len(data) == 1
