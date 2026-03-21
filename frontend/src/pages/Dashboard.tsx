@@ -29,6 +29,7 @@ export default function Dashboard() {
   const { email, signOut } = useAuth();
   const [showAddModal, setShowAddModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<RadicadoDTO | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const queryClient = useQueryClient();
   const { theme, toggle: toggleTheme } = useTheme();
   const toast = useToast();
@@ -102,6 +103,16 @@ export default function Dashboard() {
             </button>
           </div>
 
+          {radicadosQuery.data && radicadosQuery.data.length > 0 && (
+            <input
+              type="text"
+              placeholder="Buscar por numero o alias..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className={styles.searchInput}
+            />
+          )}
+
           {radicadosQuery.isLoading && (
             <div className="loading-container">
               <div className="spinner" />
@@ -115,7 +126,15 @@ export default function Dashboard() {
           )}
 
           <div className={styles.radicadosGrid}>
-            {radicadosQuery.data?.map((r: RadicadoDTO) => (
+            {radicadosQuery.data?.filter((r: RadicadoDTO) => {
+              if (!searchQuery) return true;
+              const q = searchQuery.toLowerCase();
+              return (
+                r.radicado.includes(q) ||
+                r.radicadoFormato.toLowerCase().includes(q) ||
+                r.alias.toLowerCase().includes(q)
+              );
+            }).map((r: RadicadoDTO) => (
               <RadicadoCard
                 key={r.radicado}
                 radicado={r}
