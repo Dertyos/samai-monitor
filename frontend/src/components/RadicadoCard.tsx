@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { RadicadoDTO } from "../lib/api";
 import styles from "./RadicadoCard.module.css";
 
@@ -18,7 +18,7 @@ interface Props {
  * RadicadoCard — tarjeta de radicado con acciones.
  *
  * Reutilizable: recibe RadicadoDTO y callbacks para acciones.
- * Soporta inline editing del alias (doble click o boton editar).
+ * Acciones secundarias en menu dropdown (...) para ahorro de espacio.
  */
 export default function RadicadoCard({
   radicado,
@@ -33,6 +33,20 @@ export default function RadicadoCard({
 }: Props) {
   const [editing, setEditing] = useState(false);
   const [aliasInput, setAliasInput] = useState(radicado.alias);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close menu on outside click
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handle = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [menuOpen]);
 
   const handleSaveAlias = () => {
     if (aliasInput.trim() !== radicado.alias) {
@@ -50,7 +64,7 @@ export default function RadicadoCard({
   };
 
   return (
-    <div className={`${styles.card} ${isSelected ? styles.selected : ""}`}>
+    <div className={`${styles.card} ${isSelected ? styles.selected : ""} ${!radicado.activo ? styles.inactive : ""}`}>
       <div className={styles.header} onClick={onSelect}>
         <span className={styles.radicadoFmt}>{radicado.radicadoFormato}</span>
         {!editing && radicado.alias && (
@@ -81,34 +95,45 @@ export default function RadicadoCard({
           Ultima actuacion: #{radicado.ultimoOrden}
         </span>
         <span className={radicado.activo ? styles.statusActive : styles.statusInactive}>
-          {radicado.activo ? "Activo" : "Inactivo"}
+          {radicado.activo ? "Activo" : "Pausado"}
         </span>
       </div>
       <div className={styles.actions}>
         <button onClick={onSelect} className="btn-secondary">
           Ver detalle
         </button>
-        <button
-          onClick={() => setEditing(true)}
-          className="btn-secondary"
-          disabled={isEditing}
-        >
-          {isEditing ? "..." : "Editar alias"}
-        </button>
-        <button
-          onClick={onToggleActivo}
-          className="btn-secondary"
-          disabled={isToggling}
-        >
-          {isToggling ? "..." : radicado.activo ? "Pausar" : "Reactivar"}
-        </button>
-        <button
-          onClick={onDelete}
-          className="btn-danger"
-          disabled={isDeleting}
-        >
-          {isDeleting ? "..." : "Eliminar"}
-        </button>
+        <div className={styles.menuWrapper} ref={menuRef}>
+          <button
+            onClick={() => setMenuOpen(!menuOpen)}
+            className={`btn-secondary ${styles.menuBtn}`}
+            title="Mas acciones"
+          >
+            &#x22EF;
+          </button>
+          {menuOpen && (
+            <div className={styles.menu}>
+              <button
+                onClick={() => { setEditing(true); setMenuOpen(false); }}
+                disabled={isEditing}
+              >
+                {isEditing ? "..." : "Editar alias"}
+              </button>
+              <button
+                onClick={() => { onToggleActivo(); setMenuOpen(false); }}
+                disabled={isToggling}
+              >
+                {isToggling ? "..." : radicado.activo ? "Pausar monitoreo" : "Reactivar monitoreo"}
+              </button>
+              <button
+                onClick={() => { setMenuOpen(false); onDelete(); }}
+                className={styles.menuDanger}
+                disabled={isDeleting}
+              >
+                {isDeleting ? "..." : "Eliminar"}
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
