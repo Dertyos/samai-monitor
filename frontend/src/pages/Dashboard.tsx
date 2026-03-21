@@ -15,6 +15,7 @@ import AddRadicadoModal from "../components/AddRadicadoModal";
 import ConfirmModal from "../components/ConfirmModal";
 import RadicadoCard from "../components/RadicadoCard";
 import AlertasList from "../components/AlertasList";
+import { RadicadoCardSkeleton, StatsBarSkeleton } from "../components/Skeleton";
 import { useAuth } from "../hooks/useAuth";
 import { useTheme } from "../hooks/useTheme";
 import { useToast } from "../hooks/useToast";
@@ -149,6 +150,7 @@ export default function Dashboard() {
       </header>
 
       <main className={styles.main}>
+        {radicadosQuery.isLoading && <StatsBarSkeleton />}
         {radicadosQuery.data && (
           <div className={styles.statsBar}>
             <div className={styles.stat}>
@@ -202,9 +204,8 @@ export default function Dashboard() {
           )}
 
           {radicadosQuery.isLoading && (
-            <div className="loading-container">
-              <div className="spinner" />
-              <p>Cargando radicados...</p>
+            <div className={styles.radicadosGrid}>
+              {[0, 1, 2].map((i) => <RadicadoCardSkeleton key={i} />)}
             </div>
           )}
           {radicadosQuery.error && (
