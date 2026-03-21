@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getRadicados,
@@ -10,15 +11,19 @@ import {
 import AddRadicadoModal from "../components/AddRadicadoModal";
 import RadicadoCard from "../components/RadicadoCard";
 import AlertasList from "../components/AlertasList";
+import { useAuth } from "../hooks/useAuth";
 import { useTheme } from "../hooks/useTheme";
+import styles from "./Dashboard.module.css";
 
-interface Props {
-  email: string | null;
-  onSignOut: () => void;
-  onViewHistorial: (radicado: RadicadoDTO) => void;
-}
-
-export default function Dashboard({ email, onSignOut, onViewHistorial }: Props) {
+/**
+ * Dashboard — pagina principal autenticada.
+ *
+ * Muestra los radicados del usuario, alertas recientes,
+ * y permite agregar/eliminar radicados.
+ */
+export default function Dashboard() {
+  const navigate = useNavigate();
+  const { email, signOut } = useAuth();
   const [showAddModal, setShowAddModal] = useState(false);
   const queryClient = useQueryClient();
   const { theme, toggle: toggleTheme } = useTheme();
@@ -49,26 +54,31 @@ export default function Dashboard({ email, onSignOut, onViewHistorial }: Props) 
     },
   });
 
+  const handleSignOut = () => {
+    signOut();
+    navigate("/login", { replace: true });
+  };
+
   return (
-    <div className="dashboard">
+    <div className={styles.dashboard}>
       <header>
-        <div className="header-left">
+        <div>
           <h1>SAMAI Monitor</h1>
         </div>
-        <div className="header-right">
-          <span className="email">{email}</span>
+        <div className={styles.headerRight}>
+          <span className={styles.email}>{email}</span>
           <button onClick={toggleTheme} className="theme-toggle" title="Cambiar tema">
             {theme === "light" ? "\u{1F319}" : "\u{2600}\u{FE0F}"}
           </button>
-          <button onClick={onSignOut} className="btn-secondary">
-            Cerrar sesión
+          <button onClick={handleSignOut} className="btn-secondary">
+            Cerrar sesion
           </button>
         </div>
       </header>
 
-      <main>
-        <section className="section">
-          <div className="section-header">
+      <main className={styles.main}>
+        <section className={styles.section}>
+          <div className={styles.sectionHeader}>
             <h2>Mis Radicados</h2>
             <button onClick={() => setShowAddModal(true)} className="primary">
               + Agregar
@@ -87,15 +97,15 @@ export default function Dashboard({ email, onSignOut, onViewHistorial }: Props) 
             </p>
           )}
 
-          <div className="radicados-grid">
+          <div className={styles.radicadosGrid}>
             {radicadosQuery.data?.map((r: RadicadoDTO) => (
               <RadicadoCard
                 key={r.radicado}
                 radicado={r}
                 isSelected={false}
-                onSelect={() => onViewHistorial(r)}
+                onSelect={() => navigate(`/radicado/${r.radicado}`)}
                 onDelete={() => {
-                  if (confirm(`¿Dejar de monitorear ${r.radicadoFormato}?`)) {
+                  if (confirm(`Dejar de monitorear ${r.radicadoFormato}?`)) {
                     deleteMutation.mutate(r.radicado);
                   }
                 }}
@@ -109,13 +119,13 @@ export default function Dashboard({ email, onSignOut, onViewHistorial }: Props) 
               <div className="empty-state">
                 <p className="empty-state-icon">&#x1F4CB;</p>
                 <p className="empty-state-text">No tienes radicados monitoreados</p>
-                <p className="empty-state-hint">Agrega uno con el botón "+ Agregar" para empezar</p>
+                <p className="empty-state-hint">Agrega uno con el boton "+ Agregar" para empezar</p>
               </div>
             )}
           </div>
         </section>
 
-        <section className="section">
+        <section className={styles.section}>
           <h2>Alertas Recientes</h2>
           {alertasQuery.isLoading && (
             <div className="loading-container">

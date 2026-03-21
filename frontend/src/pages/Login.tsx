@@ -1,16 +1,21 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth";
 import { useTheme } from "../hooks/useTheme";
-
-interface Props {
-  onSignIn: (email: string, password: string) => Promise<void>;
-  onSignUp: (email: string, password: string) => Promise<void>;
-  onConfirm: (email: string, code: string) => Promise<void>;
-  error: string | null;
-}
+import styles from "./Login.module.css";
 
 type Mode = "login" | "register" | "confirm";
 
-export default function Login({ onSignIn, onSignUp, onConfirm, error }: Props) {
+/**
+ * Login — pagina publica de autenticacion.
+ *
+ * Maneja 3 modos: login, register, confirm (codigo de verificacion).
+ * Al autenticarse exitosamente, redirige a /dashboard.
+ * Usa Cognito como proveedor de identidad.
+ */
+export default function Login() {
+  const navigate = useNavigate();
+  const auth = useAuth();
   const { theme, toggle: toggleTheme } = useTheme();
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
@@ -19,7 +24,7 @@ export default function Login({ onSignIn, onSignUp, onConfirm, error }: Props) {
   const [loading, setLoading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
-  const err = localError || error;
+  const err = localError || auth.error;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,13 +32,15 @@ export default function Login({ onSignIn, onSignUp, onConfirm, error }: Props) {
     setLocalError(null);
     try {
       if (mode === "login") {
-        await onSignIn(email, password);
+        await auth.signIn(email, password);
+        navigate("/dashboard", { replace: true });
       } else if (mode === "register") {
-        await onSignUp(email, password);
+        await auth.signUp(email, password);
         setMode("confirm");
       } else {
-        await onConfirm(email, code);
-        await onSignIn(email, password);
+        await auth.confirmSignUp(email, code);
+        await auth.signIn(email, password);
+        navigate("/dashboard", { replace: true });
       }
     } catch (err) {
       setLocalError(err instanceof Error ? err.message : "Error");
@@ -43,20 +50,20 @@ export default function Login({ onSignIn, onSignUp, onConfirm, error }: Props) {
   };
 
   return (
-    <div className="login-page">
-      <button onClick={toggleTheme} className="theme-toggle login-theme-toggle" title="Cambiar tema">
+    <div className={styles.page}>
+      <button onClick={toggleTheme} className={`theme-toggle ${styles.themeToggle}`} title="Cambiar tema">
         {theme === "light" ? "\u{1F319}" : "\u{2600}\u{FE0F}"}
       </button>
-      <div className="login-card">
+      <div className={styles.card}>
         <h1>SAMAI Monitor</h1>
-        <p className="subtitle">Monitoreo de estados judiciales</p>
+        <p className={styles.subtitle}>Monitoreo de estados judiciales</p>
 
-        <div className="tabs">
+        <div className={styles.tabs}>
           <button
             className={mode === "login" ? "active" : ""}
             onClick={() => setMode("login")}
           >
-            Iniciar Sesión
+            Iniciar Sesion
           </button>
           <button
             className={mode === "register" || mode === "confirm" ? "active" : ""}
@@ -69,7 +76,7 @@ export default function Login({ onSignIn, onSignUp, onConfirm, error }: Props) {
         <form onSubmit={handleSubmit}>
           <input
             type="email"
-            placeholder="Correo electrónico"
+            placeholder="Correo electronico"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
@@ -77,7 +84,7 @@ export default function Login({ onSignIn, onSignUp, onConfirm, error }: Props) {
           {mode !== "confirm" && (
             <input
               type="password"
-              placeholder="Contraseña"
+              placeholder="Contrasena"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -87,7 +94,7 @@ export default function Login({ onSignIn, onSignUp, onConfirm, error }: Props) {
           {mode === "confirm" && (
             <input
               type="text"
-              placeholder="Código de verificación"
+              placeholder="Codigo de verificacion"
               value={code}
               onChange={(e) => setCode(e.target.value)}
               required
@@ -98,7 +105,7 @@ export default function Login({ onSignIn, onSignUp, onConfirm, error }: Props) {
             {loading
               ? "..."
               : mode === "login"
-                ? "Iniciar Sesión"
+                ? "Iniciar Sesion"
                 : mode === "register"
                   ? "Registrarse"
                   : "Confirmar"}

@@ -1,4 +1,5 @@
 import type { RadicadoDTO } from "../lib/api";
+import styles from "./RadicadoCard.module.css";
 
 interface Props {
   radicado: RadicadoDTO;
@@ -16,20 +17,20 @@ export default function RadicadoCard({
   isDeleting,
 }: Props) {
   return (
-    <div className={`radicado-card ${isSelected ? "selected" : ""}`}>
-      <div className="card-header" onClick={onSelect}>
-        <span className="radicado-fmt">{radicado.radicadoFormato}</span>
-        {radicado.alias && <span className="alias">{radicado.alias}</span>}
+    <div className={`${styles.card} ${isSelected ? styles.selected : ""}`}>
+      <div className={styles.header} onClick={onSelect}>
+        <span className={styles.radicadoFmt}>{radicado.radicadoFormato}</span>
+        {radicado.alias && <span className={styles.alias}>{radicado.alias}</span>}
       </div>
-      <div className="card-body">
-        <span className="meta">
-          Última actuación: #{radicado.ultimoOrden}
+      <div className={styles.body}>
+        <span className={styles.meta}>
+          Ultima actuacion: #{radicado.ultimoOrden}
         </span>
-        <span className={`status ${radicado.activo ? "active" : "inactive"}`}>
+        <span className={radicado.activo ? styles.statusActive : styles.statusInactive}>
           {radicado.activo ? "Activo" : "Inactivo"}
         </span>
       </div>
-      <div className="card-actions">
+      <div className={styles.actions}>
         <button onClick={onSelect} className="btn-secondary">
           {isSelected ? "Ocultar" : "Ver detalle"}
         </button>

@@ -1,0 +1,97 @@
+/* ============================================
+   ALERTAS LIST — Lista de alertas agrupadas
+   ============================================ */
+.list {
+  display: grid;
+  gap: 1rem;
+}
+
+.group {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow: var(--card-shadow);
+}
+
+.groupHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.625rem 1rem;
+  background: var(--primary-light);
+  border-bottom: 1px solid var(--border);
+}
+
+.groupRadicado {
+  font-family: var(--mono);
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--primary);
+}
+
+.groupCount {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  background: var(--bg);
+  padding: 0.125rem 0.5rem;
+  border-radius: 10px;
+}
+
+.item {
+  padding: 0.625rem 1rem;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.15s;
+}
+
+.item:last-child {
+  border-bottom: none;
+}
+
+.item:hover {
+  background: var(--primary-light);
+}
+
+.itemHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.actuacion {
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.orden {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-family: var(--mono);
+}
+
+.itemMeta {
+  display: flex;
+  gap: 1rem;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  margin-top: 0.125rem;
+}
+
+.timeAgo {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-style: italic;
+}
+
+.anotacion {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+  line-height: 1.4;
+}
+
+@media (max-width: 640px) {
+  .groupRadicado {
+    font-size: 0.75rem;
+  }
+}
