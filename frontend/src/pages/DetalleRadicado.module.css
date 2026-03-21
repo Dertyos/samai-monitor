@@ -226,6 +226,11 @@
   line-height: 1.4;
 }
 
+.actuacionSearch {
+  width: 100%;
+  margin-bottom: 0.75rem;
+}
+
 .downloadBtn {
   display: inline-block;
   margin-top: 0.375rem;

@@ -1,3 +1,4 @@
+import { useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getDetalle, getDocumentoUrl, type ActuacionDTO } from "../lib/api";
@@ -19,6 +20,7 @@ export default function DetalleRadicado() {
   const { radicadoId } = useParams<{ radicadoId: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [actuacionSearch, setActuacionSearch] = useState("");
 
   const query = useQuery({
     queryKey: ["detalle", radicadoId],
@@ -96,15 +98,69 @@ export default function DetalleRadicado() {
           </section>
 
           {/* Seccion 3: Historial de actuaciones */}
+          <ActuacionesSection
+            actuaciones={query.data.actuaciones}
+            corporacion={query.data.corporacion}
+            radicadoId={radicadoId}
+            search={actuacionSearch}
+            onSearchChange={setActuacionSearch}
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
+function ActuacionesSection({
+  actuaciones,
+  corporacion,
+  radicadoId,
+  search,
+  onSearchChange,
+}: {
+  actuaciones: ActuacionDTO[];
+  corporacion: string;
+  radicadoId: string;
+  search: string;
+  onSearchChange: (v: string) => void;
+}) {
+  const filtered = useMemo(() => {
+    if (!search) return actuaciones;
+    const q = search.toLowerCase();
+    return actuaciones.filter(
+      (a) =>
+        decodeHtml(a.nombre).toLowerCase().includes(q) ||
+        decodeHtml(a.anotacion).toLowerCase().includes(q) ||
+        (a.decision && decodeHtml(a.decision).toLowerCase().includes(q)) ||
+        (a.estado && a.estado.toLowerCase().includes(q)) ||
+        String(a.orden).includes(q),
+    );
+  }, [actuaciones, search]);
+
+  return (
           <section className={styles.section}>
             <h3>
               Historial de Actuaciones
-              <span className={styles.count}> ({query.data.actuaciones.length})</span>
+              <span className={styles.count}>
+                {search
+                  ? ` (${filtered.length} de ${actuaciones.length})`
+                  : ` (${actuaciones.length})`}
+              </span>
             </h3>
+
+            {actuaciones.length > 5 && (
+              <input
+                type="text"
+                placeholder="Filtrar actuaciones..."
+                value={search}
+                onChange={(e) => onSearchChange(e.target.value)}
+                className={styles.actuacionSearch}
+              />
+            )}
 
             {/* Mobile: cards */}
             <div className={styles.cards}>
-              {query.data.actuaciones.map((a: ActuacionDTO) => (
+              {filtered.map((a: ActuacionDTO) => (
                 <div key={a.orden} className={styles.card}>
                   <div className={styles.cardHeader}>
                     <span className={styles.cardOrden}>#{a.orden}</span>
@@ -120,9 +176,9 @@ export default function DetalleRadicado() {
                   {a.anotacion && (
                     <p className={styles.cardAnotacion}>{decodeHtml(a.anotacion)}</p>
                   )}
-                  {a.docHash && query.data && (
+                  {a.docHash && (
                     <a
-                      href={getDocumentoUrl(query.data.corporacion, radicadoId, a.docHash)}
+                      href={getDocumentoUrl(corporacion, radicadoId, a.docHash)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className={styles.downloadBtn}
@@ -148,7 +204,7 @@ export default function DetalleRadicado() {
                 </tr>
               </thead>
               <tbody>
-                {query.data.actuaciones.map((a: ActuacionDTO) => (
+                {filtered.map((a: ActuacionDTO) => (
                   <tr key={a.orden}>
                     <td>{a.orden}</td>
                     <td>{decodeHtml(a.nombre)}</td>
@@ -161,9 +217,9 @@ export default function DetalleRadicado() {
                     <td className={styles.decisionCell}>{a.decision ? decodeHtml(a.decision) : ""}</td>
                     <td className={styles.anotacionCell}>{decodeHtml(a.anotacion)}</td>
                     <td>
-                      {a.docHash && query.data && (
+                      {a.docHash && (
                         <a
-                          href={getDocumentoUrl(query.data.corporacion, radicadoId, a.docHash)}
+                          href={getDocumentoUrl(corporacion, radicadoId, a.docHash)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className={styles.downloadLink}
@@ -177,9 +233,6 @@ export default function DetalleRadicado() {
               </tbody>
             </table>
           </section>
-        </>
-      )}
-    </div>
   );
 }
 
