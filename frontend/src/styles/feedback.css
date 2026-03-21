@@ -50,6 +50,14 @@
   to { transform: rotate(360deg); }
 }
 
+.success-msg {
+  color: var(--success);
+  font-size: 0.875rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--success-light);
+  border-radius: var(--radius-sm);
+}
+
 .empty-state {
   text-align: center;
   padding: 2.5rem 1rem;
