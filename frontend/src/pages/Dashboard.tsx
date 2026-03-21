@@ -148,6 +148,29 @@ export default function Dashboard() {
       </header>
 
       <main className={styles.main}>
+        {radicadosQuery.data && (
+          <div className={styles.statsBar}>
+            <div className={styles.stat}>
+              <span className={styles.statValue}>{radicadosQuery.data.length}</span>
+              <span className={styles.statLabel}>Radicados</span>
+            </div>
+            <div className={styles.stat}>
+              <span className={styles.statValue}>
+                {radicadosQuery.data.filter((r) => r.activo).length}
+              </span>
+              <span className={styles.statLabel}>Activos</span>
+            </div>
+            <div className={styles.stat}>
+              <span className={styles.statValue}>{unreadCount}</span>
+              <span className={styles.statLabel}>Sin leer</span>
+            </div>
+            <div className={styles.stat}>
+              <span className={styles.statValue}>{alertasQuery.data?.length ?? 0}</span>
+              <span className={styles.statLabel}>Alertas totales</span>
+            </div>
+          </div>
+        )}
+
         <section className={styles.section}>
           <div className={styles.sectionHeader}>
             <h2>Mis Radicados</h2>
