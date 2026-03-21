@@ -142,6 +142,58 @@ class TestDeleteRadicados:
         resp = handler(delete_event, _context())
         assert resp["statusCode"] == 204
 
+    def test_eliminar_cascade_borra_alertas(self, dynamodb_resource):
+        """Al eliminar un radicado, sus alertas asociadas tambien se borran."""
+        from functions.api_handler.app import handler
+
+        radicado = "73001233300020190034300"
+
+        # 1. Crear radicado
+        create_event = _make_event(
+            method="POST",
+            path="/radicados",
+            body={"radicado": "73001-23-33-000-2019-00343-00"},
+        )
+        handler(create_event, _context())
+
+        # 2. Insertar alertas manualmente para este usuario+radicado
+        alertas_table = dynamodb_resource.Table("samai-alertas")
+        for i in range(3):
+            alertas_table.put_item(Item={
+                "userId": "user-123",
+                "sk": f"2026-01-01T00:00:00Z#{radicado}#{i+1}",
+                "radicado": radicado,
+                "orden": i + 1,
+                "nombreActuacion": f"Actuacion {i+1}",
+                "fechaActuacion": "2026-01-01",
+                "anotacion": "",
+                "createdAt": "2026-01-01T00:00:00Z",
+                "enviado": False,
+            })
+
+        # Verificar que hay 3 alertas
+        alertas_resp = alertas_table.query(
+            KeyConditionExpression="userId = :u",
+            ExpressionAttributeValues={":u": "user-123"},
+        )
+        assert len(alertas_resp["Items"]) == 3
+
+        # 3. Eliminar radicado — debe hacer cascade delete de alertas
+        delete_event = _make_event(
+            method="DELETE",
+            path=f"/radicados/{radicado}",
+            path_params={"id": radicado},
+        )
+        resp = handler(delete_event, _context())
+        assert resp["statusCode"] == 204
+
+        # 4. Verificar que las alertas fueron eliminadas
+        alertas_resp = alertas_table.query(
+            KeyConditionExpression="userId = :u",
+            ExpressionAttributeValues={":u": "user-123"},
+        )
+        assert len(alertas_resp["Items"]) == 0
+
     def test_eliminar_inexistente_404(self, dynamodb_resource):
         from functions.api_handler.app import handler
 

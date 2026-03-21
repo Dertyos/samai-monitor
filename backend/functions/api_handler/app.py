@@ -28,6 +28,7 @@ from db import (
     eliminar_radicado,
     obtener_radicado,
     obtener_alertas_usuario,
+    eliminar_alertas_radicado,
 )
 
 logger = logging.getLogger(__name__)
@@ -186,7 +187,12 @@ def _delete_radicado(event: dict) -> dict:
     radicado_id = _get_path_param(event, "id")
 
     if eliminar_radicado(_radicados_table, user_id, radicado_id):
-        logger.info("Radicado eliminado: %s para usuario %s", radicado_id, user_id)
+        # Cascade: eliminar alertas asociadas a este radicado
+        deleted_alertas = eliminar_alertas_radicado(_alertas_table, user_id, radicado_id)
+        logger.info(
+            "Radicado eliminado: %s para usuario %s (cascade: %d alertas)",
+            radicado_id, user_id, deleted_alertas,
+        )
         return _response(204)
     return _response(404, {"error": "Radicado no encontrado"})
 
