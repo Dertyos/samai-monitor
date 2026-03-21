@@ -346,6 +346,50 @@ class TestPatchAlertaRead:
         assert resp["statusCode"] == 404
 
 
+class TestMarkAllRead:
+    """PATCH /alertas/read-all — marcar todas las alertas como leidas."""
+
+    def test_marca_todas_200(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        alertas_table = dynamodb_resource.Table("samai-alertas")
+        for i in range(3):
+            alertas_table.put_item(Item={
+                "userId": "user-123",
+                "sk": f"2026-01-01T00:00:00Z#73001233300020190034300#{i+1}",
+                "radicado": "73001233300020190034300",
+                "orden": i + 1,
+                "nombreActuacion": f"Actuacion {i+1}",
+                "fechaActuacion": "2026-01-01",
+                "anotacion": "",
+                "createdAt": "2026-01-01T00:00:00Z",
+                "enviado": False,
+                "leido": False,
+            })
+
+        event = _make_event(method="PATCH", path="/alertas/read-all")
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 200
+        data = json.loads(resp["body"])
+        assert data["count"] == 3
+
+        # Verificar que todas estan leidas
+        items = alertas_table.query(
+            KeyConditionExpression="userId = :u",
+            ExpressionAttributeValues={":u": "user-123"},
+        )["Items"]
+        assert all(item["leido"] for item in items)
+
+    def test_sin_alertas_200(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        event = _make_event(method="PATCH", path="/alertas/read-all")
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 200
+        data = json.loads(resp["body"])
+        assert data["count"] == 0
+
+
 class TestGetAlertas:
     """GET /alertas — listar mis alertas."""
 

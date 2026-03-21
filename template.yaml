@@ -109,6 +109,12 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /alertas
             Method: GET
+        PatchReadAll:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /alertas/read-all
+            Method: PATCH
         PatchAlertaRead:
           Type: HttpApi
           Properties:

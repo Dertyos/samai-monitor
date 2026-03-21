@@ -30,6 +30,7 @@ from db import (
     obtener_alertas_usuario,
     eliminar_alertas_radicado,
     marcar_alerta_leida,
+    marcar_todas_leidas,
     actualizar_alias,
     toggle_activo,
 )
@@ -117,6 +118,10 @@ def handler(event: dict, context: Any) -> dict:
         # GET /radicados/{id}/historial
         if method == "GET" and "/historial" in path:
             return _get_historial(event)
+
+        # PATCH /alertas/read-all (must come BEFORE /alertas/{sk}/read)
+        if method == "PATCH" and path == "/alertas/read-all":
+            return _patch_read_all(event)
 
         # PATCH /alertas/{sk}/read
         if method == "PATCH" and "/alertas/" in path and path.endswith("/read"):
@@ -301,6 +306,14 @@ def _get_detalle(event: dict) -> dict:
             for a in actuaciones
         ],
     })
+
+
+def _patch_read_all(event: dict) -> dict:
+    """PATCH /alertas/read-all — marcar todas las alertas como leidas."""
+    user_id = _get_user_id(event)
+    count = marcar_todas_leidas(_alertas_table, user_id)
+    logger.info("Marcadas %d alertas como leidas para usuario %s", count, user_id)
+    return _response(200, {"count": count})
 
 
 def _patch_alerta_read(event: dict) -> dict:

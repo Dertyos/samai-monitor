@@ -169,6 +169,25 @@ def marcar_alerta_leida(table: Any, user_id: str, sk: str) -> bool:
         return False
 
 
+def marcar_todas_leidas(table: Any, user_id: str) -> int:
+    """Marca todas las alertas no leidas de un usuario como leidas. Retorna cantidad."""
+    resp = table.query(
+        KeyConditionExpression=Key("userId").eq(user_id),
+        FilterExpression="leido = :f",
+        ExpressionAttributeValues={":f": False},
+    )
+    items = resp.get("Items", [])
+    count = 0
+    for item in items:
+        table.update_item(
+            Key={"userId": user_id, "sk": item["sk"]},
+            UpdateExpression="SET leido = :v",
+            ExpressionAttributeValues={":v": True},
+        )
+        count += 1
+    return count
+
+
 def guardar_alerta(table: Any, alerta: Alerta) -> None:
     """Guarda una alerta."""
     table.put_item(Item=alerta.to_dynamo())

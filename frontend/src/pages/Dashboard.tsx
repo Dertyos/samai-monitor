@@ -8,6 +8,7 @@ import {
   updateRadicadoAlias,
   toggleRadicadoActivo,
   getAlertas,
+  markAllAlertasRead,
   type RadicadoDTO,
 } from "../lib/api";
 import AddRadicadoModal from "../components/AddRadicadoModal";
@@ -79,6 +80,17 @@ export default function Dashboard() {
     },
     onError: (err: Error) => {
       toast.error(err.message || "Error al cambiar estado");
+    },
+  });
+
+  const markAllReadMutation = useMutation({
+    mutationFn: markAllAlertasRead,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["alertas"] });
+      toast.success(`${data.count} alerta${data.count !== 1 ? "s" : ""} marcada${data.count !== 1 ? "s" : ""} como leida${data.count !== 1 ? "s" : ""}`);
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Error al marcar alertas");
     },
   });
 
@@ -193,7 +205,18 @@ export default function Dashboard() {
         </section>
 
         <section className={styles.section}>
-          <h2>Alertas Recientes</h2>
+          <div className={styles.sectionHeader}>
+            <h2>Alertas Recientes</h2>
+            {alertasQuery.data && alertasQuery.data.some((a) => !a.leido) && (
+              <button
+                onClick={() => markAllReadMutation.mutate()}
+                className="btn-secondary"
+                disabled={markAllReadMutation.isPending}
+              >
+                {markAllReadMutation.isPending ? "..." : "Marcar todas leidas"}
+              </button>
+            )}
+          </div>
           {alertasQuery.isLoading && (
             <div className="loading-container">
               <div className="spinner" />

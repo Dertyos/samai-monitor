@@ -119,6 +119,11 @@ export async function getDetalle(radicado: string): Promise<DetalleDTO> {
   return res.json();
 }
 
+export async function markAllAlertasRead(): Promise<{ count: number }> {
+  const res = await authFetch("/alertas/read-all", { method: "PATCH" });
+  return res.json();
+}
+
 export async function markAlertaRead(sk: string): Promise<void> {
   await authFetch(`/alertas/${encodeURIComponent(sk)}/read`, { method: "PATCH" });
 }
