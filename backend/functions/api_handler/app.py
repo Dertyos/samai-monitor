@@ -98,6 +98,10 @@ def handler(event: dict, context: Any) -> dict:
         if method == "DELETE" and path.startswith("/radicados/"):
             return _delete_radicado(event)
 
+        # GET /radicados/{id}/detalle
+        if method == "GET" and "/detalle" in path:
+            return _get_detalle(event)
+
         # GET /radicados/{id}/historial
         if method == "GET" and "/historial" in path:
             return _get_historial(event)
@@ -204,9 +208,52 @@ def _get_historial(event: dict) -> dict:
             "fecha": a.fecha,
             "anotacion": a.anotacion,
             "estado": a.estado,
+            "decision": a.decision,
         }
         for a in actuaciones
     ])
+
+
+def _get_detalle(event: dict) -> dict:
+    """GET /radicados/{id}/detalle — datos completos del proceso."""
+    user_id = _get_user_id(event)
+    radicado_id = _get_path_param(event, "id")
+
+    rad = obtener_radicado(_radicados_table, user_id, radicado_id)
+    if rad is None:
+        return _response(404, {"error": "Radicado no encontrado"})
+
+    datos = samai_client.get_datos_proceso(rad.corporacion, rad.radicado)
+    partes = samai_client.get_sujetos_procesales(rad.corporacion, rad.radicado)
+    actuaciones = samai_client.get_actuaciones(rad.corporacion, rad.radicado)
+
+    return _response(200, {
+        "proceso": {
+            "despacho": datos.get("Despacho", ""),
+            "ponente": datos.get("Ponente", ""),
+            "tipoProceso": datos.get("TipoProceso", ""),
+            "claseActuacion": datos.get("ClaseActuacion", ""),
+            "fechaUltimaActuacion": datos.get("FechaUltimaActuacion", ""),
+        },
+        "partes": [
+            {
+                "nombre": p.get("NomSujeto", ""),
+                "tipo": p.get("TipoSujeto", ""),
+            }
+            for p in partes
+        ],
+        "actuaciones": [
+            {
+                "orden": a.orden,
+                "nombre": a.nombre,
+                "fecha": a.fecha,
+                "anotacion": a.anotacion,
+                "estado": a.estado,
+                "decision": a.decision,
+            }
+            for a in actuaciones
+        ],
+    })
 
 
 def _get_alertas(event: dict) -> dict:

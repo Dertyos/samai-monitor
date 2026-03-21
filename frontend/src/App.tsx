@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAuth } from "./hooks/useAuth";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
-import Historial from "./pages/Historial";
+import DetalleRadicado from "./pages/DetalleRadicado";
 import type { RadicadoDTO } from "./lib/api";
 import "./App.css";
 
@@ -15,7 +15,7 @@ const queryClient = new QueryClient({
 
 function AppContent() {
   const auth = useAuth();
-  const [viewingHistorial, setViewingHistorial] = useState<RadicadoDTO | null>(
+  const [viewingDetalle, setViewingDetalle] = useState<RadicadoDTO | null>(
     null
   );
 
@@ -40,12 +40,13 @@ function AppContent() {
     );
   }
 
-  if (viewingHistorial) {
+  if (viewingDetalle) {
     return (
-      <Historial
-        radicado={viewingHistorial.radicado}
-        radicadoFormato={viewingHistorial.radicadoFormato}
-        onBack={() => setViewingHistorial(null)}
+      <DetalleRadicado
+        radicado={viewingDetalle.radicado}
+        radicadoFormato={viewingDetalle.radicadoFormato}
+        alias={viewingDetalle.alias}
+        onBack={() => setViewingDetalle(null)}
       />
     );
   }
@@ -54,7 +55,7 @@ function AppContent() {
     <Dashboard
       email={auth.email}
       onSignOut={auth.signOut}
-      onViewHistorial={setViewingHistorial}
+      onViewHistorial={setViewingDetalle}
     />
   );
 }
