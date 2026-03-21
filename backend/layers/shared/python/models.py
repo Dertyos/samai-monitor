@@ -18,10 +18,15 @@ class Actuacion:
     codigo: str = ""  # CodiActuacion
     estado: str = ""  # Estado (REGISTRADA, etc.)
     decision: str | None = None  # DescripcionDecision
+    doc_hash: str | None = None  # Hash para descargar providencia
 
     @classmethod
     def from_api(cls, data: dict) -> Actuacion:
         """Crea Actuacion desde respuesta JSON de la API SAMAI."""
+        # Extraer hash del primer documento en SIERJU (si existe)
+        sierju = data.get("SIERJU") or []
+        doc_hash = sierju[0].get("HashDocumento") if sierju else None
+
         return cls(
             radicado=data["A110LLAVPROC"],
             orden=int(data["Orden"]),
@@ -32,6 +37,7 @@ class Actuacion:
             codigo=data.get("CodiActuacion", ""),
             estado=data.get("Estado", ""),
             decision=data.get("DescripcionDecision"),
+            doc_hash=doc_hash,
         )
 
     def to_dynamo(self) -> dict:
@@ -48,6 +54,8 @@ class Actuacion:
         }
         if self.decision:
             item["decision"] = self.decision
+        if self.doc_hash:
+            item["docHash"] = self.doc_hash
         return item
 
 

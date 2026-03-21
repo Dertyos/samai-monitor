@@ -45,6 +45,7 @@ export interface ActuacionDTO {
   anotacion: string;
   estado: string;
   decision: string | null;
+  docHash: string | null;
 }
 
 export interface ProcesoDTO {
@@ -64,6 +65,7 @@ export interface DetalleDTO {
   proceso: ProcesoDTO;
   partes: ParteDTO[];
   actuaciones: ActuacionDTO[];
+  corporacion: string;
 }
 
 export async function getRadicados(): Promise<RadicadoDTO[]> {
@@ -112,6 +114,12 @@ export async function getHistorial(radicado: string): Promise<ActuacionDTO[]> {
 export async function getAlertas(): Promise<AlertaDTO[]> {
   const res = await authFetch("/alertas");
   return res.json();
+}
+
+const SAMAI_BASE = "https://samaicore.consejodeestado.gov.co/api";
+
+export function getDocumentoUrl(corporacion: string, radicado: string, docHash: string): string {
+  return `${SAMAI_BASE}/DescargarProvidenciaPublica/${corporacion}/${radicado}/${docHash}/2`;
 }
 
 export async function getDetalle(radicado: string): Promise<DetalleDTO> {

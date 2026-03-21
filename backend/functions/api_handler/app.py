@@ -302,9 +302,11 @@ def _get_detalle(event: dict) -> dict:
                 "anotacion": a.anotacion,
                 "estado": a.estado,
                 "decision": a.decision,
+                "docHash": a.doc_hash,
             }
             for a in actuaciones
         ],
+        "corporacion": rad.corporacion,
     })
 
 

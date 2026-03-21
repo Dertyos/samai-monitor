@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { getDetalle, type ActuacionDTO } from "../lib/api";
+import { getDetalle, getDocumentoUrl, type ActuacionDTO } from "../lib/api";
 import { formatDate, formatRadicado, decodeHtml } from "../lib/utils";
 import styles from "./DetalleRadicado.module.css";
 
@@ -111,6 +111,16 @@ export default function DetalleRadicado() {
                   {a.anotacion && (
                     <p className={styles.cardAnotacion}>{decodeHtml(a.anotacion)}</p>
                   )}
+                  {a.docHash && query.data && (
+                    <a
+                      href={getDocumentoUrl(query.data.corporacion, radicadoId, a.docHash)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={styles.downloadBtn}
+                    >
+                      Descargar documento
+                    </a>
+                  )}
                 </div>
               ))}
             </div>
@@ -125,6 +135,7 @@ export default function DetalleRadicado() {
                   <th>Estado</th>
                   <th>Decision</th>
                   <th>Anotacion</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -140,6 +151,18 @@ export default function DetalleRadicado() {
                     </td>
                     <td className={styles.decisionCell}>{a.decision ? decodeHtml(a.decision) : ""}</td>
                     <td className={styles.anotacionCell}>{decodeHtml(a.anotacion)}</td>
+                    <td>
+                      {a.docHash && query.data && (
+                        <a
+                          href={getDocumentoUrl(query.data.corporacion, radicadoId, a.docHash)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={styles.downloadLink}
+                        >
+                          PDF
+                        </a>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
