@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { RadicadoDTO } from "../lib/api";
 import styles from "./RadicadoCard.module.css";
 
@@ -6,21 +7,70 @@ interface Props {
   isSelected: boolean;
   onSelect: () => void;
   onDelete: () => void;
+  onEditAlias: (newAlias: string) => void;
   isDeleting: boolean;
+  isEditing: boolean;
 }
 
+/**
+ * RadicadoCard — tarjeta de radicado con acciones.
+ *
+ * Reutilizable: recibe RadicadoDTO y callbacks para acciones.
+ * Soporta inline editing del alias (doble click o boton editar).
+ */
 export default function RadicadoCard({
   radicado,
   isSelected,
   onSelect,
   onDelete,
+  onEditAlias,
   isDeleting,
+  isEditing,
 }: Props) {
+  const [editing, setEditing] = useState(false);
+  const [aliasInput, setAliasInput] = useState(radicado.alias);
+
+  const handleSaveAlias = () => {
+    if (aliasInput.trim() !== radicado.alias) {
+      onEditAlias(aliasInput.trim());
+    }
+    setEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") handleSaveAlias();
+    if (e.key === "Escape") {
+      setAliasInput(radicado.alias);
+      setEditing(false);
+    }
+  };
+
   return (
     <div className={`${styles.card} ${isSelected ? styles.selected : ""}`}>
       <div className={styles.header} onClick={onSelect}>
         <span className={styles.radicadoFmt}>{radicado.radicadoFormato}</span>
-        {radicado.alias && <span className={styles.alias}>{radicado.alias}</span>}
+        {!editing && radicado.alias && (
+          <span
+            className={styles.alias}
+            onDoubleClick={(e) => { e.stopPropagation(); setEditing(true); }}
+            title="Doble click para editar"
+          >
+            {radicado.alias}
+          </span>
+        )}
+        {editing && (
+          <input
+            type="text"
+            value={aliasInput}
+            onChange={(e) => setAliasInput(e.target.value)}
+            onBlur={handleSaveAlias}
+            onKeyDown={handleKeyDown}
+            onClick={(e) => e.stopPropagation()}
+            className={styles.aliasInput}
+            autoFocus
+            placeholder="Alias"
+          />
+        )}
       </div>
       <div className={styles.body}>
         <span className={styles.meta}>
@@ -32,7 +82,14 @@ export default function RadicadoCard({
       </div>
       <div className={styles.actions}>
         <button onClick={onSelect} className="btn-secondary">
-          {isSelected ? "Ocultar" : "Ver detalle"}
+          Ver detalle
+        </button>
+        <button
+          onClick={() => setEditing(true)}
+          className="btn-secondary"
+          disabled={isEditing}
+        >
+          {isEditing ? "..." : "Editar alias"}
         </button>
         <button
           onClick={onDelete}

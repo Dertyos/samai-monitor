@@ -119,6 +119,45 @@ class TestGetRadicados:
         assert data[0]["radicado"] == "73001233300020190034300"
 
 
+class TestPatchRadicado:
+    """PATCH /radicados/{id} — editar alias."""
+
+    def test_actualizar_alias_200(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        # Crear
+        create_event = _make_event(
+            method="POST",
+            path="/radicados",
+            body={"radicado": "73001-23-33-000-2019-00343-00", "alias": "Caso Aviles"},
+        )
+        handler(create_event, _context())
+
+        # Editar alias
+        patch_event = _make_event(
+            method="PATCH",
+            path="/radicados/73001233300020190034300",
+            path_params={"id": "73001233300020190034300"},
+            body={"alias": "Caso Modificado"},
+        )
+        resp = handler(patch_event, _context())
+        assert resp["statusCode"] == 200
+        data = json.loads(resp["body"])
+        assert data["alias"] == "Caso Modificado"
+
+    def test_editar_alias_inexistente_404(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        event = _make_event(
+            method="PATCH",
+            path="/radicados/99999999999999999999999",
+            path_params={"id": "99999999999999999999999"},
+            body={"alias": "Nuevo alias"},
+        )
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 404
+
+
 class TestDeleteRadicados:
     """DELETE /radicados/{id} — dejar de monitorear."""
 

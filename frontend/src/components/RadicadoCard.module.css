@@ -39,6 +39,16 @@
   font-style: italic;
 }
 
+.aliasInput {
+  font-size: 0.85rem;
+  padding: 0.15rem 0.4rem;
+  border: 1px solid var(--primary);
+  border-radius: 4px;
+  background: var(--bg-elevated);
+  color: var(--text);
+  width: 140px;
+}
+
 .body {
   display: flex;
   align-items: center;

@@ -30,6 +30,7 @@ from db import (
     obtener_alertas_usuario,
     eliminar_alertas_radicado,
     marcar_alerta_leida,
+    actualizar_alias,
 )
 
 logger = logging.getLogger(__name__)
@@ -95,6 +96,10 @@ def handler(event: dict, context: Any) -> dict:
         # GET /radicados
         if method == "GET" and path == "/radicados":
             return _get_radicados(event)
+
+        # PATCH /radicados/{id}
+        if method == "PATCH" and path.startswith("/radicados/") and "/detalle" not in path and "/historial" not in path:
+            return _patch_radicado(event)
 
         # DELETE /radicados/{id}
         if method == "DELETE" and path.startswith("/radicados/"):
@@ -184,6 +189,21 @@ def _get_radicados(event: dict) -> dict:
         }
         for r in radicados
     ])
+
+
+def _patch_radicado(event: dict) -> dict:
+    """PATCH /radicados/{id} — actualizar alias."""
+    user_id = _get_user_id(event)
+    radicado_id = _get_path_param(event, "id")
+    body = json.loads(event.get("body") or "{}")
+    alias = body.get("alias", "")
+
+    if actualizar_alias(_radicados_table, user_id, radicado_id, alias):
+        logger.info("Alias actualizado: %s para radicado %s", alias, radicado_id)
+        rad = obtener_radicado(_radicados_table, user_id, radicado_id)
+        if rad:
+            return _response(200, rad.to_dynamo())
+    return _response(404, {"error": "Radicado no encontrado"})
 
 
 def _delete_radicado(event: dict) -> dict:

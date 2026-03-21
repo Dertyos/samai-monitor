@@ -47,6 +47,20 @@ def eliminar_radicado(table: Any, user_id: str, radicado: str) -> bool:
     return True
 
 
+def actualizar_alias(table: Any, user_id: str, radicado: str, alias: str) -> bool:
+    """Actualiza el alias de un radicado. Retorna True si existia."""
+    try:
+        table.update_item(
+            Key={"userId": user_id, "radicado": radicado},
+            UpdateExpression="SET alias = :a",
+            ExpressionAttributeValues={":a": alias},
+            ConditionExpression="attribute_exists(userId)",
+        )
+        return True
+    except table.meta.client.exceptions.ConditionalCheckFailedException:
+        return False
+
+
 def obtener_radicados_unicos(table: Any) -> list[tuple[str, str]]:
     """Obtiene todos los radicados únicos (deduplicados) con su corporación.
 

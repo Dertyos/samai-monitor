@@ -82,6 +82,17 @@ export async function addRadicado(
   return res.json();
 }
 
+export async function updateRadicadoAlias(
+  radicado: string,
+  alias: string,
+): Promise<RadicadoDTO> {
+  const res = await authFetch(`/radicados/${radicado}`, {
+    method: "PATCH",
+    body: JSON.stringify({ alias }),
+  });
+  return res.json();
+}
+
 export async function deleteRadicado(radicado: string): Promise<void> {
   await authFetch(`/radicados/${radicado}`, { method: "DELETE" });
 }

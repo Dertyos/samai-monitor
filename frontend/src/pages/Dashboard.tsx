@@ -5,6 +5,7 @@ import {
   getRadicados,
   addRadicado,
   deleteRadicado,
+  updateRadicadoAlias,
   getAlertas,
   type RadicadoDTO,
 } from "../lib/api";
@@ -54,6 +55,18 @@ export default function Dashboard() {
     },
     onError: (err: Error) => {
       toast.error(err.message || "Error al agregar radicado");
+    },
+  });
+
+  const editAliasMutation = useMutation({
+    mutationFn: ({ radicado, alias }: { radicado: string; alias: string }) =>
+      updateRadicadoAlias(radicado, alias),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["radicados"] });
+      toast.success("Alias actualizado");
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Error al actualizar alias");
     },
   });
 
@@ -141,9 +154,14 @@ export default function Dashboard() {
                 isSelected={false}
                 onSelect={() => navigate(`/radicado/${r.radicado}`)}
                 onDelete={() => setDeleteTarget(r)}
+                onEditAlias={(alias) => editAliasMutation.mutate({ radicado: r.radicado, alias })}
                 isDeleting={
                   deleteMutation.isPending &&
                   deleteMutation.variables === r.radicado
+                }
+                isEditing={
+                  editAliasMutation.isPending &&
+                  editAliasMutation.variables?.radicado === r.radicado
                 }
               />
             ))}
