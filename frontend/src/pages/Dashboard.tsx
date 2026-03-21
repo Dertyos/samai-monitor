@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -51,6 +51,25 @@ export default function Dashboard() {
     staleTime: 60 * 1000, // 1 min
     refetchInterval: 60 * 1000, // poll cada 60s para detectar alertas nuevas
   });
+
+  const filteredRadicados = useMemo(() => {
+    if (!radicadosQuery.data) return [];
+    return radicadosQuery.data
+      .filter((r: RadicadoDTO) => {
+        if (!searchQuery) return true;
+        const q = searchQuery.toLowerCase();
+        return (
+          r.radicado.includes(q) ||
+          r.radicadoFormato.toLowerCase().includes(q) ||
+          r.alias.toLowerCase().includes(q)
+        );
+      })
+      .sort((a: RadicadoDTO, b: RadicadoDTO) => {
+        if (sortBy === "alias") return a.alias.localeCompare(b.alias);
+        if (sortBy === "activo") return (b.activo ? 1 : 0) - (a.activo ? 1 : 0);
+        return 0;
+      });
+  }, [radicadosQuery.data, searchQuery, sortBy]);
 
   const addMutation = useMutation({
     mutationFn: ({ radicado, alias }: { radicado: string; alias: string }) =>
@@ -215,19 +234,7 @@ export default function Dashboard() {
           )}
 
           <div className={styles.radicadosGrid}>
-            {radicadosQuery.data?.filter((r: RadicadoDTO) => {
-              if (!searchQuery) return true;
-              const q = searchQuery.toLowerCase();
-              return (
-                r.radicado.includes(q) ||
-                r.radicadoFormato.toLowerCase().includes(q) ||
-                r.alias.toLowerCase().includes(q)
-              );
-            }).sort((a: RadicadoDTO, b: RadicadoDTO) => {
-              if (sortBy === "alias") return a.alias.localeCompare(b.alias);
-              if (sortBy === "activo") return (b.activo ? 1 : 0) - (a.activo ? 1 : 0);
-              return 0; // "recent" = server order
-            }).map((r: RadicadoDTO) => (
+            {filteredRadicados.map((r: RadicadoDTO) => (
               <RadicadoCard
                 key={r.radicado}
                 radicado={r}
@@ -250,11 +257,18 @@ export default function Dashboard() {
                 }
               />
             ))}
-            {radicadosQuery.data?.length === 0 && (
+            {radicadosQuery.data?.length === 0 && !searchQuery && (
               <div className="empty-state">
                 <p className="empty-state-icon">&#x1F4CB;</p>
                 <p className="empty-state-text">No tienes radicados monitoreados</p>
                 <p className="empty-state-hint">Agrega uno con el boton "+ Agregar" para empezar</p>
+              </div>
+            )}
+            {searchQuery && filteredRadicados.length === 0 && (radicadosQuery.data?.length ?? 0) > 0 && (
+              <div className="empty-state">
+                <p className="empty-state-icon">&#x1F50D;</p>
+                <p className="empty-state-text">Sin resultados para "{searchQuery}"</p>
+                <p className="empty-state-hint">Intenta con otro termino de busqueda</p>
               </div>
             )}
           </div>
