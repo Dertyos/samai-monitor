@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import { useToast } from "../hooks/useToast";
 import styles from "./Perfil.module.css";
 
 /**
@@ -16,6 +17,7 @@ import styles from "./Perfil.module.css";
 export default function Perfil() {
   const navigate = useNavigate();
   const { email, signOut, changePassword } = useAuth();
+  const toast = useToast();
 
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -43,6 +45,7 @@ export default function Perfil() {
     try {
       await changePassword(oldPassword, newPassword);
       setSuccess("Contrasena actualizada correctamente");
+      toast.success("Contrasena actualizada");
       setOldPassword("");
       setNewPassword("");
       setConfirmPassword("");

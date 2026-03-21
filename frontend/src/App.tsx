@@ -5,6 +5,7 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import DetalleRadicado from "./pages/DetalleRadicado";
 import Perfil from "./pages/Perfil";
+import { ToastProvider } from "./hooks/useToast";
 import "./App.css";
 
 const queryClient = new QueryClient({
@@ -106,7 +107,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <QueryClientProvider client={queryClient}>
-        <AppRoutes />
+        <ToastProvider>
+          <AppRoutes />
+        </ToastProvider>
       </QueryClientProvider>
     </BrowserRouter>
   );

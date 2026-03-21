@@ -13,6 +13,7 @@ import RadicadoCard from "../components/RadicadoCard";
 import AlertasList from "../components/AlertasList";
 import { useAuth } from "../hooks/useAuth";
 import { useTheme } from "../hooks/useTheme";
+import { useToast } from "../hooks/useToast";
 import styles from "./Dashboard.module.css";
 
 /**
@@ -27,6 +28,7 @@ export default function Dashboard() {
   const [showAddModal, setShowAddModal] = useState(false);
   const queryClient = useQueryClient();
   const { theme, toggle: toggleTheme } = useTheme();
+  const toast = useToast();
 
   const radicadosQuery = useQuery({
     queryKey: ["radicados"],
@@ -44,6 +46,10 @@ export default function Dashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["radicados"] });
       setShowAddModal(false);
+      toast.success("Radicado agregado correctamente");
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Error al agregar radicado");
     },
   });
 
@@ -51,6 +57,10 @@ export default function Dashboard() {
     mutationFn: deleteRadicado,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["radicados"] });
+      toast.success("Radicado eliminado");
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Error al eliminar radicado");
     },
   });
 
