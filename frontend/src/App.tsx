@@ -5,6 +5,7 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import DetalleRadicado from "./pages/DetalleRadicado";
 import Perfil from "./pages/Perfil";
+import ErrorBoundary from "./components/ErrorBoundary";
 import { ToastProvider } from "./hooks/useToast";
 import "./App.css";
 
@@ -105,12 +106,14 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <QueryClientProvider client={queryClient}>
-        <ToastProvider>
-          <AppRoutes />
-        </ToastProvider>
-      </QueryClientProvider>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <QueryClientProvider client={queryClient}>
+          <ToastProvider>
+            <AppRoutes />
+          </ToastProvider>
+        </QueryClientProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }
