@@ -206,6 +206,51 @@ class TestDeleteRadicados:
         assert resp["statusCode"] == 404
 
 
+class TestPatchAlertaRead:
+    """PATCH /alertas/{sk}/read — marcar alerta como leida."""
+
+    def test_marcar_alerta_leida_200(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        alertas_table = dynamodb_resource.Table("samai-alertas")
+        sk = "2026-01-01T00:00:00Z#73001233300020190034300#5"
+        alertas_table.put_item(Item={
+            "userId": "user-123",
+            "sk": sk,
+            "radicado": "73001233300020190034300",
+            "orden": 5,
+            "nombreActuacion": "Auto admisorio",
+            "fechaActuacion": "2026-01-01",
+            "anotacion": "",
+            "createdAt": "2026-01-01T00:00:00Z",
+            "enviado": False,
+            "leido": False,
+        })
+
+        event = _make_event(
+            method="PATCH",
+            path=f"/alertas/{sk}/read",
+            path_params={"sk": sk},
+        )
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 200
+
+        # Verificar que leido=True en DynamoDB
+        item = alertas_table.get_item(Key={"userId": "user-123", "sk": sk})["Item"]
+        assert item["leido"] is True
+
+    def test_marcar_alerta_inexistente_404(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        event = _make_event(
+            method="PATCH",
+            path="/alertas/fake-sk/read",
+            path_params={"sk": "fake-sk"},
+        )
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 404
+
+
 class TestGetAlertas:
     """GET /alertas — listar mis alertas."""
 

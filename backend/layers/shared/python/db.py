@@ -127,6 +127,20 @@ def eliminar_alertas_radicado(table: Any, user_id: str, radicado: str) -> int:
     return deleted
 
 
+def marcar_alerta_leida(table: Any, user_id: str, sk: str) -> bool:
+    """Marca una alerta como leida. Retorna True si existia, False si no."""
+    try:
+        table.update_item(
+            Key={"userId": user_id, "sk": sk},
+            UpdateExpression="SET leido = :v",
+            ExpressionAttributeValues={":v": True},
+            ConditionExpression="attribute_exists(userId)",
+        )
+        return True
+    except table.meta.client.exceptions.ConditionalCheckFailedException:
+        return False
+
+
 def guardar_alerta(table: Any, alerta: Alerta) -> None:
     """Guarda una alerta."""
     table.put_item(Item=alerta.to_dynamo())

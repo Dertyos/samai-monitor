@@ -28,12 +28,14 @@ export interface RadicadoDTO {
 }
 
 export interface AlertaDTO {
+  sk: string;
   radicado: string;
   orden: number;
   nombreActuacion: string;
   fechaActuacion: string;
   anotacion: string;
   createdAt: string;
+  leido: boolean;
 }
 
 export interface ActuacionDTO {
@@ -97,6 +99,10 @@ export async function getAlertas(): Promise<AlertaDTO[]> {
 export async function getDetalle(radicado: string): Promise<DetalleDTO> {
   const res = await authFetch(`/radicados/${radicado}/detalle`);
   return res.json();
+}
+
+export async function markAlertaRead(sk: string): Promise<void> {
+  await authFetch(`/alertas/${encodeURIComponent(sk)}/read`, { method: "PATCH" });
 }
 
 export async function buscarProceso(numProceso: string): Promise<unknown[]> {

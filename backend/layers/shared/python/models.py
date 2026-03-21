@@ -104,6 +104,7 @@ class Alerta:
     anotacion: str
     created_at: str = ""
     enviado: bool = False
+    leido: bool = False
 
     @property
     def sk(self) -> str:
@@ -122,6 +123,7 @@ class Alerta:
             "anotacion": self.anotacion,
             "createdAt": self.created_at,
             "enviado": self.enviado,
+            "leido": self.leido,
         }
 
     @classmethod
@@ -136,4 +138,5 @@ class Alerta:
             anotacion=item.get("anotacion", ""),
             created_at=item.get("createdAt", ""),
             enviado=item.get("enviado", False),
+            leido=item.get("leido", False),
         )

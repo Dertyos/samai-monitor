@@ -29,6 +29,7 @@ from db import (
     obtener_radicado,
     obtener_alertas_usuario,
     eliminar_alertas_radicado,
+    marcar_alerta_leida,
 )
 
 logger = logging.getLogger(__name__)
@@ -106,6 +107,10 @@ def handler(event: dict, context: Any) -> dict:
         # GET /radicados/{id}/historial
         if method == "GET" and "/historial" in path:
             return _get_historial(event)
+
+        # PATCH /alertas/{sk}/read
+        if method == "PATCH" and "/alertas/" in path and path.endswith("/read"):
+            return _patch_alerta_read(event)
 
         # GET /alertas
         if method == "GET" and path == "/alertas":
@@ -262,18 +267,30 @@ def _get_detalle(event: dict) -> dict:
     })
 
 
+def _patch_alerta_read(event: dict) -> dict:
+    """PATCH /alertas/{sk}/read — marcar una alerta como leida."""
+    user_id = _get_user_id(event)
+    sk = _get_path_param(event, "sk")
+    if marcar_alerta_leida(_alertas_table, user_id, sk):
+        logger.info("Alerta marcada como leida: %s para usuario %s", sk, user_id)
+        return _response(200, {"ok": True})
+    return _response(404, {"error": "Alerta no encontrada"})
+
+
 def _get_alertas(event: dict) -> dict:
     """GET /alertas — listar mis alertas."""
     user_id = _get_user_id(event)
     alertas = obtener_alertas_usuario(_alertas_table, user_id)
     return _response(200, [
         {
+            "sk": a.sk,
             "radicado": a.radicado,
             "orden": a.orden,
             "nombreActuacion": a.nombre_actuacion,
             "fechaActuacion": a.fecha_actuacion,
             "anotacion": a.anotacion,
             "createdAt": a.created_at,
+            "leido": a.leido,
         }
         for a in alertas
     ])
