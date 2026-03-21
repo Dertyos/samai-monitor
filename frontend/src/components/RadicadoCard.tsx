@@ -8,8 +8,10 @@ interface Props {
   onSelect: () => void;
   onDelete: () => void;
   onEditAlias: (newAlias: string) => void;
+  onToggleActivo: () => void;
   isDeleting: boolean;
   isEditing: boolean;
+  isToggling: boolean;
 }
 
 /**
@@ -24,8 +26,10 @@ export default function RadicadoCard({
   onSelect,
   onDelete,
   onEditAlias,
+  onToggleActivo,
   isDeleting,
   isEditing,
+  isToggling,
 }: Props) {
   const [editing, setEditing] = useState(false);
   const [aliasInput, setAliasInput] = useState(radicado.alias);
@@ -90,6 +94,13 @@ export default function RadicadoCard({
           disabled={isEditing}
         >
           {isEditing ? "..." : "Editar alias"}
+        </button>
+        <button
+          onClick={onToggleActivo}
+          className="btn-secondary"
+          disabled={isToggling}
+        >
+          {isToggling ? "..." : radicado.activo ? "Pausar" : "Reactivar"}
         </button>
         <button
           onClick={onDelete}

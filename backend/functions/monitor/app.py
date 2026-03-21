@@ -99,11 +99,13 @@ def check_radicado(
         IndexName="radicado-index",
         KeyConditionExpression=Key("radicado").eq(radicado),
     )
-    followers = resp.get("Items", [])
+    all_followers = resp.get("Items", [])
+    # Solo monitorear para usuarios con radicado activo
+    followers = [f for f in all_followers if f.get("activo", True)]
     if not followers:
         return {}
 
-    # Encontrar el mínimo ultimo_orden entre todos los seguidores
+    # Encontrar el mínimo ultimo_orden entre todos los seguidores activos
     min_orden = min(int(item.get("ultimoOrden", 0)) for item in followers)
 
     # Consultar SAMAI: solo actuaciones nuevas desde el mínimo

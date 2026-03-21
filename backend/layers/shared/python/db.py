@@ -61,6 +61,20 @@ def actualizar_alias(table: Any, user_id: str, radicado: str, alias: str) -> boo
         return False
 
 
+def toggle_activo(table: Any, user_id: str, radicado: str) -> bool | None:
+    """Alterna el campo activo de un radicado. Retorna el nuevo valor, o None si no existe."""
+    rad = obtener_radicado(table, user_id, radicado)
+    if rad is None:
+        return None
+    new_val = not rad.activo
+    table.update_item(
+        Key={"userId": user_id, "radicado": radicado},
+        UpdateExpression="SET activo = :a",
+        ExpressionAttributeValues={":a": new_val},
+    )
+    return new_val
+
+
 def obtener_radicados_unicos(table: Any) -> list[tuple[str, str]]:
     """Obtiene todos los radicados únicos (deduplicados) con su corporación.
 

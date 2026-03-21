@@ -6,6 +6,7 @@ import {
   addRadicado,
   deleteRadicado,
   updateRadicadoAlias,
+  toggleRadicadoActivo,
   getAlertas,
   type RadicadoDTO,
 } from "../lib/api";
@@ -67,6 +68,17 @@ export default function Dashboard() {
     },
     onError: (err: Error) => {
       toast.error(err.message || "Error al actualizar alias");
+    },
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: toggleRadicadoActivo,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["radicados"] });
+      toast.success(data.activo ? "Monitoreo reactivado" : "Monitoreo pausado");
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Error al cambiar estado");
     },
   });
 
@@ -155,6 +167,7 @@ export default function Dashboard() {
                 onSelect={() => navigate(`/radicado/${r.radicado}`)}
                 onDelete={() => setDeleteTarget(r)}
                 onEditAlias={(alias) => editAliasMutation.mutate({ radicado: r.radicado, alias })}
+                onToggleActivo={() => toggleMutation.mutate(r.radicado)}
                 isDeleting={
                   deleteMutation.isPending &&
                   deleteMutation.variables === r.radicado
@@ -162,6 +175,10 @@ export default function Dashboard() {
                 isEditing={
                   editAliasMutation.isPending &&
                   editAliasMutation.variables?.radicado === r.radicado
+                }
+                isToggling={
+                  toggleMutation.isPending &&
+                  toggleMutation.variables === r.radicado
                 }
               />
             ))}

@@ -93,6 +93,13 @@ export async function updateRadicadoAlias(
   return res.json();
 }
 
+export async function toggleRadicadoActivo(
+  radicado: string,
+): Promise<{ activo: boolean }> {
+  const res = await authFetch(`/radicados/${radicado}/toggle`, { method: "PATCH" });
+  return res.json();
+}
+
 export async function deleteRadicado(radicado: string): Promise<void> {
   await authFetch(`/radicados/${radicado}`, { method: "DELETE" });
 }

@@ -119,6 +119,62 @@ class TestGetRadicados:
         assert data[0]["radicado"] == "73001233300020190034300"
 
 
+class TestToggleActivo:
+    """PATCH /radicados/{id}/toggle — alternar activo/inactivo."""
+
+    def test_toggle_desactiva(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        create_event = _make_event(
+            method="POST",
+            path="/radicados",
+            body={"radicado": "73001-23-33-000-2019-00343-00"},
+        )
+        handler(create_event, _context())
+
+        event = _make_event(
+            method="PATCH",
+            path="/radicados/73001233300020190034300/toggle",
+            path_params={"id": "73001233300020190034300"},
+        )
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 200
+        data = json.loads(resp["body"])
+        assert data["activo"] is False
+
+    def test_toggle_reactiva(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        create_event = _make_event(
+            method="POST",
+            path="/radicados",
+            body={"radicado": "73001-23-33-000-2019-00343-00"},
+        )
+        handler(create_event, _context())
+
+        event = _make_event(
+            method="PATCH",
+            path="/radicados/73001233300020190034300/toggle",
+            path_params={"id": "73001233300020190034300"},
+        )
+        handler(event, _context())
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 200
+        data = json.loads(resp["body"])
+        assert data["activo"] is True
+
+    def test_toggle_inexistente_404(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        event = _make_event(
+            method="PATCH",
+            path="/radicados/99999999999999999999999/toggle",
+            path_params={"id": "99999999999999999999999"},
+        )
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 404
+
+
 class TestPatchRadicado:
     """PATCH /radicados/{id} — editar alias."""
 

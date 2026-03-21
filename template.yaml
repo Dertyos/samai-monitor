@@ -85,6 +85,12 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /radicados/{id}/historial
             Method: GET
+        PatchToggle:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /radicados/{id}/toggle
+            Method: PATCH
         PatchRadicado:
           Type: HttpApi
           Properties:

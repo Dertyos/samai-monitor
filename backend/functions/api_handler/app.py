@@ -31,6 +31,7 @@ from db import (
     eliminar_alertas_radicado,
     marcar_alerta_leida,
     actualizar_alias,
+    toggle_activo,
 )
 
 logger = logging.getLogger(__name__)
@@ -96,6 +97,10 @@ def handler(event: dict, context: Any) -> dict:
         # GET /radicados
         if method == "GET" and path == "/radicados":
             return _get_radicados(event)
+
+        # PATCH /radicados/{id}/toggle
+        if method == "PATCH" and path.endswith("/toggle"):
+            return _patch_toggle(event)
 
         # PATCH /radicados/{id}
         if method == "PATCH" and path.startswith("/radicados/") and "/detalle" not in path and "/historial" not in path:
@@ -189,6 +194,17 @@ def _get_radicados(event: dict) -> dict:
         }
         for r in radicados
     ])
+
+
+def _patch_toggle(event: dict) -> dict:
+    """PATCH /radicados/{id}/toggle — alternar activo/inactivo."""
+    user_id = _get_user_id(event)
+    radicado_id = _get_path_param(event, "id")
+    new_val = toggle_activo(_radicados_table, user_id, radicado_id)
+    if new_val is None:
+        return _response(404, {"error": "Radicado no encontrado"})
+    logger.info("Toggle activo=%s para radicado %s", new_val, radicado_id)
+    return _response(200, {"activo": new_val})
 
 
 def _patch_radicado(event: dict) -> dict:
