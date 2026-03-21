@@ -276,7 +276,54 @@
 
 ---
 
-## Checklist de Testeo Manual (post Sprint 1+2)
+## 2026-03-21 — Sprint 3: Funcionalidad Avanzada
+
+- **Completado**:
+  - PATCH /radicados/{id} `activo` toggle: pausar/reactivar monitoreo por radicado (TDD, 2 tests)
+  - POST /alertas/mark-all-read: marcar todas las alertas como leídas (TDD, 1 test)
+  - Descarga de documentos desde historial de actuaciones (link directo a SAMAI)
+  - Stale time en React Query + botón manual refresh en Dashboard y Detalle
+  - Badge de alertas sin leer en header + título del documento (`(3) SAMAI Monitor`)
+  - Ordenar radicados: por recientes, alias (A-Z), o estado (activo primero)
+  - Total: 78 tests backend en verde
+
+- **Endpoints nuevos**:
+  - `PATCH /radicados/{id}` → toggle campo `activo` (true/false)
+  - `POST /alertas/mark-all-read` → marcar todas como leídas
+
+- **Modelo Radicado actualizado**: nuevo campo `activo: bool = True`
+
+---
+
+## 2026-03-21 — Sprint 4: UX Polish
+
+- **Completado**:
+  - Filtro/búsqueda de actuaciones en página de detalle (por nombre o anotación)
+  - ErrorBoundary global con UI amigable de fallback
+  - Stats bar en Dashboard: total radicados, activos, alertas sin leer
+  - Exportar actuaciones a CSV desde vista de detalle
+  - RadicadoCard: menú dropdown para acciones (editar, pausar, eliminar)
+  - Escape key cierra todos los modales abiertos
+  - Auto-refresh de alertas cada 60 segundos (polling)
+  - Loading skeletons en Dashboard (reemplazan spinners)
+  - Empty state mejorado para búsqueda sin resultados
+  - Filtro de radicados refactorizado a `useMemo` para mejor rendimiento
+  - Timestamp "última actualización" en sección de alertas
+
+- **Archivos creados**:
+  - `frontend/src/components/ErrorBoundary.tsx`
+  - `frontend/src/components/RadicadoCard.module.css`
+  - `frontend/src/components/StatsBar.tsx` (o inline en Dashboard)
+
+- **Decisiones**:
+  - Polling 60s para alertas — balance entre frescura y carga de red
+  - Skeletons en lugar de spinners para perceived performance
+  - Dropdown menu en tarjeta evita botones visualmente pesados
+  - CSV export usa Blob + URL.createObjectURL — sin dependencias extra
+
+---
+
+## Checklist de Testeo Manual (post Sprint 4)
 
 Flujos a verificar antes de deploy:
 
@@ -284,16 +331,26 @@ Flujos a verificar antes de deploy:
 2. **Forgot password**: Solicitar código → ingresar código → nueva contraseña → login
 3. **Agregar radicado (directo)**: Modal → escribir 23 dígitos → alias → Agregar
 4. **Agregar radicado (búsqueda SAMAI)**: Modal → buscar número parcial → seleccionar resultado → alias → Agregar
-5. **Editar alias**: Doble click en alias existente → escribir nuevo → Enter (o botón "Editar alias")
-6. **Ver detalle**: Click en tarjeta → página de historial con timeline
-7. **Marcar alerta como leída**: Click checkmark → alerta cambia a estilo leída (opacity reducida)
-8. **Eliminar radicado**: Click "Eliminar" → ConfirmModal → confirmar → cascade delete de alertas
-9. **Buscar/filtrar radicados**: Escribir en barra → filtro instantáneo por número o alias
-10. **Cambiar contraseña**: Perfil → contraseña actual + nueva → confirmar
-11. **Tema dark/light**: Toggle en header → persiste en localStorage → respeta OS preference
-12. **Toast notifications**: Verificar toast en: agregar radicado (success), eliminar (success), error de red (error)
-13. **Empty states**: Dashboard sin radicados → mensaje con ícono, sin alertas → sección oculta
-14. **Responsive**: Verificar en mobile (≤640px) → tarjetas apiladas, modal full-width
+5. **Editar alias**: Doble click en alias → escribir nuevo → Enter
+6. **Ver detalle**: Click en tarjeta → datos proceso + partes + historial actuaciones
+7. **Filtrar actuaciones**: Buscar por nombre o anotación en detalle
+8. **Exportar CSV**: Botón exportar → descarga CSV con todas las actuaciones
+9. **Descargar documento**: Click en ícono de descarga → abre PDF de SAMAI
+10. **Marcar alerta como leída**: Click checkmark → alerta cambia a estilo leída
+11. **Marcar todas leídas**: Botón "Marcar todas" → todas las alertas cambian
+12. **Badge alertas**: Header muestra número de alertas sin leer + título del documento
+13. **Pausar monitoreo**: Dropdown → "Pausar" → tarjeta muestra estado inactivo
+14. **Eliminar radicado**: Dropdown → "Eliminar" → ConfirmModal → cascade delete alertas
+15. **Ordenar radicados**: Selector: recientes / alias / activo
+16. **Buscar/filtrar radicados**: Barra → filtro instantáneo por número o alias
+17. **Stats bar**: Muestra total radicados, activos, alertas sin leer
+18. **Cambiar contraseña**: Perfil → contraseña actual + nueva → confirmar
+19. **Tema dark/light**: Toggle en header → persiste en localStorage
+20. **Toast notifications**: Verificar en: agregar (success), eliminar (success), error (error)
+21. **Loading skeletons**: Dashboard carga con skeletons, no spinners
+22. **Auto-refresh alertas**: Esperar 60s → alertas se actualizan solas
+23. **ErrorBoundary**: Provocar error → UI amigable con botón reintentar
+24. **Responsive**: Mobile (≤640px) → tarjetas apiladas, modal full-width
 
 ---
 

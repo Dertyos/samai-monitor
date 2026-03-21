@@ -1,5 +1,5 @@
 # ÍNDICE MAESTRO — samai-monitor (MVP)
-## Última actualización: 20 de marzo de 2026
+## Última actualización: 21 de marzo de 2026
 
 ---
 
@@ -11,9 +11,16 @@
 | Fase 1: Capa compartida (TDD) | COMPLETADA | 50 tests, 4 módulos |
 | Fase 2: API Handler Lambda | COMPLETADA | 11 tests, 6 endpoints |
 | Fase 3: Monitor Lambda | COMPLETADA | 5 tests, check+alertas |
-| Fase 4: Deploy AWS | PENDIENTE | SAM template + deploy |
-| Fase 5: Frontend React | PENDIENTE | Login, Dashboard, Radicados |
-| Fase 6: Deploy frontend + E2E | PENDIENTE | S3/CloudFront + tests E2E |
+| Fase 4: Deploy AWS | COMPLETADA | SAM stack desplegado, SES verificado |
+| Fase 5: Frontend React | COMPLETADA | Login, Dashboard, Detalle, Perfil |
+| Fase 6: Deploy frontend | COMPLETADA | S3 + CloudFront + OAC |
+| Fase 7: Dark mode + UX | COMPLETADA | Tema, auto-format, empty states |
+| Sprint 1: UI Foundation | COMPLETADA | Router, CSS modular, forgot pw, toasts, cascade delete |
+| Sprint 2: Core Features | COMPLETADA | Alertas leídas, búsqueda, editar alias, SAMAI search |
+| Sprint 3: Advanced Features | COMPLETADA | Pausar monitoreo, mark-all, descarga docs, sort, badge |
+| Sprint 4: UX Polish | COMPLETADA | Skeletons, CSV export, dropdown, polling, ErrorBoundary |
+
+**Total**: 78 tests backend, 30 commits, 27+ features implementadas
 
 ---
 
@@ -39,7 +46,7 @@
 ## backend/functions/ — Lambdas
 | Archivo | Contenido | Estado |
 |---------|-----------|--------|
-| `api_handler/app.py` | POST/GET/DELETE radicados, GET alertas/historial/buscar | HECHO |
+| `api_handler/app.py` | POST/GET/PATCH/DELETE radicados, GET/POST alertas, historial, buscar | HECHO |
 | `monitor/app.py` | check_radicado + handler (dedup → SAMAI → alertas → email) | HECHO |
 
 ## backend/tests/ — Tests
