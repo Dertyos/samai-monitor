@@ -235,6 +235,68 @@
 
 ---
 
+## 2026-03-21 — Sprint 1: UI Foundation
+
+- **Completado**:
+  - React Router con rutas reales: `/login`, `/dashboard`, `/radicado/:id`, `/perfil`
+  - CSS modular: `theme.css`, `global.css`, `forms.css`, `layout.css`, `modal.css` + 7 CSS modules
+  - Forgot Password: flujo completo Cognito (codigo → nueva contraseña)
+  - Perfil/Cuenta: email, cambiar contraseña, cerrar sesión
+  - Toast Notifications: sistema reutilizable (success/error/info) con auto-dismiss
+  - Confirm Modal: reemplaza `window.confirm()` con modal CSS nativo
+  - Cascade Delete alertas: al borrar radicado se borran sus alertas (TDD, 2 tests)
+  - Total: 71 tests backend en verde, frontend build limpio
+
+- **Archivos creados**:
+  - `frontend/src/components/ConfirmModal.tsx` + `.module.css`
+  - `frontend/src/components/Toast.tsx` + `.module.css`
+  - `frontend/src/context/ToastContext.tsx`
+  - `frontend/src/pages/Profile.tsx` + `.module.css`
+  - `frontend/src/styles/theme.css`, `global.css`, `forms.css`, `layout.css`, `modal.css`
+
+---
+
+## 2026-03-21 — Sprint 2: Funcionalidad Core
+
+- **Completado**:
+  - PATCH /alertas/{sk}/read: marcar alertas como leídas (TDD, 2 tests)
+  - Búsqueda/filtro de radicados en Dashboard (client-side por número o alias)
+  - PATCH /radicados/{id}: editar alias de radicado (TDD, 2 tests)
+  - Búsqueda SAMAI integrada en AddRadicadoModal (buscar → seleccionar → autocompletar)
+  - Total: 73 tests backend en verde, frontend build limpio
+
+- **Archivos creados**:
+  - `frontend/src/components/AddRadicadoModal.module.css`
+
+- **Endpoints nuevos**:
+  - `PATCH /alertas/{sk}/read` → marcar alerta como leída
+  - `PATCH /radicados/{id}` → actualizar alias
+
+- **Modelo Alerta actualizado**: nuevo campo `leido: bool = False`
+
+---
+
+## Checklist de Testeo Manual (post Sprint 1+2)
+
+Flujos a verificar antes de deploy:
+
+1. **Auth básico**: Login → register → confirm email → login exitoso
+2. **Forgot password**: Solicitar código → ingresar código → nueva contraseña → login
+3. **Agregar radicado (directo)**: Modal → escribir 23 dígitos → alias → Agregar
+4. **Agregar radicado (búsqueda SAMAI)**: Modal → buscar número parcial → seleccionar resultado → alias → Agregar
+5. **Editar alias**: Doble click en alias existente → escribir nuevo → Enter (o botón "Editar alias")
+6. **Ver detalle**: Click en tarjeta → página de historial con timeline
+7. **Marcar alerta como leída**: Click checkmark → alerta cambia a estilo leída (opacity reducida)
+8. **Eliminar radicado**: Click "Eliminar" → ConfirmModal → confirmar → cascade delete de alertas
+9. **Buscar/filtrar radicados**: Escribir en barra → filtro instantáneo por número o alias
+10. **Cambiar contraseña**: Perfil → contraseña actual + nueva → confirmar
+11. **Tema dark/light**: Toggle en header → persiste en localStorage → respeta OS preference
+12. **Toast notifications**: Verificar toast en: agregar radicado (success), eliminar (success), error de red (error)
+13. **Empty states**: Dashboard sin radicados → mensaje con ícono, sin alertas → sección oculta
+14. **Responsive**: Verificar en mobile (≤640px) → tarjetas apiladas, modal full-width
+
+---
+
 ## Fases Futuras (v2+)
 
 ### Fase 8: Custom Domain + SSL
