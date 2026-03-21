@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { buscarProceso } from "../lib/api";
 import styles from "./AddRadicadoModal.module.css";
 
@@ -46,6 +46,14 @@ export default function AddRadicadoModal({ onAdd, onClose, error, loading }: Pro
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
+
+  useEffect(() => {
+    const handle = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !loading) onClose();
+    };
+    document.addEventListener("keydown", handle);
+    return () => document.removeEventListener("keydown", handle);
+  }, [onClose, loading]);
 
   const digits = radicado.replace(/\D/g, "");
   const isValid = digits.length === 23;

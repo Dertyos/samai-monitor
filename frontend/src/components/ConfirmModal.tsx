@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import styles from "./ConfirmModal.module.css";
 
 /**
@@ -37,6 +38,14 @@ export default function ConfirmModal({
   onCancel,
   loading = false,
 }: Props) {
+  useEffect(() => {
+    const handle = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !loading) onCancel();
+    };
+    document.addEventListener("keydown", handle);
+    return () => document.removeEventListener("keydown", handle);
+  }, [onCancel, loading]);
+
   return (
     <div className="modal-overlay" onClick={onCancel}>
       <div
