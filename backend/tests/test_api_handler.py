@@ -211,6 +211,82 @@ class TestGetHistorial:
         assert data[0]["orden"] == 177
 
 
+class TestGetDetalle:
+    """GET /radicados/{id}/detalle — datos completos del proceso via SAMAI."""
+
+    def test_detalle_retorna_datos_proceso_partes_historial(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        # Crear radicado primero
+        create_event = _make_event(
+            method="POST",
+            path="/radicados",
+            body={"radicado": "73001-23-33-000-2019-00343-00"},
+        )
+        handler(create_event, _context())
+
+        mock_actuaciones = [
+            Actuacion(
+                radicado="73001233300020190034300",
+                orden=177,
+                nombre="Fijacion estado",
+                fecha="2026-03-20T00:00:00",
+                anotacion="LMB-",
+                registro="2026-03-19T16:31:57.1",
+                estado="REGISTRADA",
+                decision="ADMITE DEMANDA",
+            )
+        ]
+        mock_datos = {
+            "Despacho": "TRIBUNAL ADMINISTRATIVO DEL TOLIMA",
+            "Ponente": "JUAN PEREZ",
+            "TipoProceso": "NULIDAD Y RESTABLECIMIENTO",
+            "ClaseActuacion": "DEMANDA",
+            "FechaUltimaActuacion": "2026-03-20",
+        }
+        mock_partes = [
+            {"NomSujeto": "JUAN AVILES", "TipoSujeto": "DEMANDANTE"},
+            {"NomSujeto": "MUNICIPIO DE IBAGUE", "TipoSujeto": "DEMANDADO"},
+        ]
+
+        with patch(
+            "functions.api_handler.app.samai_client"
+        ) as mock_client:
+            mock_client.get_actuaciones.return_value = mock_actuaciones
+            mock_client.get_datos_proceso.return_value = mock_datos
+            mock_client.get_sujetos_procesales.return_value = mock_partes
+
+            event = _make_event(
+                method="GET",
+                path="/radicados/73001233300020190034300/detalle",
+                path_params={"id": "73001233300020190034300"},
+            )
+            resp = handler(event, _context())
+
+        assert resp["statusCode"] == 200
+        data = json.loads(resp["body"])
+        assert data["proceso"]["despacho"] == "TRIBUNAL ADMINISTRATIVO DEL TOLIMA"
+        assert data["proceso"]["ponente"] == "JUAN PEREZ"
+        assert len(data["partes"]) == 2
+        assert data["partes"][0]["nombre"] == "JUAN AVILES"
+        assert data["partes"][0]["tipo"] == "DEMANDANTE"
+        assert len(data["actuaciones"]) == 1
+        assert data["actuaciones"][0]["decision"] == "ADMITE DEMANDA"
+
+    def test_detalle_radicado_no_encontrado_404(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        with patch("functions.api_handler.app.samai_client"):
+            event = _make_event(
+                method="GET",
+                path="/radicados/99999999999999999999999/detalle",
+                path_params={"id": "99999999999999999999999"},
+            )
+            resp = handler(event, _context())
+
+        assert resp["statusCode"] == 404
+
+
 class TestGetBuscar:
     """GET /buscar/{numProceso} — buscar proceso en SAMAI."""
 

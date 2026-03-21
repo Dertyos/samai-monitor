@@ -42,6 +42,26 @@ export interface ActuacionDTO {
   fecha: string;
   anotacion: string;
   estado: string;
+  decision: string | null;
+}
+
+export interface ProcesoDTO {
+  despacho: string;
+  ponente: string;
+  tipoProceso: string;
+  claseActuacion: string;
+  fechaUltimaActuacion: string;
+}
+
+export interface ParteDTO {
+  nombre: string;
+  tipo: string;
+}
+
+export interface DetalleDTO {
+  proceso: ProcesoDTO;
+  partes: ParteDTO[];
+  actuaciones: ActuacionDTO[];
 }
 
 export async function getRadicados(): Promise<RadicadoDTO[]> {
@@ -71,6 +91,11 @@ export async function getHistorial(radicado: string): Promise<ActuacionDTO[]> {
 
 export async function getAlertas(): Promise<AlertaDTO[]> {
   const res = await authFetch("/alertas");
+  return res.json();
+}
+
+export async function getDetalle(radicado: string): Promise<DetalleDTO> {
+  const res = await authFetch(`/radicados/${radicado}/detalle`);
   return res.json();
 }
 

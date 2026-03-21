@@ -85,6 +85,12 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /radicados/{id}/historial
             Method: GET
+        GetDetalle:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /radicados/{id}/detalle
+            Method: GET
         GetAlertas:
           Type: HttpApi
           Properties:

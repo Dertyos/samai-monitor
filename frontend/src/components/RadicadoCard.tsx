@@ -31,7 +31,7 @@ export default function RadicadoCard({
       </div>
       <div className="card-actions">
         <button onClick={onSelect} className="btn-secondary">
-          {isSelected ? "Ocultar" : "Ver historial"}
+          {isSelected ? "Ocultar" : "Ver detalle"}
         </button>
         <button
           onClick={onDelete}
