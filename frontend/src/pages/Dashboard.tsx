@@ -277,15 +277,22 @@ export default function Dashboard() {
         <section className={styles.section}>
           <div className={styles.sectionHeader}>
             <h2>Alertas Recientes</h2>
-            {alertasQuery.data && alertasQuery.data.some((a) => !a.leido) && (
-              <button
-                onClick={() => markAllReadMutation.mutate()}
-                className="btn-secondary"
-                disabled={markAllReadMutation.isPending}
-              >
-                {markAllReadMutation.isPending ? "..." : "Marcar todas leidas"}
-              </button>
-            )}
+            <div className={styles.alertasActions}>
+              {alertasQuery.dataUpdatedAt > 0 && (
+                <span className={styles.lastUpdated}>
+                  Actualizado {new Date(alertasQuery.dataUpdatedAt).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}
+                </span>
+              )}
+              {alertasQuery.data && alertasQuery.data.some((a) => !a.leido) && (
+                <button
+                  onClick={() => markAllReadMutation.mutate()}
+                  className="btn-secondary"
+                  disabled={markAllReadMutation.isPending}
+                >
+                  {markAllReadMutation.isPending ? "..." : "Marcar todas leidas"}
+                </button>
+              )}
+            </div>
           </div>
           {alertasQuery.isLoading && (
             <div className="loading-container">

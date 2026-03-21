@@ -121,6 +121,17 @@
   gap: 0.75rem;
 }
 
+.alertasActions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.lastUpdated {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
 @media (min-width: 640px) {
   .radicadosGrid {
     grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
