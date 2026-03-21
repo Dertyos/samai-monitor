@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getRadicados,
@@ -66,7 +66,9 @@ export default function Dashboard() {
           <h1>SAMAI Monitor</h1>
         </div>
         <div className={styles.headerRight}>
-          <span className={styles.email}>{email}</span>
+          <Link to="/perfil" className={styles.email} title="Mi cuenta">
+            {email}
+          </Link>
           <button onClick={toggleTheme} className="theme-toggle" title="Cambiar tema">
             {theme === "light" ? "\u{1F319}" : "\u{2600}\u{FE0F}"}
           </button>

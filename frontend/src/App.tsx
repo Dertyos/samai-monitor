@@ -4,6 +4,7 @@ import { useAuth } from "./hooks/useAuth";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import DetalleRadicado from "./pages/DetalleRadicado";
+import Perfil from "./pages/Perfil";
 import "./App.css";
 
 const queryClient = new QueryClient({
@@ -84,6 +85,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <DetalleRadicado />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/perfil"
+        element={
+          <ProtectedRoute>
+            <Perfil />
           </ProtectedRoute>
         }
       />
