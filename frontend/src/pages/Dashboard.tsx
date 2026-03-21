@@ -48,6 +48,7 @@ export default function Dashboard() {
     queryKey: ["alertas"],
     queryFn: getAlertas,
     staleTime: 60 * 1000, // 1 min
+    refetchInterval: 60 * 1000, // poll cada 60s para detectar alertas nuevas
   });
 
   const addMutation = useMutation({
