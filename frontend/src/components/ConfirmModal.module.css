@@ -1,0 +1,23 @@
+/* ============================================
+   CONFIRM MODAL — Dialogo de confirmacion reutilizable
+
+   Reemplaza window.confirm() con un modal nativo
+   que respeta el tema light/dark.
+
+   Uso: <ConfirmModal title="..." message="..." onConfirm={} onCancel={} />
+   ============================================ */
+.title {
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.message {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: 0.25rem;
+}
+
+.danger .title {
+  color: var(--danger);
+}

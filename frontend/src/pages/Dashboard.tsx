@@ -9,6 +9,7 @@ import {
   type RadicadoDTO,
 } from "../lib/api";
 import AddRadicadoModal from "../components/AddRadicadoModal";
+import ConfirmModal from "../components/ConfirmModal";
 import RadicadoCard from "../components/RadicadoCard";
 import AlertasList from "../components/AlertasList";
 import { useAuth } from "../hooks/useAuth";
@@ -21,11 +22,13 @@ import styles from "./Dashboard.module.css";
  *
  * Muestra los radicados del usuario, alertas recientes,
  * y permite agregar/eliminar radicados.
+ * Usa ConfirmModal para confirmar eliminacion (en vez de window.confirm).
  */
 export default function Dashboard() {
   const navigate = useNavigate();
   const { email, signOut } = useAuth();
   const [showAddModal, setShowAddModal] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<RadicadoDTO | null>(null);
   const queryClient = useQueryClient();
   const { theme, toggle: toggleTheme } = useTheme();
   const toast = useToast();
@@ -57,6 +60,8 @@ export default function Dashboard() {
     mutationFn: deleteRadicado,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["radicados"] });
+      queryClient.invalidateQueries({ queryKey: ["alertas"] });
+      setDeleteTarget(null);
       toast.success("Radicado eliminado");
     },
     onError: (err: Error) => {
@@ -116,11 +121,7 @@ export default function Dashboard() {
                 radicado={r}
                 isSelected={false}
                 onSelect={() => navigate(`/radicado/${r.radicado}`)}
-                onDelete={() => {
-                  if (confirm(`Dejar de monitorear ${r.radicadoFormato}?`)) {
-                    deleteMutation.mutate(r.radicado);
-                  }
-                }}
+                onDelete={() => setDeleteTarget(r)}
                 isDeleting={
                   deleteMutation.isPending &&
                   deleteMutation.variables === r.radicado
@@ -166,6 +167,18 @@ export default function Dashboard() {
               : null
           }
           loading={addMutation.isPending}
+        />
+      )}
+
+      {deleteTarget && (
+        <ConfirmModal
+          title="Dejar de monitorear"
+          message={`Se eliminara el radicado ${deleteTarget.radicadoFormato}${deleteTarget.alias ? ` (${deleteTarget.alias})` : ""} y todas sus alertas asociadas.`}
+          confirmLabel="Eliminar"
+          variant="danger"
+          onConfirm={() => deleteMutation.mutate(deleteTarget.radicado)}
+          onCancel={() => setDeleteTarget(null)}
+          loading={deleteMutation.isPending}
         />
       )}
     </div>
