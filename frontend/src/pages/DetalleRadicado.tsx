@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getDetalle, getDocumentoUrl, type ActuacionDTO } from "../lib/api";
 import { formatDate, formatRadicado, decodeHtml } from "../lib/utils";
 import styles from "./DetalleRadicado.module.css";
@@ -18,11 +18,13 @@ import styles from "./DetalleRadicado.module.css";
 export default function DetalleRadicado() {
   const { radicadoId } = useParams<{ radicadoId: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const query = useQuery({
     queryKey: ["detalle", radicadoId],
     queryFn: () => getDetalle(radicadoId!),
     enabled: !!radicadoId,
+    staleTime: 5 * 60 * 1000, // 5 min — datos de SAMAI no cambian tan rapido
   });
 
   if (!radicadoId) {
@@ -38,6 +40,13 @@ export default function DetalleRadicado() {
           &larr; Volver
         </button>
         <h2>{radicadoFormato}</h2>
+        <button
+          onClick={() => queryClient.invalidateQueries({ queryKey: ["detalle", radicadoId] })}
+          className="btn-secondary"
+          disabled={query.isFetching}
+        >
+          {query.isFetching ? "Actualizando..." : "Actualizar"}
+        </button>
       </div>
 
       {query.isLoading && (

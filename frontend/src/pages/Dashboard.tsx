@@ -40,11 +40,13 @@ export default function Dashboard() {
   const radicadosQuery = useQuery({
     queryKey: ["radicados"],
     queryFn: getRadicados,
+    staleTime: 2 * 60 * 1000, // 2 min
   });
 
   const alertasQuery = useQuery({
     queryKey: ["alertas"],
     queryFn: getAlertas,
+    staleTime: 60 * 1000, // 1 min
   });
 
   const addMutation = useMutation({
