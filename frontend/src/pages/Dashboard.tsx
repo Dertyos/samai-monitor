@@ -33,6 +33,7 @@ export default function Dashboard() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<RadicadoDTO | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<"recent" | "alias" | "activo">("recent");
   const queryClient = useQueryClient();
   const { theme, toggle: toggleTheme } = useTheme();
   const toast = useToast();
@@ -156,13 +157,24 @@ export default function Dashboard() {
           </div>
 
           {radicadosQuery.data && radicadosQuery.data.length > 0 && (
-            <input
-              type="text"
-              placeholder="Buscar por numero o alias..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className={styles.searchInput}
-            />
+            <div className={styles.filterBar}>
+              <input
+                type="text"
+                placeholder="Buscar por numero o alias..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className={styles.searchInput}
+              />
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as "recent" | "alias" | "activo")}
+                className={styles.sortSelect}
+              >
+                <option value="recent">Mas recientes</option>
+                <option value="alias">Por alias (A-Z)</option>
+                <option value="activo">Activos primero</option>
+              </select>
+            </div>
           )}
 
           {radicadosQuery.isLoading && (
@@ -186,6 +198,10 @@ export default function Dashboard() {
                 r.radicadoFormato.toLowerCase().includes(q) ||
                 r.alias.toLowerCase().includes(q)
               );
+            }).sort((a: RadicadoDTO, b: RadicadoDTO) => {
+              if (sortBy === "alias") return a.alias.localeCompare(b.alias);
+              if (sortBy === "activo") return (b.activo ? 1 : 0) - (a.activo ? 1 : 0);
+              return 0; // "recent" = server order
             }).map((r: RadicadoDTO) => (
               <RadicadoCard
                 key={r.radicado}
