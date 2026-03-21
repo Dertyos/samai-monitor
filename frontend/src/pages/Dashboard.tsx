@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -114,11 +114,24 @@ export default function Dashboard() {
     navigate("/login", { replace: true });
   };
 
+  const unreadCount = alertasQuery.data?.filter((a) => !a.leido).length ?? 0;
+
+  useEffect(() => {
+    document.title = unreadCount > 0
+      ? `(${unreadCount}) SAMAI Monitor`
+      : "SAMAI Monitor";
+  }, [unreadCount]);
+
   return (
     <div className={styles.dashboard}>
       <header>
         <div>
-          <h1>SAMAI Monitor</h1>
+          <h1>
+            SAMAI Monitor
+            {unreadCount > 0 && (
+              <span className={styles.badge}>{unreadCount}</span>
+            )}
+          </h1>
         </div>
         <div className={styles.headerRight}>
           <Link to="/perfil" className={styles.email} title="Mi cuenta">
