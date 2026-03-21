@@ -116,7 +116,7 @@ Resources:
       Environment:
         Variables:
           USER_POOL_ID: !Ref UserPool
-          SES_SENDER: juliansalcedo4@gmail.com
+          SES_SENDER: !Sub "alertas@samai-monitor.dertyos.com"
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref RadicadosTable
@@ -362,6 +362,16 @@ Resources:
             ResponsePagePath: /index.html
         PriceClass: PriceClass_100
 
+  # ============================================
+  # SES — Email Identity (dominio verificado)
+  # ============================================
+  SesDomainIdentity:
+    Type: AWS::SES::EmailIdentity
+    Properties:
+      EmailIdentity: samai-monitor.dertyos.com
+      DkimAttributes:
+        SigningEnabled: true
+
 # ============================================
 # OUTPUTS
 # ============================================
@@ -393,3 +403,11 @@ Outputs:
   FrontendBucketName:
     Description: S3 bucket para el frontend
     Value: !Ref FrontendBucket
+
+  CloudFrontDistributionId:
+    Description: CloudFront Distribution ID (for cache invalidation)
+    Value: !Ref CloudFrontDistribution
+
+  SesDomainIdentity:
+    Description: SES domain identity - configure DKIM DNS records in your domain
+    Value: samai-monitor.dertyos.com
