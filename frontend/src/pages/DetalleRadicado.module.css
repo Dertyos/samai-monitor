@@ -226,6 +226,11 @@
   line-height: 1.4;
 }
 
+.headerActions {
+  display: flex;
+  gap: 0.5rem;
+}
+
 .actuacionSearch {
   width: 100%;
   margin-bottom: 0.75rem;

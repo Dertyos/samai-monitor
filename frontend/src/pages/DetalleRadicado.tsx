@@ -3,6 +3,22 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getDetalle, getDocumentoUrl, type ActuacionDTO } from "../lib/api";
 import { formatDate, formatRadicado, decodeHtml } from "../lib/utils";
+
+function exportToCsv(actuaciones: ActuacionDTO[], radicado: string): void {
+  const header = "Orden,Actuacion,Fecha,Estado,Decision,Anotacion";
+  const escape = (s: string) => `"${decodeHtml(s).replace(/"/g, '""')}"`;
+  const rows = actuaciones.map((a) =>
+    [a.orden, escape(a.nombre), formatDate(a.fecha), a.estado, escape(a.decision ?? ""), escape(a.anotacion)].join(","),
+  );
+  const csv = [header, ...rows].join("\n");
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `actuaciones_${radicado}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 import styles from "./DetalleRadicado.module.css";
 
 /**
@@ -42,13 +58,23 @@ export default function DetalleRadicado() {
           &larr; Volver
         </button>
         <h2>{radicadoFormato}</h2>
-        <button
-          onClick={() => queryClient.invalidateQueries({ queryKey: ["detalle", radicadoId] })}
-          className="btn-secondary"
-          disabled={query.isFetching}
-        >
-          {query.isFetching ? "Actualizando..." : "Actualizar"}
-        </button>
+        <div className={styles.headerActions}>
+          {query.data && (
+            <button
+              onClick={() => exportToCsv(query.data.actuaciones, radicadoId)}
+              className="btn-secondary"
+            >
+              Exportar CSV
+            </button>
+          )}
+          <button
+            onClick={() => queryClient.invalidateQueries({ queryKey: ["detalle", radicadoId] })}
+            className="btn-secondary"
+            disabled={query.isFetching}
+          >
+            {query.isFetching ? "Actualizando..." : "Actualizar"}
+          </button>
+        </div>
       </div>
 
       {query.isLoading && (
