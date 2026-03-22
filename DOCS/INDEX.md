@@ -19,8 +19,9 @@
 | Sprint 2: Core Features | COMPLETADA | Alertas leídas, búsqueda, editar alias, SAMAI search |
 | Sprint 3: Advanced Features | COMPLETADA | Pausar monitoreo, mark-all, descarga docs, sort, badge |
 | Sprint 4: UX Polish | COMPLETADA | Skeletons, CSV export, dropdown, polling, ErrorBoundary |
+| Deploy: CI/CD + SES | COMPLETADA | GitLab CI/CD, IAM user, SES production request, CORS fix |
 
-**Total**: 78 tests backend, 30 commits, 27+ features implementadas
+**Total**: 78 tests backend, 33+ commits, 27+ features implementadas
 
 ---
 

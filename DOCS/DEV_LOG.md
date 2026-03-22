@@ -354,6 +354,28 @@ Flujos a verificar antes de deploy:
 
 ---
 
+## 2026-03-22 — Deploy: CI/CD + SES Production
+
+- **Completado**:
+  - GitLab CI/CD pipeline (`.gitlab-ci.yml`): test → build → deploy automático en push a main
+  - IAM user `samai-gitlab-ci` con policy custom `samai-gitlab-ci-deploy` (least privilege)
+  - Variables CI/CD configuradas en GitLab (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_DEFAULT_REGION)
+  - Fix CORS: agregado método PATCH a AllowMethods en API Gateway (faltaba para nuevos endpoints)
+  - SES domain identity creada: `samai-monitor.dertyos.com` con DKIM habilitado
+  - Solicitud de SES production access enviada (salir del sandbox)
+  - Deploy completo: backend (SAM) + frontend (S3 + CloudFront invalidation)
+  - SES sender actualizado: `alertas@samai-monitor.dertyos.com`
+
+- **Archivos creados**:
+  - `.gitlab-ci.yml` — Pipeline CI/CD de GitLab (4 stages: test, build, deploy)
+  - `scripts/gitlab-ci-policy.json` — IAM policy para el usuario CI/CD
+
+- **Pendiente (acción del usuario)**:
+  - Agregar 3 registros CNAME DKIM en Cloudflare DNS (ver tokens en SES)
+  - Esperar aprobación de AWS para SES production access (~24h)
+
+---
+
 ## Fases Futuras (v2+)
 
 ### Fase 8: Custom Domain + SSL

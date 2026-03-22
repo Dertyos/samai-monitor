@@ -1,0 +1,135 @@
+# ──────────────────────────────────────────────
+# SAMAI Monitor — GitLab CI/CD Pipeline
+# ──────────────────────────────────────────────
+# Runs tests on every push/MR, deploys on push to main.
+#
+# Required CI/CD variables (Settings → CI/CD → Variables):
+#   AWS_ACCESS_KEY_ID       — IAM user access key
+#   AWS_SECRET_ACCESS_KEY   — IAM user secret key (masked)
+#   AWS_DEFAULT_REGION      — us-east-1
+# ──────────────────────────────────────────────
+
+stages:
+  - test
+  - build
+  - deploy
+
+variables:
+  PYTHON_VERSION: "3.13"
+  NODE_VERSION: "20"
+  SAM_CLI_TELEMETRY: "0"
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+# ─────────────────────────────────────────────
+# 1. Backend Tests
+# ─────────────────────────────────────────────
+test-backend:
+  stage: test
+  image: python:${PYTHON_VERSION}-slim
+  cache:
+    key: pip-${CI_COMMIT_REF_SLUG}
+    paths:
+      - .cache/pip
+  script:
+    - pip install -q -r backend/layers/shared/python/requirements.txt
+    - pip install -q pytest moto boto3 requests-mock
+    - >
+      PYTHONPATH=backend/layers/shared/python:backend
+      pytest backend/tests -v -m "not integration" --tb=short
+
+# ─────────────────────────────────────────────
+# 2. Frontend Type Check & Build
+# ─────────────────────────────────────────────
+test-frontend:
+  stage: test
+  image: node:${NODE_VERSION}-slim
+  cache:
+    key: npm-${CI_COMMIT_REF_SLUG}
+    paths:
+      - frontend/node_modules
+  script:
+    - cd frontend
+    - npm ci
+    - npx tsc --noEmit
+    - npm run build
+  artifacts:
+    paths:
+      - frontend/dist
+    expire_in: 1 hour
+    when: on_success
+
+# ─────────────────────────────────────────────
+# 3. SAM Build
+# ─────────────────────────────────────────────
+build-backend:
+  stage: build
+  image: python:${PYTHON_VERSION}-slim
+  only:
+    - main
+  cache:
+    key: pip-${CI_COMMIT_REF_SLUG}
+    paths:
+      - .cache/pip
+  before_script:
+    - pip install -q aws-sam-cli
+  script:
+    - sam build
+  artifacts:
+    paths:
+      - .aws-sam/build
+    expire_in: 1 hour
+
+# ─────────────────────────────────────────────
+# 4. Deploy to AWS (only on main)
+# ─────────────────────────────────────────────
+deploy:
+  stage: deploy
+  image: python:${PYTHON_VERSION}-slim
+  only:
+    - main
+  needs:
+    - test-backend
+    - test-frontend
+    - build-backend
+  environment:
+    name: production
+    url: https://drwlltutwjjfd.cloudfront.net
+  before_script:
+    - pip install -q aws-sam-cli awscli
+  script:
+    # --- Backend: SAM deploy ---
+    - >
+      sam deploy
+      --no-confirm-changeset
+      --no-fail-on-empty-changeset
+      --stack-name samai-monitor
+      --capabilities CAPABILITY_IAM
+      --region ${AWS_DEFAULT_REGION}
+      --parameter-overrides Stage=prod
+
+    # --- Frontend: S3 sync ---
+    - |
+      BUCKET=$(aws cloudformation describe-stacks \
+        --stack-name samai-monitor \
+        --query "Stacks[0].Outputs[?OutputKey=='FrontendBucketName'].OutputValue" \
+        --output text)
+      echo "Deploying frontend to s3://$BUCKET"
+      aws s3 sync frontend/dist/ s3://$BUCKET/ \
+        --delete \
+        --cache-control "public, max-age=31536000, immutable" \
+        --exclude "index.html"
+      aws s3 cp frontend/dist/index.html s3://$BUCKET/index.html \
+        --cache-control "no-cache, no-store, must-revalidate"
+
+    # --- CloudFront: invalidate cache ---
+    - |
+      DIST_ID=$(aws cloudformation describe-stacks \
+        --stack-name samai-monitor \
+        --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionId'].OutputValue" \
+        --output text)
+      if [ -n "$DIST_ID" ] && [ "$DIST_ID" != "None" ]; then
+        echo "Invalidating CloudFront $DIST_ID"
+        aws cloudfront create-invalidation \
+          --distribution-id $DIST_ID \
+          --paths "/*"
+      fi

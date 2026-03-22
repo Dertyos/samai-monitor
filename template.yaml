@@ -177,6 +177,7 @@ Resources:
           - GET
           - POST
           - DELETE
+          - PATCH
           - OPTIONS
         AllowHeaders:
           - Content-Type
