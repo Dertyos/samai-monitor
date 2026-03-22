@@ -68,6 +68,7 @@
 |---------|-----------|
 | `INDEX.md` | **ESTE ARCHIVO** |
 | `DEV_LOG.md` | Log de desarrollo por sesión |
+| `OPS_RUNBOOK.md` | Runbook de operaciones: AWS, CI/CD, SES, deploy, troubleshooting |
 
 ## Investigación previa (referencia)
 | Archivo | Ubicación |
