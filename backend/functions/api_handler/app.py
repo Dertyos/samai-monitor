@@ -275,22 +275,23 @@ def _get_detalle(event: dict) -> dict:
     if rad is None:
         return _response(404, {"error": "Radicado no encontrado"})
 
-    datos = samai_client.get_datos_proceso(rad.corporacion, rad.radicado)
+    datos_raw = samai_client.get_datos_proceso(rad.corporacion, rad.radicado)
+    datos = datos_raw.get("proceso", datos_raw) if isinstance(datos_raw, dict) else {}
     partes = samai_client.get_sujetos_procesales(rad.corporacion, rad.radicado)
     actuaciones = samai_client.get_actuaciones(rad.corporacion, rad.radicado)
 
     return _response(200, {
         "proceso": {
-            "despacho": datos.get("Despacho", ""),
+            "despacho": datos.get("Seccion", ""),
             "ponente": datos.get("Ponente", ""),
-            "tipoProceso": datos.get("TipoProceso", ""),
-            "claseActuacion": datos.get("ClaseActuacion", ""),
-            "fechaUltimaActuacion": datos.get("FechaUltimaActuacion", ""),
+            "tipoProceso": datos.get("tipoProceso", ""),
+            "claseActuacion": datos.get("claseProceso", ""),
+            "fechaUltimaActuacion": datos.get("UltimaActuacionDespachoFecha", ""),
         },
         "partes": [
             {
-                "nombre": p.get("NomSujeto", ""),
-                "tipo": p.get("TipoSujeto", ""),
+                "nombre": p.get("NOMBRE", ""),
+                "tipo": p.get("TIPO", ""),
             }
             for p in partes
         ],

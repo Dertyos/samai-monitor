@@ -474,15 +474,17 @@ class TestGetDetalle:
             )
         ]
         mock_datos = {
-            "Despacho": "TRIBUNAL ADMINISTRATIVO DEL TOLIMA",
-            "Ponente": "JUAN PEREZ",
-            "TipoProceso": "NULIDAD Y RESTABLECIMIENTO",
-            "ClaseActuacion": "DEMANDA",
-            "FechaUltimaActuacion": "2026-03-20",
+            "proceso": {
+                "Seccion": "TRIBUNAL ADMINISTRATIVO DEL TOLIMA",
+                "Ponente": "JUAN PEREZ",
+                "tipoProceso": "NULIDAD Y RESTABLECIMIENTO",
+                "claseProceso": "DEMANDA",
+                "UltimaActuacionDespachoFecha": "2026-03-20",
+            }
         }
         mock_partes = [
-            {"NomSujeto": "JUAN AVILES", "TipoSujeto": "DEMANDANTE"},
-            {"NomSujeto": "MUNICIPIO DE IBAGUE", "TipoSujeto": "DEMANDADO"},
+            {"NOMBRE": "JUAN AVILES", "TIPO": "DEMANDANTE"},
+            {"NOMBRE": "MUNICIPIO DE IBAGUE", "TIPO": "DEMANDADO"},
         ]
 
         with patch(

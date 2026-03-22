@@ -171,12 +171,22 @@ def marcar_alerta_leida(table: Any, user_id: str, sk: str) -> bool:
 
 def marcar_todas_leidas(table: Any, user_id: str) -> int:
     """Marca todas las alertas no leidas de un usuario como leidas. Retorna cantidad."""
+    from boto3.dynamodb.conditions import Attr
+
     resp = table.query(
         KeyConditionExpression=Key("userId").eq(user_id),
-        FilterExpression="leido = :f",
-        ExpressionAttributeValues={":f": False},
+        FilterExpression=Attr("leido").eq(False) | Attr("leido").not_exists(),
     )
     items = resp.get("Items", [])
+
+    while "LastEvaluatedKey" in resp:
+        resp = table.query(
+            KeyConditionExpression=Key("userId").eq(user_id),
+            FilterExpression=Attr("leido").eq(False) | Attr("leido").not_exists(),
+            ExclusiveStartKey=resp["LastEvaluatedKey"],
+        )
+        items.extend(resp.get("Items", []))
+
     count = 0
     for item in items:
         table.update_item(

@@ -59,6 +59,14 @@ export default function DetalleRadicado() {
         </button>
         <h2>{radicadoFormato}</h2>
         <div className={styles.headerActions}>
+          <a
+            href={`https://samai.consejodeestado.gov.co/Vistas/Casos/list_procesos.aspx?guid=${radicadoId}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-secondary"
+          >
+            Ver en SAMAI
+          </a>
           {query.data && (
             <button
               onClick={() => exportToCsv(query.data.actuaciones, radicadoId)}

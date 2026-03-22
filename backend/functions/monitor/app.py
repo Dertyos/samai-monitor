@@ -208,7 +208,12 @@ def _build_alert_email(alertas: list[Alerta]) -> tuple[str, str]:
     rows = ""
     for radicado, rad_alertas in by_radicado.items():
         fmt = f"{radicado[:5]}-{radicado[5:7]}-{radicado[7:9]}-{radicado[9:12]}-{radicado[12:16]}-{radicado[16:21]}-{radicado[21:23]}"
-        rows += f'<tr><td colspan="3" style="background:#f0f0f0;padding:8px;font-weight:bold;">{fmt}</td></tr>'
+        samai_url = f"https://samai.consejodeestado.gov.co/Vistas/Casos/list_procesos.aspx?guid={radicado}"
+        rows += (
+            f'<tr><td colspan="3" style="background:#f0f0f0;padding:8px;font-weight:bold;">'
+            f'{fmt} &nbsp; <a href="{samai_url}" style="font-size:12px;font-weight:normal;">Ver en SAMAI</a>'
+            f'</td></tr>'
+        )
         for a in sorted(rad_alertas, key=lambda x: x.orden, reverse=True):
             fecha = a.fecha_actuacion[:10] if a.fecha_actuacion else ""
             rows += (
