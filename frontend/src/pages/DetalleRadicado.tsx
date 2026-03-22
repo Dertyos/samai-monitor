@@ -145,6 +145,9 @@ export default function DetalleRadicado() {
   );
 }
 
+type SortKey = "orden" | "nombre" | "fecha" | "estado" | "decision" | "anotacion";
+type SortDir = "asc" | "desc";
+
 function ActuacionesSection({
   actuaciones,
   corporacion,
@@ -158,18 +161,57 @@ function ActuacionesSection({
   search: string;
   onSearchChange: (v: string) => void;
 }) {
+  const [sortKey, setSortKey] = useState<SortKey>("orden");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir(key === "orden" ? "desc" : "asc");
+    }
+  };
+
   const filtered = useMemo(() => {
-    if (!search) return actuaciones;
-    const q = search.toLowerCase();
-    return actuaciones.filter(
-      (a) =>
-        decodeHtml(a.nombre).toLowerCase().includes(q) ||
-        decodeHtml(a.anotacion).toLowerCase().includes(q) ||
-        (a.decision && decodeHtml(a.decision).toLowerCase().includes(q)) ||
-        (a.estado && a.estado.toLowerCase().includes(q)) ||
-        String(a.orden).includes(q),
-    );
-  }, [actuaciones, search]);
+    let list = actuaciones;
+    if (search) {
+      const q = search.toLowerCase();
+      list = list.filter(
+        (a) =>
+          decodeHtml(a.nombre).toLowerCase().includes(q) ||
+          decodeHtml(a.anotacion).toLowerCase().includes(q) ||
+          (a.decision && decodeHtml(a.decision).toLowerCase().includes(q)) ||
+          (a.estado && a.estado.toLowerCase().includes(q)) ||
+          String(a.orden).includes(q),
+      );
+    }
+    const sorted = [...list].sort((a, b) => {
+      let cmp = 0;
+      switch (sortKey) {
+        case "orden":
+          cmp = a.orden - b.orden;
+          break;
+        case "nombre":
+          cmp = decodeHtml(a.nombre).localeCompare(decodeHtml(b.nombre));
+          break;
+        case "fecha":
+          cmp = (a.fecha || "").localeCompare(b.fecha || "");
+          break;
+        case "estado":
+          cmp = (a.estado || "").localeCompare(b.estado || "");
+          break;
+        case "decision":
+          cmp = (a.decision || "").localeCompare(b.decision || "");
+          break;
+        case "anotacion":
+          cmp = decodeHtml(a.anotacion).localeCompare(decodeHtml(b.anotacion));
+          break;
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return sorted;
+  }, [actuaciones, search, sortKey, sortDir]);
 
   return (
           <section className={styles.section}>
@@ -228,12 +270,15 @@ function ActuacionesSection({
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th>#</th>
-                  <th>Actuacion</th>
-                  <th>Fecha</th>
-                  <th>Estado</th>
-                  <th>Decision</th>
-                  <th>Anotacion</th>
+                  {([["orden", "#"], ["nombre", "Actuacion"], ["fecha", "Fecha"], ["estado", "Estado"], ["decision", "Decision"], ["anotacion", "Anotacion"]] as [SortKey, string][]).map(([key, label]) => (
+                    <th
+                      key={key}
+                      onClick={() => handleSort(key)}
+                      className={styles.sortable}
+                    >
+                      {label} {sortKey === key ? (sortDir === "asc" ? "▲" : "▼") : ""}
+                    </th>
+                  ))}
                   <th></th>
                 </tr>
               </thead>

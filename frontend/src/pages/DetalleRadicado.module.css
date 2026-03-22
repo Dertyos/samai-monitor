@@ -82,7 +82,7 @@
 
 .parteItem {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.75rem;
   padding: 0.5rem 0;
   border-bottom: 1px solid var(--border);
@@ -93,7 +93,7 @@
 }
 
 .parteTipo {
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -101,9 +101,10 @@
   background: var(--primary-light);
   padding: 0.2rem 0.5rem;
   border-radius: 4px;
-  white-space: nowrap;
-  min-width: 100px;
+  flex-shrink: 0;
+  max-width: 200px;
   text-align: center;
+  line-height: 1.4;
 }
 
 .parteNombre {
@@ -162,6 +163,15 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+}
+
+.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.sortable:hover {
+  background: var(--primary-hover);
 }
 
 .table td {

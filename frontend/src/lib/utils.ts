@@ -5,11 +5,21 @@ export function formatRadicado(raw: string): string {
   return `${d.slice(0, 5)}-${d.slice(5, 7)}-${d.slice(7, 9)}-${d.slice(9, 12)}-${d.slice(12, 16)}-${d.slice(16, 21)}-${d.slice(21, 23)}`;
 }
 
-/** Formatea una fecha ISO a formato legible. */
-export function formatDate(iso: string): string {
-  if (!iso) return "";
-  const d = iso.slice(0, 10);
-  const [y, m, day] = d.split("-");
+/** Formatea una fecha ISO o SAMAI a formato legible DD/MM/YYYY. */
+export function formatDate(raw: string): string {
+  if (!raw) return "";
+  const trimmed = raw.trim();
+  // ISO format: YYYY-MM-DD...
+  if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+    const [y, m, day] = trimmed.slice(0, 10).split("-");
+    return `${day}/${m}/${y}`;
+  }
+  // Fallback: parse with Date (handles "Mar 31 2020 4:31PM" etc.)
+  const d = new Date(trimmed);
+  if (isNaN(d.getTime())) return trimmed;
+  const day = String(d.getDate()).padStart(2, "0");
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const y = d.getFullYear();
   return `${day}/${m}/${y}`;
 }
 

@@ -22,13 +22,21 @@ button.primary:hover:not(:disabled) {
   box-shadow: 0 2px 8px var(--primary-light);
 }
 
-button.btn-secondary {
+.btn-secondary {
+  display: inline-block;
   background: transparent;
   border: 1.5px solid var(--border);
   color: var(--text);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  padding: 0.625rem 1.125rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s ease;
 }
 
-button.btn-secondary:hover {
+.btn-secondary:hover {
   border-color: var(--border-hover);
   background: var(--primary-light);
 }
