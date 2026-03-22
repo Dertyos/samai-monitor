@@ -105,6 +105,8 @@ deploy:
       --stack-name samai-monitor
       --capabilities CAPABILITY_IAM
       --region ${AWS_DEFAULT_REGION}
+      --resolve-s3
+      --s3-prefix samai-monitor
       --parameter-overrides Stage=prod
 
     # --- Frontend: S3 sync ---

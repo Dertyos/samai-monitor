@@ -21,12 +21,18 @@
         "cloudformation:ExecuteChangeSet",
         "cloudformation:ListChangeSets"
       ],
-      "Resource": "arn:aws:cloudformation:us-east-1:236578428550:stack/samai-monitor/*"
+      "Resource": [
+        "arn:aws:cloudformation:us-east-1:236578428550:stack/samai-monitor/*",
+        "arn:aws:cloudformation:us-east-1:236578428550:stack/aws-sam-cli-managed-default/*"
+      ]
     },
     {
-      "Sid": "CloudFormationValidate",
+      "Sid": "CloudFormationGlobal",
       "Effect": "Allow",
-      "Action": "cloudformation:ValidateTemplate",
+      "Action": [
+        "cloudformation:ValidateTemplate",
+        "cloudformation:GetTemplateSummary"
+      ],
       "Resource": "*"
     },
     {
@@ -45,7 +51,9 @@
         "s3:GetBucketWebsite",
         "s3:PutBucketPublicAccessBlock",
         "s3:GetBucketPublicAccessBlock",
-        "s3:PutBucketTagging"
+        "s3:PutBucketTagging",
+        "s3:PutBucketVersioning",
+        "s3:GetBucketVersioning"
       ],
       "Resource": [
         "arn:aws:s3:::samai-monitor-*",
