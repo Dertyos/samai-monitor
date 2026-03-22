@@ -21,7 +21,7 @@ from radicado_utils import (
     validar_radicado,
     RadicadoInvalido,
 )
-from samai_client import SamaiClient
+from samai_client import SamaiClient, SamaiApiError
 from db import (
     guardar_radicado,
     obtener_radicados_usuario,
@@ -162,13 +162,20 @@ def _post_radicado(event: dict) -> dict:
     if existing is not None:
         return _response(409, {"error": "Radicado ya registrado"})
 
+    # Fetch max orden actual para no generar alertas falsas en el primer run
+    try:
+        max_orden = samai_client.get_max_orden(corp, norm)
+    except SamaiApiError:
+        logger.warning("No se pudo obtener max_orden de SAMAI para %s, usando 0", norm)
+        max_orden = 0
+
     rad = Radicado(
         user_id=user_id,
         radicado=norm,
         corporacion=corp,
         radicado_formato=formatear_radicado(norm),
         alias=body.get("alias", ""),
-        ultimo_orden=0,
+        ultimo_orden=max_orden,
         activo=True,
         created_at=datetime.now(timezone.utc).isoformat(),
     )

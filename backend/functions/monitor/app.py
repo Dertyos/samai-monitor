@@ -236,6 +236,9 @@ def _build_alert_email(alertas: list[Alerta]) -> tuple[str, str]:
 </tr>
 {rows}
 </table>
+<p style="margin-top:20px;">
+<a href="https://samai-monitor.dertyos.com" style="display:inline-block;background:#1a73e8;color:white;padding:10px 20px;text-decoration:none;border-radius:4px;font-size:14px;">Gestiona tus alertas aquí</a>
+</p>
 <p style="color:#666;font-size:12px;margin-top:20px;">
 Este correo fue enviado automáticamente por SAMAI Monitor.
 </p>

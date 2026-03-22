@@ -10,6 +10,13 @@ from moto import mock_aws
 from models import Actuacion
 
 
+@pytest.fixture(autouse=True)
+def _mock_get_max_orden():
+    """Mock get_max_orden para que POST /radicados no llame a SAMAI."""
+    with patch("functions.api_handler.app.samai_client.get_max_orden", return_value=177):
+        yield
+
+
 # Helper: simula evento API Gateway v2
 def _make_event(
     method: str = "GET",
