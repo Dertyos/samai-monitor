@@ -156,12 +156,21 @@ def eliminar_alertas_radicado(table: Any, user_id: str, radicado: str) -> int:
 
 
 def marcar_alerta_leida(table: Any, user_id: str, sk: str) -> bool:
-    """Marca una alerta como leida. Retorna True si existia, False si no."""
+    """Marca una alerta como leida con timestamp y TTL de 7 días."""
+    from datetime import datetime, timezone, timedelta
+
+    now = datetime.now(timezone.utc)
+    ttl_epoch = int((now + timedelta(days=7)).timestamp())
     try:
         table.update_item(
             Key={"userId": user_id, "sk": sk},
-            UpdateExpression="SET leido = :v",
-            ExpressionAttributeValues={":v": True},
+            UpdateExpression="SET leido = :v, readAt = :r, #t = :ttl",
+            ExpressionAttributeNames={"#t": "ttl"},
+            ExpressionAttributeValues={
+                ":v": True,
+                ":r": now.isoformat(),
+                ":ttl": ttl_epoch,
+            },
             ConditionExpression="attribute_exists(userId)",
         )
         return True
@@ -171,6 +180,8 @@ def marcar_alerta_leida(table: Any, user_id: str, sk: str) -> bool:
 
 def marcar_todas_leidas(table: Any, user_id: str) -> int:
     """Marca todas las alertas no leidas de un usuario como leidas. Retorna cantidad."""
+    from datetime import datetime, timezone, timedelta
+
     from boto3.dynamodb.conditions import Attr
 
     resp = table.query(
@@ -187,12 +198,19 @@ def marcar_todas_leidas(table: Any, user_id: str) -> int:
         )
         items.extend(resp.get("Items", []))
 
+    now = datetime.now(timezone.utc)
+    ttl_epoch = int((now + timedelta(days=7)).timestamp())
     count = 0
     for item in items:
         table.update_item(
             Key={"userId": user_id, "sk": item["sk"]},
-            UpdateExpression="SET leido = :v",
-            ExpressionAttributeValues={":v": True},
+            UpdateExpression="SET leido = :v, readAt = :r, #t = :ttl",
+            ExpressionAttributeNames={"#t": "ttl"},
+            ExpressionAttributeValues={
+                ":v": True,
+                ":r": now.isoformat(),
+                ":ttl": ttl_epoch,
+            },
         )
         count += 1
     return count

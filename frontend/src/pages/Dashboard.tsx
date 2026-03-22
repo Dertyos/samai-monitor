@@ -136,7 +136,11 @@ export default function Dashboard() {
     navigate("/login", { replace: true });
   };
 
-  const unreadCount = alertasQuery.data?.filter((a) => !a.leido).length ?? 0;
+  const unreadAlertas = useMemo(
+    () => alertasQuery.data?.filter((a) => !a.leido) ?? [],
+    [alertasQuery.data],
+  );
+  const unreadCount = unreadAlertas.length;
 
   useEffect(() => {
     document.title = unreadCount > 0
@@ -184,11 +188,7 @@ export default function Dashboard() {
             </div>
             <div className={styles.stat}>
               <span className={styles.statValue}>{unreadCount}</span>
-              <span className={styles.statLabel}>Sin leer</span>
-            </div>
-            <div className={styles.stat}>
-              <span className={styles.statValue}>{alertasQuery.data?.length ?? 0}</span>
-              <span className={styles.statLabel}>Alertas totales</span>
+              <span className={styles.statLabel}>Alertas nuevas</span>
             </div>
           </div>
         )}
@@ -300,12 +300,14 @@ export default function Dashboard() {
               <p>Cargando alertas...</p>
             </div>
           )}
-          {alertasQuery.data && <AlertasList alertas={alertasQuery.data} />}
-          {alertasQuery.data?.length === 0 && (
+          {alertasQuery.data && unreadCount > 0 && (
+            <AlertasList alertas={unreadAlertas} />
+          )}
+          {alertasQuery.data && unreadCount === 0 && (
             <div className="empty-state">
-              <p className="empty-state-icon">&#x1F514;</p>
-              <p className="empty-state-text">Sin alertas recientes</p>
-              <p className="empty-state-hint">Las alertas aparecen cuando el monitor detecta nuevas actuaciones</p>
+              <p className="empty-state-icon">&#x2705;</p>
+              <p className="empty-state-text">No hay alertas nuevas</p>
+              <p className="empty-state-hint">Estas al dia. Las alertas aparecen cuando el monitor detecta nuevas actuaciones.</p>
             </div>
           )}
         </section>

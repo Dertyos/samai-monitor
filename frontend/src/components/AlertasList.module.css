@@ -106,10 +106,9 @@
   margin-top: 0.125rem;
 }
 
-.timeAgo {
+.notified {
   color: var(--text-muted);
   font-size: 0.75rem;
-  font-style: italic;
 }
 
 .anotacion {
@@ -117,10 +116,6 @@
   font-size: 0.8rem;
   margin-top: 0.25rem;
   line-height: 1.4;
-}
-
-.itemRead {
-  opacity: 0.6;
 }
 
 .unreadDot {

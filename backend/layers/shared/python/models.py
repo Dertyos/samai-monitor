@@ -113,6 +113,7 @@ class Alerta:
     created_at: str = ""
     enviado: bool = False
     leido: bool = False
+    read_at: str = ""  # ISO datetime cuando se marcó como leída
 
     @property
     def sk(self) -> str:
@@ -121,7 +122,7 @@ class Alerta:
 
     def to_dynamo(self) -> dict:
         """Convierte a dict para DynamoDB."""
-        return {
+        item: dict = {
             "userId": self.user_id,
             "sk": self.sk,
             "radicado": self.radicado,
@@ -133,6 +134,9 @@ class Alerta:
             "enviado": self.enviado,
             "leido": self.leido,
         }
+        if self.read_at:
+            item["readAt"] = self.read_at
+        return item
 
     @classmethod
     def from_dynamo(cls, item: dict) -> Alerta:
@@ -147,4 +151,5 @@ class Alerta:
             created_at=item.get("createdAt", ""),
             enviado=item.get("enviado", False),
             leido=item.get("leido", False),
+            read_at=item.get("readAt", ""),
         )

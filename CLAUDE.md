@@ -73,11 +73,15 @@ Abogados registran radicados, el sistema detecta actuaciones nuevas via API REST
 - No agregar dependencias innecesarias
 - Preferir stdlib sobre librería externa cuando sea razonable
 
-## Comandos
+## Deploy
+- **GitLab CI/CD** (`.gitlab-ci.yml`) despliega automáticamente al hacer push a `main`
+- Pipeline: tests backend → tests frontend → SAM build → SAM deploy + S3 sync + CloudFront invalidation
+- NO hacer `sam deploy` ni `aws s3 sync` manualmente
+
+## Comandos locales
 ```bash
 make test              # Unit tests (pytest + moto + requests-mock)
 make test-integration  # Tests contra SAMAI real
-make build             # SAM build
-make deploy            # SAM deploy
+make build             # SAM build (solo local, CI lo hace en main)
 make lint              # (futuro) ruff/mypy
 ```

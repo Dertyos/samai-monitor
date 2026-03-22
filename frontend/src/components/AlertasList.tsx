@@ -10,9 +10,9 @@ interface Props {
 }
 
 /**
- * AlertasList — muestra alertas agrupadas por radicado.
+ * AlertasList — muestra alertas no leidas agrupadas por radicado.
  *
- * Clic en una alerta la marca como leida y navega al detalle del radicado.
+ * Clic en una alerta la marca como leida (desaparece) y navega al detalle.
  * Cada grupo se puede colapsar/expandir clicando el header.
  */
 export default function AlertasList({ alertas }: Props) {
@@ -56,7 +56,6 @@ export default function AlertasList({ alertas }: Props) {
   return (
     <div className={styles.list}>
       {Array.from(grouped.entries()).map(([radicado, items]) => {
-        const unreadCount = items.filter((a) => !a.leido).length;
         const isCollapsed = collapsed.has(radicado);
         return (
           <div key={radicado} className={styles.group}>
@@ -64,13 +63,12 @@ export default function AlertasList({ alertas }: Props) {
               className={styles.groupHeader}
               onClick={() => toggleGroup(radicado)}
             >
-              <span className={styles.chevron}>{isCollapsed ? "▸" : "▾"}</span>
+              <span className={styles.chevron}>{isCollapsed ? "\u25B8" : "\u25BE"}</span>
               <span className={styles.groupRadicado}>
                 {formatRadicado(radicado)}
               </span>
               <span className={styles.groupCount}>
-                {items.length} actuaci{items.length === 1 ? "on" : "ones"}
-                {unreadCount > 0 && ` (${unreadCount} nueva${unreadCount > 1 ? "s" : ""})`}
+                {items.length} nueva{items.length !== 1 ? "s" : ""}
               </span>
               <a
                 href={`https://samai.consejodeestado.gov.co/Vistas/Casos/list_procesos.aspx?guid=${radicado}`}
@@ -86,20 +84,22 @@ export default function AlertasList({ alertas }: Props) {
               items.map((a, i) => (
                 <div
                   key={`${a.radicado}-${a.orden}-${i}`}
-                  className={`${styles.item} ${a.leido ? styles.itemRead : ""}`}
+                  className={styles.item}
                   onClick={() => handleClick(a)}
                 >
                   <div className={styles.itemHeader}>
                     <span className={styles.actuacion}>
-                      {!a.leido && <span className={styles.unreadDot} />}
+                      <span className={styles.unreadDot} />
                       {decodeHtml(a.nombreActuacion)}
                     </span>
                     <span className={styles.orden}>#{a.orden}</span>
                   </div>
                   <div className={styles.itemMeta}>
-                    <span>{formatDate(a.fechaActuacion)}</span>
+                    <span>Actuacion: {formatDate(a.fechaActuacion)}</span>
                     {a.createdAt && (
-                      <span className={styles.timeAgo}>{timeAgo(a.createdAt)}</span>
+                      <span className={styles.notified}>
+                        Notificado {timeAgo(a.createdAt)}
+                      </span>
                     )}
                   </div>
                   {a.anotacion && <p className={styles.anotacion}>{decodeHtml(a.anotacion)}</p>}
