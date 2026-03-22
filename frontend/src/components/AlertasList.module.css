@@ -17,10 +17,22 @@
 .groupHeader {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 0.5rem;
   padding: 0.625rem 1rem;
   background: var(--primary-light);
   border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  user-select: none;
+}
+
+.groupHeader:hover {
+  background: var(--border);
+}
+
+.chevron {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
 }
 
 .groupRadicado {
@@ -36,6 +48,7 @@
   background: var(--bg);
   padding: 0.125rem 0.5rem;
   border-radius: 10px;
+  margin-left: auto;
 }
 
 .samaiLink {
