@@ -9,7 +9,7 @@ import styles from "./Perfil.module.css";
  *
  * Secciones:
  * 1. Informacion de cuenta (email readonly)
- * 2. Cambiar contrasena (old + new password)
+ * 2. Cambiar contraseña (old + new password)
  * 3. Zona peligrosa (cerrar sesion)
  *
  * Ruta: /perfil (protegida)
@@ -32,25 +32,25 @@ export default function Perfil() {
     setSuccess(null);
 
     if (newPassword !== confirmPassword) {
-      setError("Las contrasenas no coinciden");
+      setError("Las contraseñas no coinciden");
       return;
     }
 
     if (newPassword.length < 8) {
-      setError("La nueva contrasena debe tener al menos 8 caracteres");
+      setError("La nueva contraseña debe tener al menos 8 caracteres");
       return;
     }
 
     setLoading(true);
     try {
       await changePassword(oldPassword, newPassword);
-      setSuccess("Contrasena actualizada correctamente");
-      toast.success("Contrasena actualizada");
+      setSuccess("Contraseña actualizada correctamente");
+      toast.success("Contraseña actualizada");
       setOldPassword("");
       setNewPassword("");
       setConfirmPassword("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al cambiar contrasena");
+      setError(err instanceof Error ? err.message : "Error al cambiar contraseña");
     } finally {
       setLoading(false);
     }
@@ -81,18 +81,18 @@ export default function Perfil() {
 
       {/* Seccion 2: Cambiar contrasena */}
       <section className={styles.section}>
-        <h3>Cambiar Contrasena</h3>
+        <h3>Cambiar Contraseña</h3>
         <form className={styles.passwordForm} onSubmit={handleChangePassword}>
           <input
             type="password"
-            placeholder="Contrasena actual"
+            placeholder="Contraseña actual"
             value={oldPassword}
             onChange={(e) => setOldPassword(e.target.value)}
             required
           />
           <input
             type="password"
-            placeholder="Nueva contrasena"
+            placeholder="Nueva contraseña"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
             required
@@ -100,7 +100,7 @@ export default function Perfil() {
           />
           <input
             type="password"
-            placeholder="Confirmar nueva contrasena"
+            placeholder="Confirmar nueva contraseña"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             required
@@ -110,7 +110,7 @@ export default function Perfil() {
           {success && <div className="success-msg">{success}</div>}
           <div className={styles.actions}>
             <button type="submit" className="primary" disabled={loading}>
-              {loading ? "Actualizando..." : "Cambiar contrasena"}
+              {loading ? "Actualizando..." : "Cambiar contraseña"}
             </button>
           </div>
         </form>
