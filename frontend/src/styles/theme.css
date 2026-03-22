@@ -1,0 +1,84 @@
+/* ============================================
+   THEME — Design tokens (light + dark)
+
+   Todas las variables de identidad visual van aquí.
+   Para cambiar la identidad de la app, solo se modifica este archivo.
+   ============================================ */
+:root {
+  --primary: #1a73e8;
+  --primary-hover: #1557b0;
+  --primary-light: rgba(26, 115, 232, 0.08);
+  --danger: #dc3545;
+  --danger-hover: #c82333;
+  --danger-light: rgba(220, 53, 69, 0.08);
+  --success: #10b981;
+  --success-light: rgba(16, 185, 129, 0.1);
+  --warning: #f59e0b;
+
+  --bg: #f5f7fa;
+  --bg-elevated: #ffffff;
+  --card-bg: #ffffff;
+  --card-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  --card-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.1);
+
+  --text: #1f2937;
+  --text-secondary: #6b7280;
+  --text-muted: #9ca3af;
+  --border: #e5e7eb;
+  --border-hover: #d1d5db;
+
+  --header-bg: #ffffff;
+  --modal-backdrop: rgba(0, 0, 0, 0.4);
+  --mono: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+  --radius: 10px;
+  --radius-sm: 6px;
+  --radius-lg: 14px;
+
+  color-scheme: light dark;
+}
+
+[data-theme="dark"] {
+  --primary: #4d9ef6;
+  --primary-hover: #6db3ff;
+  --primary-light: rgba(77, 158, 246, 0.12);
+  --danger: #f87171;
+  --danger-hover: #fca5a5;
+  --danger-light: rgba(248, 113, 113, 0.12);
+  --success: #34d399;
+  --success-light: rgba(52, 211, 153, 0.12);
+
+  --bg: #0f1117;
+  --bg-elevated: #1a1d27;
+  --card-bg: #1e2130;
+  --card-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  --card-shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.4);
+
+  --text: #e5e7eb;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7280;
+  --border: #2d3348;
+  --border-hover: #3d4460;
+
+  --header-bg: #161822;
+  --modal-backdrop: rgba(0, 0, 0, 0.7);
+}
+
+/* ============================================
+   RESET & BASE
+   ============================================ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}

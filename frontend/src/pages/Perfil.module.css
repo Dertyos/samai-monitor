@@ -1,0 +1,88 @@
+/* ============================================
+   PERFIL — Pagina de cuenta de usuario
+   ============================================ */
+.page {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.header {
+  margin-bottom: 1.5rem;
+}
+
+.header h2 {
+  margin: 0.5rem 0 0.25rem;
+}
+
+.section {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: var(--card-shadow);
+  padding: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.section h3 {
+  font-size: 0.95rem;
+  margin-bottom: 1rem;
+  color: var(--primary);
+}
+
+.infoRow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+}
+
+.infoLabel {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  min-width: 80px;
+}
+
+.infoValue {
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.passwordForm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.dangerZone {
+  border-color: var(--danger);
+}
+
+.dangerZone h3 {
+  color: var(--danger);
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: 1rem;
+  }
+
+  .section {
+    padding: 1rem;
+  }
+
+  .infoRow {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+  }
+}

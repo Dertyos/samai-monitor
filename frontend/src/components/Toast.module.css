@@ -1,0 +1,86 @@
+/* ============================================
+   TOAST — Notificaciones flotantes
+
+   Reutilizable: se usa via useToast() hook.
+   Tipos: success, error, info.
+   Se auto-destruye despues de un timeout.
+   ============================================ */
+.container {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 500;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  animation: toastIn 0.2s ease;
+  max-width: 360px;
+}
+
+.toast.exiting {
+  animation: toastOut 0.15s ease forwards;
+}
+
+.success {
+  background: var(--success);
+  color: #fff;
+}
+
+.error {
+  background: var(--danger);
+  color: #fff;
+}
+
+.info {
+  background: var(--primary);
+  color: #fff;
+}
+
+.dismiss {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0 0.25rem;
+  font-size: 1.1rem;
+  opacity: 0.7;
+  line-height: 1;
+}
+
+.dismiss:hover {
+  opacity: 1;
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes toastOut {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(20px); }
+}
+
+@media (max-width: 640px) {
+  .container {
+    left: 1rem;
+    right: 1rem;
+  }
+
+  .toast {
+    max-width: 100%;
+  }
+}

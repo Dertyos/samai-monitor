@@ -119,6 +119,101 @@ class TestGetRadicados:
         assert data[0]["radicado"] == "73001233300020190034300"
 
 
+class TestToggleActivo:
+    """PATCH /radicados/{id}/toggle — alternar activo/inactivo."""
+
+    def test_toggle_desactiva(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        create_event = _make_event(
+            method="POST",
+            path="/radicados",
+            body={"radicado": "73001-23-33-000-2019-00343-00"},
+        )
+        handler(create_event, _context())
+
+        event = _make_event(
+            method="PATCH",
+            path="/radicados/73001233300020190034300/toggle",
+            path_params={"id": "73001233300020190034300"},
+        )
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 200
+        data = json.loads(resp["body"])
+        assert data["activo"] is False
+
+    def test_toggle_reactiva(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        create_event = _make_event(
+            method="POST",
+            path="/radicados",
+            body={"radicado": "73001-23-33-000-2019-00343-00"},
+        )
+        handler(create_event, _context())
+
+        event = _make_event(
+            method="PATCH",
+            path="/radicados/73001233300020190034300/toggle",
+            path_params={"id": "73001233300020190034300"},
+        )
+        handler(event, _context())
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 200
+        data = json.loads(resp["body"])
+        assert data["activo"] is True
+
+    def test_toggle_inexistente_404(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        event = _make_event(
+            method="PATCH",
+            path="/radicados/99999999999999999999999/toggle",
+            path_params={"id": "99999999999999999999999"},
+        )
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 404
+
+
+class TestPatchRadicado:
+    """PATCH /radicados/{id} — editar alias."""
+
+    def test_actualizar_alias_200(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        # Crear
+        create_event = _make_event(
+            method="POST",
+            path="/radicados",
+            body={"radicado": "73001-23-33-000-2019-00343-00", "alias": "Caso Aviles"},
+        )
+        handler(create_event, _context())
+
+        # Editar alias
+        patch_event = _make_event(
+            method="PATCH",
+            path="/radicados/73001233300020190034300",
+            path_params={"id": "73001233300020190034300"},
+            body={"alias": "Caso Modificado"},
+        )
+        resp = handler(patch_event, _context())
+        assert resp["statusCode"] == 200
+        data = json.loads(resp["body"])
+        assert data["alias"] == "Caso Modificado"
+
+    def test_editar_alias_inexistente_404(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        event = _make_event(
+            method="PATCH",
+            path="/radicados/99999999999999999999999",
+            path_params={"id": "99999999999999999999999"},
+            body={"alias": "Nuevo alias"},
+        )
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 404
+
+
 class TestDeleteRadicados:
     """DELETE /radicados/{id} — dejar de monitorear."""
 
@@ -142,6 +237,58 @@ class TestDeleteRadicados:
         resp = handler(delete_event, _context())
         assert resp["statusCode"] == 204
 
+    def test_eliminar_cascade_borra_alertas(self, dynamodb_resource):
+        """Al eliminar un radicado, sus alertas asociadas tambien se borran."""
+        from functions.api_handler.app import handler
+
+        radicado = "73001233300020190034300"
+
+        # 1. Crear radicado
+        create_event = _make_event(
+            method="POST",
+            path="/radicados",
+            body={"radicado": "73001-23-33-000-2019-00343-00"},
+        )
+        handler(create_event, _context())
+
+        # 2. Insertar alertas manualmente para este usuario+radicado
+        alertas_table = dynamodb_resource.Table("samai-alertas")
+        for i in range(3):
+            alertas_table.put_item(Item={
+                "userId": "user-123",
+                "sk": f"2026-01-01T00:00:00Z#{radicado}#{i+1}",
+                "radicado": radicado,
+                "orden": i + 1,
+                "nombreActuacion": f"Actuacion {i+1}",
+                "fechaActuacion": "2026-01-01",
+                "anotacion": "",
+                "createdAt": "2026-01-01T00:00:00Z",
+                "enviado": False,
+            })
+
+        # Verificar que hay 3 alertas
+        alertas_resp = alertas_table.query(
+            KeyConditionExpression="userId = :u",
+            ExpressionAttributeValues={":u": "user-123"},
+        )
+        assert len(alertas_resp["Items"]) == 3
+
+        # 3. Eliminar radicado — debe hacer cascade delete de alertas
+        delete_event = _make_event(
+            method="DELETE",
+            path=f"/radicados/{radicado}",
+            path_params={"id": radicado},
+        )
+        resp = handler(delete_event, _context())
+        assert resp["statusCode"] == 204
+
+        # 4. Verificar que las alertas fueron eliminadas
+        alertas_resp = alertas_table.query(
+            KeyConditionExpression="userId = :u",
+            ExpressionAttributeValues={":u": "user-123"},
+        )
+        assert len(alertas_resp["Items"]) == 0
+
     def test_eliminar_inexistente_404(self, dynamodb_resource):
         from functions.api_handler.app import handler
 
@@ -152,6 +299,95 @@ class TestDeleteRadicados:
         )
         resp = handler(delete_event, _context())
         assert resp["statusCode"] == 404
+
+
+class TestPatchAlertaRead:
+    """PATCH /alertas/{sk}/read — marcar alerta como leida."""
+
+    def test_marcar_alerta_leida_200(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        alertas_table = dynamodb_resource.Table("samai-alertas")
+        sk = "2026-01-01T00:00:00Z#73001233300020190034300#5"
+        alertas_table.put_item(Item={
+            "userId": "user-123",
+            "sk": sk,
+            "radicado": "73001233300020190034300",
+            "orden": 5,
+            "nombreActuacion": "Auto admisorio",
+            "fechaActuacion": "2026-01-01",
+            "anotacion": "",
+            "createdAt": "2026-01-01T00:00:00Z",
+            "enviado": False,
+            "leido": False,
+        })
+
+        event = _make_event(
+            method="PATCH",
+            path=f"/alertas/{sk}/read",
+            path_params={"sk": sk},
+        )
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 200
+
+        # Verificar que leido=True en DynamoDB
+        item = alertas_table.get_item(Key={"userId": "user-123", "sk": sk})["Item"]
+        assert item["leido"] is True
+
+    def test_marcar_alerta_inexistente_404(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        event = _make_event(
+            method="PATCH",
+            path="/alertas/fake-sk/read",
+            path_params={"sk": "fake-sk"},
+        )
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 404
+
+
+class TestMarkAllRead:
+    """PATCH /alertas/read-all — marcar todas las alertas como leidas."""
+
+    def test_marca_todas_200(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        alertas_table = dynamodb_resource.Table("samai-alertas")
+        for i in range(3):
+            alertas_table.put_item(Item={
+                "userId": "user-123",
+                "sk": f"2026-01-01T00:00:00Z#73001233300020190034300#{i+1}",
+                "radicado": "73001233300020190034300",
+                "orden": i + 1,
+                "nombreActuacion": f"Actuacion {i+1}",
+                "fechaActuacion": "2026-01-01",
+                "anotacion": "",
+                "createdAt": "2026-01-01T00:00:00Z",
+                "enviado": False,
+                "leido": False,
+            })
+
+        event = _make_event(method="PATCH", path="/alertas/read-all")
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 200
+        data = json.loads(resp["body"])
+        assert data["count"] == 3
+
+        # Verificar que todas estan leidas
+        items = alertas_table.query(
+            KeyConditionExpression="userId = :u",
+            ExpressionAttributeValues={":u": "user-123"},
+        )["Items"]
+        assert all(item["leido"] for item in items)
+
+    def test_sin_alertas_200(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        event = _make_event(method="PATCH", path="/alertas/read-all")
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 200
+        data = json.loads(resp["body"])
+        assert data["count"] == 0
 
 
 class TestGetAlertas:

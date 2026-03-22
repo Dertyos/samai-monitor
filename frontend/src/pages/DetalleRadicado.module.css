@@ -1,0 +1,305 @@
+/* ============================================
+   DETALLE RADICADO — Vista completa del proceso
+   ============================================ */
+.page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.header {
+  margin-bottom: 1.5rem;
+}
+
+.header h2 {
+  font-family: var(--mono);
+  font-size: 1.1rem;
+  margin: 0.5rem 0 0.25rem;
+}
+
+.alias {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  font-style: italic;
+}
+
+.section {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: var(--card-shadow);
+  padding: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.section h3 {
+  font-size: 0.95rem;
+  margin-bottom: 1rem;
+  color: var(--primary);
+}
+
+.emptyText {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.count {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+/* Info grid — datos del proceso */
+.infoGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 0.75rem;
+}
+
+.infoItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.infoLabel {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.infoValue {
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+/* Partes procesales */
+.partesList {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.parteItem {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.parteItem:last-child {
+  border-bottom: none;
+}
+
+.parteTipo {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--primary);
+  background: var(--primary-light);
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  white-space: nowrap;
+  min-width: 100px;
+  text-align: center;
+}
+
+.parteNombre {
+  font-size: 0.875rem;
+}
+
+/* Actuaciones — badges */
+.estadoBadge {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--success);
+  background: var(--success-light);
+  padding: 0.125rem 0.4rem;
+  border-radius: 4px;
+  margin-bottom: 0.25rem;
+}
+
+.decisionText {
+  color: var(--primary);
+  font-size: 0.8rem;
+  font-weight: 500;
+  margin-bottom: 0.25rem;
+}
+
+.decisionCell {
+  color: var(--primary);
+  font-weight: 500;
+  max-width: 200px;
+}
+
+.anotacionCell {
+  color: var(--text-secondary);
+  max-width: 300px;
+}
+
+/* Desktop table */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--card-shadow);
+  border: 1px solid var(--border);
+}
+
+.table th {
+  background: var(--primary);
+  color: #fff;
+  padding: 0.625rem 0.75rem;
+  text-align: left;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.table td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+
+.table tr:hover td {
+  background: var(--primary-light);
+}
+
+/* Table inside section — flush edges */
+.section .table {
+  box-shadow: none;
+  border: none;
+  border-radius: 0;
+  margin: 0 -1.25rem -1.25rem;
+  width: calc(100% + 2.5rem);
+}
+
+/* Mobile cards (hidden on desktop) */
+.cards {
+  display: none;
+}
+
+.card {
+  background: var(--card-bg);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+}
+
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.25rem;
+}
+
+.cardOrden {
+  font-family: var(--mono);
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: var(--primary);
+}
+
+.cardFecha {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.cardNombre {
+  font-weight: 600;
+  font-size: 0.875rem;
+  margin-bottom: 0.25rem;
+}
+
+.cardAnotacion {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.headerActions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.actuacionSearch {
+  width: 100%;
+  margin-bottom: 0.75rem;
+}
+
+.downloadBtn {
+  display: inline-block;
+  margin-top: 0.375rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  color: var(--primary);
+  border: 1px solid var(--primary);
+  border-radius: 4px;
+  text-decoration: none;
+  transition: all 0.15s;
+}
+
+.downloadBtn:hover {
+  background: var(--primary);
+  color: white;
+}
+
+.downloadLink {
+  color: var(--primary);
+  text-decoration: none;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.downloadLink:hover {
+  text-decoration: underline;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .page {
+    padding: 1rem;
+  }
+
+  .header h2 {
+    font-size: 0.9rem;
+  }
+
+  .infoGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .section {
+    padding: 1rem;
+  }
+
+  .section .table {
+    margin: 0 -1rem -1rem;
+    width: calc(100% + 2rem);
+  }
+
+  .parteItem {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+  }
+
+  /* Show cards, hide table on mobile */
+  .cards {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .table {
+    display: none;
+  }
+}

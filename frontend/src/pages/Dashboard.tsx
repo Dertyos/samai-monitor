@@ -1,37 +1,75 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getRadicados,
   addRadicado,
   deleteRadicado,
+  updateRadicadoAlias,
+  toggleRadicadoActivo,
   getAlertas,
+  markAllAlertasRead,
   type RadicadoDTO,
 } from "../lib/api";
 import AddRadicadoModal from "../components/AddRadicadoModal";
+import ConfirmModal from "../components/ConfirmModal";
 import RadicadoCard from "../components/RadicadoCard";
 import AlertasList from "../components/AlertasList";
+import { RadicadoCardSkeleton, StatsBarSkeleton } from "../components/Skeleton";
+import { useAuth } from "../hooks/useAuth";
 import { useTheme } from "../hooks/useTheme";
+import { useToast } from "../hooks/useToast";
+import styles from "./Dashboard.module.css";
 
-interface Props {
-  email: string | null;
-  onSignOut: () => void;
-  onViewHistorial: (radicado: RadicadoDTO) => void;
-}
-
-export default function Dashboard({ email, onSignOut, onViewHistorial }: Props) {
+/**
+ * Dashboard — pagina principal autenticada.
+ *
+ * Muestra los radicados del usuario, alertas recientes,
+ * y permite agregar/eliminar radicados.
+ * Usa ConfirmModal para confirmar eliminacion (en vez de window.confirm).
+ */
+export default function Dashboard() {
+  const navigate = useNavigate();
+  const { email, signOut } = useAuth();
   const [showAddModal, setShowAddModal] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<RadicadoDTO | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<"recent" | "alias" | "activo">("recent");
   const queryClient = useQueryClient();
   const { theme, toggle: toggleTheme } = useTheme();
+  const toast = useToast();
 
   const radicadosQuery = useQuery({
     queryKey: ["radicados"],
     queryFn: getRadicados,
+    staleTime: 2 * 60 * 1000, // 2 min
   });
 
   const alertasQuery = useQuery({
     queryKey: ["alertas"],
     queryFn: getAlertas,
+    staleTime: 60 * 1000, // 1 min
+    refetchInterval: 60 * 1000, // poll cada 60s para detectar alertas nuevas
   });
+
+  const filteredRadicados = useMemo(() => {
+    if (!radicadosQuery.data) return [];
+    return radicadosQuery.data
+      .filter((r: RadicadoDTO) => {
+        if (!searchQuery) return true;
+        const q = searchQuery.toLowerCase();
+        return (
+          r.radicado.includes(q) ||
+          r.radicadoFormato.toLowerCase().includes(q) ||
+          r.alias.toLowerCase().includes(q)
+        );
+      })
+      .sort((a: RadicadoDTO, b: RadicadoDTO) => {
+        if (sortBy === "alias") return a.alias.localeCompare(b.alias);
+        if (sortBy === "activo") return (b.activo ? 1 : 0) - (a.activo ? 1 : 0);
+        return 0;
+      });
+  }, [radicadosQuery.data, searchQuery, sortBy]);
 
   const addMutation = useMutation({
     mutationFn: ({ radicado, alias }: { radicado: string; alias: string }) =>
@@ -39,6 +77,44 @@ export default function Dashboard({ email, onSignOut, onViewHistorial }: Props) 
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["radicados"] });
       setShowAddModal(false);
+      toast.success("Radicado agregado correctamente");
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Error al agregar radicado");
+    },
+  });
+
+  const editAliasMutation = useMutation({
+    mutationFn: ({ radicado, alias }: { radicado: string; alias: string }) =>
+      updateRadicadoAlias(radicado, alias),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["radicados"] });
+      toast.success("Alias actualizado");
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Error al actualizar alias");
+    },
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: toggleRadicadoActivo,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["radicados"] });
+      toast.success(data.activo ? "Monitoreo reactivado" : "Monitoreo pausado");
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Error al cambiar estado");
+    },
+  });
+
+  const markAllReadMutation = useMutation({
+    mutationFn: markAllAlertasRead,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["alertas"] });
+      toast.success(`${data.count} alerta${data.count !== 1 ? "s" : ""} marcada${data.count !== 1 ? "s" : ""} como leida${data.count !== 1 ? "s" : ""}`);
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Error al marcar alertas");
     },
   });
 
@@ -46,39 +122,109 @@ export default function Dashboard({ email, onSignOut, onViewHistorial }: Props) 
     mutationFn: deleteRadicado,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["radicados"] });
+      queryClient.invalidateQueries({ queryKey: ["alertas"] });
+      setDeleteTarget(null);
+      toast.success("Radicado eliminado");
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Error al eliminar radicado");
     },
   });
 
+  const handleSignOut = () => {
+    signOut();
+    navigate("/login", { replace: true });
+  };
+
+  const unreadCount = alertasQuery.data?.filter((a) => !a.leido).length ?? 0;
+
+  useEffect(() => {
+    document.title = unreadCount > 0
+      ? `(${unreadCount}) SAMAI Monitor`
+      : "SAMAI Monitor";
+  }, [unreadCount]);
+
   return (
-    <div className="dashboard">
+    <div className={styles.dashboard}>
       <header>
-        <div className="header-left">
-          <h1>SAMAI Monitor</h1>
+        <div>
+          <h1>
+            SAMAI Monitor
+            {unreadCount > 0 && (
+              <span className={styles.badge}>{unreadCount}</span>
+            )}
+          </h1>
         </div>
-        <div className="header-right">
-          <span className="email">{email}</span>
+        <div className={styles.headerRight}>
+          <Link to="/perfil" className={styles.email} title="Mi cuenta">
+            {email}
+          </Link>
           <button onClick={toggleTheme} className="theme-toggle" title="Cambiar tema">
             {theme === "light" ? "\u{1F319}" : "\u{2600}\u{FE0F}"}
           </button>
-          <button onClick={onSignOut} className="btn-secondary">
-            Cerrar sesión
+          <button onClick={handleSignOut} className="btn-secondary">
+            Cerrar sesion
           </button>
         </div>
       </header>
 
-      <main>
-        <section className="section">
-          <div className="section-header">
+      <main className={styles.main}>
+        {radicadosQuery.isLoading && <StatsBarSkeleton />}
+        {radicadosQuery.data && (
+          <div className={styles.statsBar}>
+            <div className={styles.stat}>
+              <span className={styles.statValue}>{radicadosQuery.data.length}</span>
+              <span className={styles.statLabel}>Radicados</span>
+            </div>
+            <div className={styles.stat}>
+              <span className={styles.statValue}>
+                {radicadosQuery.data.filter((r) => r.activo).length}
+              </span>
+              <span className={styles.statLabel}>Activos</span>
+            </div>
+            <div className={styles.stat}>
+              <span className={styles.statValue}>{unreadCount}</span>
+              <span className={styles.statLabel}>Sin leer</span>
+            </div>
+            <div className={styles.stat}>
+              <span className={styles.statValue}>{alertasQuery.data?.length ?? 0}</span>
+              <span className={styles.statLabel}>Alertas totales</span>
+            </div>
+          </div>
+        )}
+
+        <section className={styles.section}>
+          <div className={styles.sectionHeader}>
             <h2>Mis Radicados</h2>
             <button onClick={() => setShowAddModal(true)} className="primary">
               + Agregar
             </button>
           </div>
 
+          {radicadosQuery.data && radicadosQuery.data.length > 0 && (
+            <div className={styles.filterBar}>
+              <input
+                type="text"
+                placeholder="Buscar por numero o alias..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className={styles.searchInput}
+              />
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as "recent" | "alias" | "activo")}
+                className={styles.sortSelect}
+              >
+                <option value="recent">Mas recientes</option>
+                <option value="alias">Por alias (A-Z)</option>
+                <option value="activo">Activos primero</option>
+              </select>
+            </div>
+          )}
+
           {radicadosQuery.isLoading && (
-            <div className="loading-container">
-              <div className="spinner" />
-              <p>Cargando radicados...</p>
+            <div className={styles.radicadosGrid}>
+              {[0, 1, 2].map((i) => <RadicadoCardSkeleton key={i} />)}
             </div>
           )}
           {radicadosQuery.error && (
@@ -87,36 +233,67 @@ export default function Dashboard({ email, onSignOut, onViewHistorial }: Props) 
             </p>
           )}
 
-          <div className="radicados-grid">
-            {radicadosQuery.data?.map((r: RadicadoDTO) => (
+          <div className={styles.radicadosGrid}>
+            {filteredRadicados.map((r: RadicadoDTO) => (
               <RadicadoCard
                 key={r.radicado}
                 radicado={r}
                 isSelected={false}
-                onSelect={() => onViewHistorial(r)}
-                onDelete={() => {
-                  if (confirm(`¿Dejar de monitorear ${r.radicadoFormato}?`)) {
-                    deleteMutation.mutate(r.radicado);
-                  }
-                }}
+                onSelect={() => navigate(`/radicado/${r.radicado}`)}
+                onDelete={() => setDeleteTarget(r)}
+                onEditAlias={(alias) => editAliasMutation.mutate({ radicado: r.radicado, alias })}
+                onToggleActivo={() => toggleMutation.mutate(r.radicado)}
                 isDeleting={
                   deleteMutation.isPending &&
                   deleteMutation.variables === r.radicado
                 }
+                isEditing={
+                  editAliasMutation.isPending &&
+                  editAliasMutation.variables?.radicado === r.radicado
+                }
+                isToggling={
+                  toggleMutation.isPending &&
+                  toggleMutation.variables === r.radicado
+                }
               />
             ))}
-            {radicadosQuery.data?.length === 0 && (
+            {radicadosQuery.data?.length === 0 && !searchQuery && (
               <div className="empty-state">
                 <p className="empty-state-icon">&#x1F4CB;</p>
                 <p className="empty-state-text">No tienes radicados monitoreados</p>
-                <p className="empty-state-hint">Agrega uno con el botón "+ Agregar" para empezar</p>
+                <p className="empty-state-hint">Agrega uno con el boton "+ Agregar" para empezar</p>
+              </div>
+            )}
+            {searchQuery && filteredRadicados.length === 0 && (radicadosQuery.data?.length ?? 0) > 0 && (
+              <div className="empty-state">
+                <p className="empty-state-icon">&#x1F50D;</p>
+                <p className="empty-state-text">Sin resultados para "{searchQuery}"</p>
+                <p className="empty-state-hint">Intenta con otro termino de busqueda</p>
               </div>
             )}
           </div>
         </section>
 
-        <section className="section">
-          <h2>Alertas Recientes</h2>
+        <section className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h2>Alertas Recientes</h2>
+            <div className={styles.alertasActions}>
+              {alertasQuery.dataUpdatedAt > 0 && (
+                <span className={styles.lastUpdated}>
+                  Actualizado {new Date(alertasQuery.dataUpdatedAt).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}
+                </span>
+              )}
+              {alertasQuery.data && alertasQuery.data.some((a) => !a.leido) && (
+                <button
+                  onClick={() => markAllReadMutation.mutate()}
+                  className="btn-secondary"
+                  disabled={markAllReadMutation.isPending}
+                >
+                  {markAllReadMutation.isPending ? "..." : "Marcar todas leidas"}
+                </button>
+              )}
+            </div>
+          </div>
           {alertasQuery.isLoading && (
             <div className="loading-container">
               <div className="spinner" />
@@ -144,6 +321,18 @@ export default function Dashboard({ email, onSignOut, onViewHistorial }: Props) 
               : null
           }
           loading={addMutation.isPending}
+        />
+      )}
+
+      {deleteTarget && (
+        <ConfirmModal
+          title="Dejar de monitorear"
+          message={`Se eliminara el radicado ${deleteTarget.radicadoFormato}${deleteTarget.alias ? ` (${deleteTarget.alias})` : ""} y todas sus alertas asociadas.`}
+          confirmLabel="Eliminar"
+          variant="danger"
+          onConfirm={() => deleteMutation.mutate(deleteTarget.radicado)}
+          onCancel={() => setDeleteTarget(null)}
+          loading={deleteMutation.isPending}
         />
       )}
     </div>

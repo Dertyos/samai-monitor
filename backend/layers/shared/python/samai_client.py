@@ -86,3 +86,7 @@ class SamaiClient:
     def get_sujetos_procesales(self, corporacion: str, radicado: str) -> list[dict]:
         """Obtiene las partes procesales (demandante, demandado, etc.)."""
         return self._get(f"Procesos/SujetosProcesales/{corporacion}/{radicado}/{MODO}")
+
+    def get_documento_url(self, corporacion: str, radicado: str, doc_hash: str) -> str:
+        """Retorna la URL directa para descargar un documento/providencia."""
+        return f"{self.base_url}/DescargarProvidenciaPublica/{corporacion}/{radicado}/{doc_hash}/{MODO}"

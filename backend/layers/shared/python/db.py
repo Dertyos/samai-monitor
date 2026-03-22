@@ -47,6 +47,34 @@ def eliminar_radicado(table: Any, user_id: str, radicado: str) -> bool:
     return True
 
 
+def actualizar_alias(table: Any, user_id: str, radicado: str, alias: str) -> bool:
+    """Actualiza el alias de un radicado. Retorna True si existia."""
+    try:
+        table.update_item(
+            Key={"userId": user_id, "radicado": radicado},
+            UpdateExpression="SET alias = :a",
+            ExpressionAttributeValues={":a": alias},
+            ConditionExpression="attribute_exists(userId)",
+        )
+        return True
+    except table.meta.client.exceptions.ConditionalCheckFailedException:
+        return False
+
+
+def toggle_activo(table: Any, user_id: str, radicado: str) -> bool | None:
+    """Alterna el campo activo de un radicado. Retorna el nuevo valor, o None si no existe."""
+    rad = obtener_radicado(table, user_id, radicado)
+    if rad is None:
+        return None
+    new_val = not rad.activo
+    table.update_item(
+        Key={"userId": user_id, "radicado": radicado},
+        UpdateExpression="SET activo = :a",
+        ExpressionAttributeValues={":a": new_val},
+    )
+    return new_val
+
+
 def obtener_radicados_unicos(table: Any) -> list[tuple[str, str]]:
     """Obtiene todos los radicados únicos (deduplicados) con su corporación.
 
@@ -125,6 +153,39 @@ def eliminar_alertas_radicado(table: Any, user_id: str, radicado: str) -> int:
             batch.delete_item(Key={"userId": item["userId"], "sk": item["sk"]})
             deleted += 1
     return deleted
+
+
+def marcar_alerta_leida(table: Any, user_id: str, sk: str) -> bool:
+    """Marca una alerta como leida. Retorna True si existia, False si no."""
+    try:
+        table.update_item(
+            Key={"userId": user_id, "sk": sk},
+            UpdateExpression="SET leido = :v",
+            ExpressionAttributeValues={":v": True},
+            ConditionExpression="attribute_exists(userId)",
+        )
+        return True
+    except table.meta.client.exceptions.ConditionalCheckFailedException:
+        return False
+
+
+def marcar_todas_leidas(table: Any, user_id: str) -> int:
+    """Marca todas las alertas no leidas de un usuario como leidas. Retorna cantidad."""
+    resp = table.query(
+        KeyConditionExpression=Key("userId").eq(user_id),
+        FilterExpression="leido = :f",
+        ExpressionAttributeValues={":f": False},
+    )
+    items = resp.get("Items", [])
+    count = 0
+    for item in items:
+        table.update_item(
+            Key={"userId": user_id, "sk": item["sk"]},
+            UpdateExpression="SET leido = :v",
+            ExpressionAttributeValues={":v": True},
+        )
+        count += 1
+    return count
 
 
 def guardar_alerta(table: Any, alerta: Alerta) -> None:

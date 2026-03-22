@@ -28,12 +28,14 @@ export interface RadicadoDTO {
 }
 
 export interface AlertaDTO {
+  sk: string;
   radicado: string;
   orden: number;
   nombreActuacion: string;
   fechaActuacion: string;
   anotacion: string;
   createdAt: string;
+  leido: boolean;
 }
 
 export interface ActuacionDTO {
@@ -43,6 +45,7 @@ export interface ActuacionDTO {
   anotacion: string;
   estado: string;
   decision: string | null;
+  docHash: string | null;
 }
 
 export interface ProcesoDTO {
@@ -62,6 +65,7 @@ export interface DetalleDTO {
   proceso: ProcesoDTO;
   partes: ParteDTO[];
   actuaciones: ActuacionDTO[];
+  corporacion: string;
 }
 
 export async function getRadicados(): Promise<RadicadoDTO[]> {
@@ -80,6 +84,24 @@ export async function addRadicado(
   return res.json();
 }
 
+export async function updateRadicadoAlias(
+  radicado: string,
+  alias: string,
+): Promise<RadicadoDTO> {
+  const res = await authFetch(`/radicados/${radicado}`, {
+    method: "PATCH",
+    body: JSON.stringify({ alias }),
+  });
+  return res.json();
+}
+
+export async function toggleRadicadoActivo(
+  radicado: string,
+): Promise<{ activo: boolean }> {
+  const res = await authFetch(`/radicados/${radicado}/toggle`, { method: "PATCH" });
+  return res.json();
+}
+
 export async function deleteRadicado(radicado: string): Promise<void> {
   await authFetch(`/radicados/${radicado}`, { method: "DELETE" });
 }
@@ -94,9 +116,24 @@ export async function getAlertas(): Promise<AlertaDTO[]> {
   return res.json();
 }
 
+const SAMAI_BASE = "https://samaicore.consejodeestado.gov.co/api";
+
+export function getDocumentoUrl(corporacion: string, radicado: string, docHash: string): string {
+  return `${SAMAI_BASE}/DescargarProvidenciaPublica/${corporacion}/${radicado}/${docHash}/2`;
+}
+
 export async function getDetalle(radicado: string): Promise<DetalleDTO> {
   const res = await authFetch(`/radicados/${radicado}/detalle`);
   return res.json();
+}
+
+export async function markAllAlertasRead(): Promise<{ count: number }> {
+  const res = await authFetch("/alertas/read-all", { method: "PATCH" });
+  return res.json();
+}
+
+export async function markAlertaRead(sk: string): Promise<void> {
+  await authFetch(`/alertas/${encodeURIComponent(sk)}/read`, { method: "PATCH" });
 }
 
 export async function buscarProceso(numProceso: string): Promise<unknown[]> {

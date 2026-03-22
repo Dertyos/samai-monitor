@@ -28,6 +28,11 @@ from db import (
     eliminar_radicado,
     obtener_radicado,
     obtener_alertas_usuario,
+    eliminar_alertas_radicado,
+    marcar_alerta_leida,
+    marcar_todas_leidas,
+    actualizar_alias,
+    toggle_activo,
 )
 
 logger = logging.getLogger(__name__)
@@ -94,6 +99,14 @@ def handler(event: dict, context: Any) -> dict:
         if method == "GET" and path == "/radicados":
             return _get_radicados(event)
 
+        # PATCH /radicados/{id}/toggle
+        if method == "PATCH" and path.endswith("/toggle"):
+            return _patch_toggle(event)
+
+        # PATCH /radicados/{id}
+        if method == "PATCH" and path.startswith("/radicados/") and "/detalle" not in path and "/historial" not in path:
+            return _patch_radicado(event)
+
         # DELETE /radicados/{id}
         if method == "DELETE" and path.startswith("/radicados/"):
             return _delete_radicado(event)
@@ -105,6 +118,14 @@ def handler(event: dict, context: Any) -> dict:
         # GET /radicados/{id}/historial
         if method == "GET" and "/historial" in path:
             return _get_historial(event)
+
+        # PATCH /alertas/read-all (must come BEFORE /alertas/{sk}/read)
+        if method == "PATCH" and path == "/alertas/read-all":
+            return _patch_read_all(event)
+
+        # PATCH /alertas/{sk}/read
+        if method == "PATCH" and "/alertas/" in path and path.endswith("/read"):
+            return _patch_alerta_read(event)
 
         # GET /alertas
         if method == "GET" and path == "/alertas":
@@ -180,13 +201,44 @@ def _get_radicados(event: dict) -> dict:
     ])
 
 
+def _patch_toggle(event: dict) -> dict:
+    """PATCH /radicados/{id}/toggle — alternar activo/inactivo."""
+    user_id = _get_user_id(event)
+    radicado_id = _get_path_param(event, "id")
+    new_val = toggle_activo(_radicados_table, user_id, radicado_id)
+    if new_val is None:
+        return _response(404, {"error": "Radicado no encontrado"})
+    logger.info("Toggle activo=%s para radicado %s", new_val, radicado_id)
+    return _response(200, {"activo": new_val})
+
+
+def _patch_radicado(event: dict) -> dict:
+    """PATCH /radicados/{id} — actualizar alias."""
+    user_id = _get_user_id(event)
+    radicado_id = _get_path_param(event, "id")
+    body = json.loads(event.get("body") or "{}")
+    alias = body.get("alias", "")
+
+    if actualizar_alias(_radicados_table, user_id, radicado_id, alias):
+        logger.info("Alias actualizado: %s para radicado %s", alias, radicado_id)
+        rad = obtener_radicado(_radicados_table, user_id, radicado_id)
+        if rad:
+            return _response(200, rad.to_dynamo())
+    return _response(404, {"error": "Radicado no encontrado"})
+
+
 def _delete_radicado(event: dict) -> dict:
     """DELETE /radicados/{id} — dejar de monitorear."""
     user_id = _get_user_id(event)
     radicado_id = _get_path_param(event, "id")
 
     if eliminar_radicado(_radicados_table, user_id, radicado_id):
-        logger.info("Radicado eliminado: %s para usuario %s", radicado_id, user_id)
+        # Cascade: eliminar alertas asociadas a este radicado
+        deleted_alertas = eliminar_alertas_radicado(_alertas_table, user_id, radicado_id)
+        logger.info(
+            "Radicado eliminado: %s para usuario %s (cascade: %d alertas)",
+            radicado_id, user_id, deleted_alertas,
+        )
         return _response(204)
     return _response(404, {"error": "Radicado no encontrado"})
 
@@ -250,10 +302,30 @@ def _get_detalle(event: dict) -> dict:
                 "anotacion": a.anotacion,
                 "estado": a.estado,
                 "decision": a.decision,
+                "docHash": a.doc_hash,
             }
             for a in actuaciones
         ],
+        "corporacion": rad.corporacion,
     })
+
+
+def _patch_read_all(event: dict) -> dict:
+    """PATCH /alertas/read-all — marcar todas las alertas como leidas."""
+    user_id = _get_user_id(event)
+    count = marcar_todas_leidas(_alertas_table, user_id)
+    logger.info("Marcadas %d alertas como leidas para usuario %s", count, user_id)
+    return _response(200, {"count": count})
+
+
+def _patch_alerta_read(event: dict) -> dict:
+    """PATCH /alertas/{sk}/read — marcar una alerta como leida."""
+    user_id = _get_user_id(event)
+    sk = _get_path_param(event, "sk")
+    if marcar_alerta_leida(_alertas_table, user_id, sk):
+        logger.info("Alerta marcada como leida: %s para usuario %s", sk, user_id)
+        return _response(200, {"ok": True})
+    return _response(404, {"error": "Alerta no encontrada"})
 
 
 def _get_alertas(event: dict) -> dict:
@@ -262,12 +334,14 @@ def _get_alertas(event: dict) -> dict:
     alertas = obtener_alertas_usuario(_alertas_table, user_id)
     return _response(200, [
         {
+            "sk": a.sk,
             "radicado": a.radicado,
             "orden": a.orden,
             "nombreActuacion": a.nombre_actuacion,
             "fechaActuacion": a.fecha_actuacion,
             "anotacion": a.anotacion,
             "createdAt": a.created_at,
+            "leido": a.leido,
         }
         for a in alertas
     ])

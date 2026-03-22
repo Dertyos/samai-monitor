@@ -90,3 +90,71 @@ export function signOut(): void {
     user.signOut();
   }
 }
+
+/**
+ * forgotPassword — inicia el flujo de recuperacion de contrasena.
+ *
+ * Envia un codigo de verificacion al email registrado en Cognito.
+ * Despues de esto, el usuario debe llamar confirmForgotPassword con el codigo.
+ */
+export function forgotPassword(email: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const user = new CognitoUser({ Username: email, Pool: userPool });
+    user.forgotPassword({
+      onSuccess: () => resolve(),
+      onFailure: reject,
+      inputVerificationCode: () => resolve(),
+    });
+  });
+}
+
+/**
+ * confirmForgotPassword — completa el flujo de recuperacion.
+ *
+ * Recibe el codigo de verificacion enviado por email y la nueva contrasena.
+ * Valida el codigo contra Cognito y actualiza la contrasena.
+ */
+export function confirmForgotPassword(
+  email: string,
+  code: string,
+  newPassword: string,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const user = new CognitoUser({ Username: email, Pool: userPool });
+    user.confirmPassword(code, newPassword, {
+      onSuccess: () => resolve(),
+      onFailure: reject,
+    });
+  });
+}
+
+/**
+ * changePassword — cambia la contrasena del usuario autenticado.
+ *
+ * Requiere sesion activa. Usado desde la pagina de perfil.
+ */
+export function changePassword(
+  oldPassword: string,
+  newPassword: string,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const user = getCurrentUser();
+    if (!user) {
+      reject(new Error("No authenticated user"));
+      return;
+    }
+    user.getSession((err: Error | null) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      user.changePassword(oldPassword, newPassword, (err) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve();
+      });
+    });
+  });
+}
