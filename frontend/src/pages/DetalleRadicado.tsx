@@ -60,7 +60,7 @@ export default function DetalleRadicado() {
         <h2>{radicadoFormato}</h2>
         <div className={styles.headerActions}>
           <a
-            href={`https://samai.consejodeestado.gov.co/Vistas/Casos/list_procesos.aspx?guid=${radicadoId}`}
+            href={`https://samai.consejodeestado.gov.co/Vistas/Casos/list_procesos.aspx?guid=${radicadoFormato}`}
             target="_blank"
             rel="noopener noreferrer"
             className="btn-secondary"

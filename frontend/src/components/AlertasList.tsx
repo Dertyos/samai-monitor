@@ -71,7 +71,7 @@ export default function AlertasList({ alertas }: Props) {
                 {items.length} nueva{items.length !== 1 ? "s" : ""}
               </span>
               <a
-                href={`https://samai.consejodeestado.gov.co/Vistas/Casos/list_procesos.aspx?guid=${radicado}`}
+                href={`https://samai.consejodeestado.gov.co/Vistas/Casos/list_procesos.aspx?guid=${formatRadicado(radicado)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className={styles.samaiLink}
