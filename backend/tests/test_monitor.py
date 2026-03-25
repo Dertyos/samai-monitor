@@ -183,3 +183,49 @@ class TestMonitorHandler:
 
         assert result["processed"] >= 1
         mock_email.assert_called_once()
+
+
+class TestSendEmailAlerts:
+    """_send_email_alerts: envía correos via Resend."""
+
+    def test_sends_email_via_resend(self, dynamodb_resource):
+        from functions.monitor.app import _send_email_alerts
+
+        alerta = Alerta(
+            user_id=USER_A,
+            radicado=RADICADO,
+            orden=177,
+            nombre_actuacion="Fijacion estado",
+            fecha_actuacion="2026-03-20T00:00:00",
+            anotacion="Detalle",
+            created_at="2026-03-20T10:00:00",
+        )
+
+        with patch("functions.monitor.app._get_user_email", return_value="test@example.com"), \
+             patch("functions.monitor.app.resend") as mock_resend:
+            _send_email_alerts({USER_A: [alerta]})
+
+        mock_resend.Emails.send.assert_called_once()
+        call_args = mock_resend.Emails.send.call_args[0][0]
+        assert call_args["to"] == ["test@example.com"]
+        assert "SAMAI Monitor" in call_args["from"]
+        assert "actuación" in call_args["subject"]
+
+    def test_skips_user_without_email(self, dynamodb_resource):
+        from functions.monitor.app import _send_email_alerts
+
+        alerta = Alerta(
+            user_id=USER_A,
+            radicado=RADICADO,
+            orden=177,
+            nombre_actuacion="Fijacion estado",
+            fecha_actuacion="2026-03-20T00:00:00",
+            anotacion="Detalle",
+            created_at="2026-03-20T10:00:00",
+        )
+
+        with patch("functions.monitor.app._get_user_email", return_value=None), \
+             patch("functions.monitor.app.resend") as mock_resend:
+            _send_email_alerts({USER_A: [alerta]})
+
+        mock_resend.Emails.send.assert_not_called()
