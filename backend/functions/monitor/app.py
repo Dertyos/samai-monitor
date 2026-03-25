@@ -4,7 +4,7 @@ Flujo:
 1. Leer todos los radicados únicos (deduplicados)
 2. Para cada radicado: consultar SAMAI, detectar novedades
 3. Crear alertas para cada usuario afectado
-4. Enviar correos resumen via SES
+4. Enviar correos resumen via Resend
 """
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import boto3
+import resend
 
 from models import Actuacion, Alerta
 from samai_client import SamaiClient, SamaiApiError
@@ -34,6 +35,20 @@ _radicados_table = _dynamodb.Table(os.environ.get("RADICADOS_TABLE", "samai-radi
 _actuaciones_table = _dynamodb.Table(os.environ.get("ACTUACIONES_TABLE", "samai-actuaciones"))
 _alertas_table = _dynamodb.Table(os.environ.get("ALERTAS_TABLE", "samai-alertas"))
 samai_client = SamaiClient()
+
+# Resend API key — cargada desde SSM en cold start
+def _load_resend_api_key() -> str:
+    """Carga la API key de Resend desde SSM Parameter Store."""
+    ssm_param = os.environ.get("RESEND_API_KEY_SSM", "/samai-monitor/resend-api-key")
+    ssm = boto3.client("ssm", region_name=os.environ.get("AWS_REGION", "us-east-1"))
+    resp = ssm.get_parameter(Name=ssm_param, WithDecryption=True)
+    return resp["Parameter"]["Value"]
+
+
+try:
+    resend.api_key = _load_resend_api_key()
+except Exception:
+    logger.warning("Could not load Resend API key from SSM — emails will fail")
 
 
 def handler(event: dict, context: Any) -> dict:
@@ -154,9 +169,8 @@ def check_radicado(
 
 
 def _send_email_alerts(user_alertas: dict[str, list[Alerta]]) -> None:
-    """Envía correos de alerta via SES."""
-    ses = boto3.client("ses", region_name=os.environ.get("AWS_REGION", "us-east-1"))
-    sender = os.environ.get("SES_SENDER", "juliansalcedo4@gmail.com")
+    """Envía correos de alerta via Resend."""
+    sender = os.environ.get("EMAIL_SENDER", "alertas@samai-monitor.dertyos.com")
     cognito = boto3.client("cognito-idp", region_name=os.environ.get("AWS_REGION", "us-east-1"))
     user_pool_id = os.environ.get("USER_POOL_ID", "")
 
@@ -168,14 +182,12 @@ def _send_email_alerts(user_alertas: dict[str, list[Alerta]]) -> None:
                 continue
 
             subject, body_html = _build_alert_email(alertas)
-            ses.send_email(
-                Source=sender,
-                Destination={"ToAddresses": [email]},
-                Message={
-                    "Subject": {"Data": subject, "Charset": "UTF-8"},
-                    "Body": {"Html": {"Data": body_html, "Charset": "UTF-8"}},
-                },
-            )
+            resend.Emails.send({
+                "from": f"SAMAI Monitor <{sender}>",
+                "to": [email],
+                "subject": subject,
+                "html": body_html,
+            })
             logger.info("Email sent to %s with %d alertas", email, len(alertas))
         except Exception:
             logger.exception("Error sending email to user %s", user_id)
