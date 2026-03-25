@@ -56,7 +56,7 @@ def handler(event: dict, context: Any) -> dict:
         return event
 
     code = _decrypt_code(_kms, encrypted_code)
-    sender = os.environ.get("EMAIL_SENDER", "alertas@samai-monitor.dertyos.com")
+    sender = os.environ.get("EMAIL_SENDER", "alertas@alertas-judiciales.dertyos.com")
 
     if trigger in _SIGNUP_TRIGGERS:
         subject = "SAMAI Monitor — Código de verificación"

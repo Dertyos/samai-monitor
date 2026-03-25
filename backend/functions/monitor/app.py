@@ -170,7 +170,7 @@ def check_radicado(
 
 def _send_email_alerts(user_alertas: dict[str, list[Alerta]]) -> None:
     """Envía correos de alerta via Resend."""
-    sender = os.environ.get("EMAIL_SENDER", "alertas@samai-monitor.dertyos.com")
+    sender = os.environ.get("EMAIL_SENDER", "alertas@alertas-judiciales.dertyos.com")
     cognito = boto3.client("cognito-idp", region_name=os.environ.get("AWS_REGION", "us-east-1"))
     user_pool_id = os.environ.get("USER_POOL_ID", "")
 
@@ -249,7 +249,7 @@ def _build_alert_email(alertas: list[Alerta]) -> tuple[str, str]:
 {rows}
 </table>
 <p style="margin-top:20px;">
-<a href="https://samai-monitor.dertyos.com" style="display:inline-block;background:#1a73e8;color:white;padding:10px 20px;text-decoration:none;border-radius:4px;font-size:14px;">Gestiona tus alertas aquí</a>
+<a href="https://alertas-judiciales.dertyos.com" style="display:inline-block;background:#1a73e8;color:white;padding:10px 20px;text-decoration:none;border-radius:4px;font-size:14px;">Gestiona tus alertas aquí</a>
 </p>
 <p style="color:#666;font-size:12px;margin-top:20px;">
 Este correo fue enviado automáticamente por SAMAI Monitor.

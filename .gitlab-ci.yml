@@ -107,7 +107,7 @@ deploy:
       --region ${AWS_DEFAULT_REGION}
       --resolve-s3
       --s3-prefix samai-monitor
-      --parameter-overrides Stage=prod
+      --parameter-overrides Stage=prod AcmCertificateArn=arn:aws:acm:us-east-1:236578428550:certificate/75490866-eaae-4480-8962-d4abc0452a94
 
     # --- Frontend: S3 sync ---
     - |

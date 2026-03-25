@@ -24,6 +24,13 @@ Parameters:
     AllowedValues:
       - prod
       - dev
+  AcmCertificateArn:
+    Type: String
+    Description: ACM certificate ARN for alertas-judiciales.dertyos.com (us-east-1)
+    Default: ""
+
+Conditions:
+  HasCertificate: !Not [!Equals [!Ref AcmCertificateArn, ""]]
 
 Resources:
   # ============================================
@@ -140,7 +147,7 @@ Resources:
       Environment:
         Variables:
           USER_POOL_ID: !Ref UserPool
-          EMAIL_SENDER: "alertas@samai-monitor.dertyos.com"
+          EMAIL_SENDER: "alertas@alertas-judiciales.dertyos.com"
           RESEND_API_KEY_SSM: "/samai-monitor/resend-api-key"
       Policies:
         - DynamoDBCrudPolicy:
@@ -243,7 +250,7 @@ Resources:
       Timeout: 30
       Environment:
         Variables:
-          EMAIL_SENDER: "alertas@samai-monitor.dertyos.com"
+          EMAIL_SENDER: "alertas@alertas-judiciales.dertyos.com"
           RESEND_API_KEY_SSM: "/samai-monitor/resend-api-key"
       Policies:
         - Statement:
@@ -263,7 +270,7 @@ Resources:
       FunctionName: !GetAtt CognitoEmailSenderFunction.Arn
       Action: lambda:InvokeFunction
       Principal: cognito-idp.amazonaws.com
-      SourceArn: !GetAtt UserPool.Arn
+      SourceArn: !Sub "arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*"
 
   UserPool:
     Type: AWS::Cognito::UserPool
@@ -315,11 +322,11 @@ Resources:
       CallbackURLs:
         - http://localhost:5173/callback
         - !Sub "https://${CloudFrontDistribution.DomainName}/callback"
-        - https://samai-monitor.dertyos.com/callback
+        - https://alertas-judiciales.dertyos.com/callback
       LogoutURLs:
         - http://localhost:5173/
         - !Sub "https://${CloudFrontDistribution.DomainName}/"
-        - https://samai-monitor.dertyos.com/
+        - https://alertas-judiciales.dertyos.com/
 
   UserPoolDomain:
     Type: AWS::Cognito::UserPoolDomain
@@ -445,6 +452,18 @@ Resources:
       DistributionConfig:
         Enabled: true
         DefaultRootObject: index.html
+        Aliases:
+          !If
+            - HasCertificate
+            - - alertas-judiciales.dertyos.com
+            - !Ref "AWS::NoValue"
+        ViewerCertificate:
+          !If
+            - HasCertificate
+            - AcmCertificateArn: !Ref AcmCertificateArn
+              SslSupportMethod: sni-only
+              MinimumProtocolVersion: TLSv1.2_2021
+            - CloudFrontDefaultCertificate: true
         Origins:
           - Id: S3Origin
             DomainName: !GetAtt FrontendBucket.RegionalDomainName
