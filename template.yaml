@@ -199,14 +199,88 @@ Resources:
   # ============================================
   # COGNITO — Autenticación
   # ============================================
+
+  # KMS key para cifrado de códigos de Cognito Custom Email Sender
+  CognitoKmsKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: KMS key for Cognito Custom Email Sender code encryption
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowRootAccount
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: "kms:*"
+            Resource: "*"
+          - Sid: AllowCognitoEncrypt
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action:
+              - kms:Encrypt
+              - kms:GenerateDataKey
+            Resource: "*"
+            Condition:
+              StringEquals:
+                aws:PrincipalServiceName: cognito-idp.amazonaws.com
+
+  CognitoKmsKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: alias/samai-cognito-email
+      TargetKeyId: !Ref CognitoKmsKey
+
+  CognitoEmailSenderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: samai-cognito-email-sender
+      Handler: app.handler
+      CodeUri: backend/functions/cognito_email_sender/
+      Description: Cognito Custom Email Sender - sends emails via Resend
+      MemorySize: 256
+      Timeout: 30
+      Environment:
+        Variables:
+          EMAIL_SENDER: "alertas@samai-monitor.dertyos.com"
+          RESEND_API_KEY_SSM: "/samai-monitor/resend-api-key"
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ssm:GetParameter
+              Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/samai-monitor/resend-api-key"
+        - Statement:
+            - Effect: Allow
+              Action:
+                - kms:Decrypt
+              Resource: !GetAtt CognitoKmsKey.Arn
+
+  CognitoEmailSenderPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt CognitoEmailSenderFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt UserPool.Arn
+
   UserPool:
     Type: AWS::Cognito::UserPool
+    DependsOn:
+      - CognitoEmailSenderFunction
+      - CognitoEmailSenderPermission
     Properties:
       UserPoolName: samai-users
       AutoVerifiedAttributes:
         - email
       UsernameAttributes:
         - email
+      LambdaConfig:
+        CustomEmailSender:
+          LambdaArn: !GetAtt CognitoEmailSenderFunction.Arn
+          LambdaVersion: V1_0
+        KMSKeyID: !GetAtt CognitoKmsKey.Arn
       Policies:
         PasswordPolicy:
           MinimumLength: 8
