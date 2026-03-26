@@ -114,7 +114,7 @@ export default function Login() {
         {theme === "light" ? "\u{1F319}" : "\u{2600}\u{FE0F}"}
       </button>
       <div className={styles.card}>
-        <h1>SAMAI Monitor</h1>
+        <h1>Alertas Judiciales<br /><small>by Dertyos</small></h1>
         <p className={styles.subtitle}>Monitoreo de estados judiciales</p>
 
         {showTabs && (

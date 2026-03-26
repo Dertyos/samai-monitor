@@ -69,6 +69,7 @@
 | `INDEX.md` | **ESTE ARCHIVO** |
 | `DEV_LOG.md` | Log de desarrollo por sesión |
 | `OPS_RUNBOOK.md` | Runbook de operaciones: AWS, CI/CD, SES, deploy, troubleshooting |
+| `NUEVAS_PLATAFORMAS.md` | Investigación técnica: SIUGJ, Siglo XXI (CPNU), SPOA — APIs, CAPTCHAs, dificultad, plan de integración |
 
 ## Investigación previa (referencia)
 | Archivo | Ubicación |

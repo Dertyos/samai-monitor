@@ -314,3 +314,4 @@
     display: none;
   }
 }
+.samaiLinkGroup { display: flex; gap: 0.25rem; }

@@ -70,15 +70,6 @@ export default function AlertasList({ alertas }: Props) {
               <span className={styles.groupCount}>
                 {items.length} nueva{items.length !== 1 ? "s" : ""}
               </span>
-              <a
-                href={`https://samai.consejodeestado.gov.co/Vistas/Casos/list_procesos.aspx?guid=${formatRadicado(radicado)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={styles.samaiLink}
-                onClick={(e) => e.stopPropagation()}
-              >
-                Ver en SAMAI
-              </a>
             </div>
             {!isCollapsed &&
               items.map((a, i) => (

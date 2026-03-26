@@ -1,4 +1,4 @@
-# Log de Desarrollo — SAMAI Monitor
+# Log de Desarrollo — Alertas Judiciales by Dertyos
 
 ---
 
@@ -283,7 +283,7 @@
   - POST /alertas/mark-all-read: marcar todas las alertas como leídas (TDD, 1 test)
   - Descarga de documentos desde historial de actuaciones (link directo a SAMAI)
   - Stale time en React Query + botón manual refresh en Dashboard y Detalle
-  - Badge de alertas sin leer en header + título del documento (`(3) SAMAI Monitor`)
+  - Badge de alertas sin leer en header + título del documento (`(3) Alertas Judiciales`)
   - Ordenar radicados: por recientes, alias (A-Z), o estado (activo primero)
   - Total: 78 tests backend en verde
 

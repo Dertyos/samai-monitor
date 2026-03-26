@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────
-# SAMAI Monitor — GitLab CI/CD Pipeline
+# Alertas Judiciales by Dertyos — GitLab CI/CD Pipeline
 # ──────────────────────────────────────────────
 # Runs tests on every push/MR, deploys on push to main.
 #

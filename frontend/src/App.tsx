@@ -25,7 +25,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   if (isLoading) {
     return (
       <div className="loading-screen">
-        <h1>SAMAI Monitor</h1>
+        <h1>Alertas Judiciales<br /><small>by Dertyos</small></h1>
         <div className="spinner" />
         <p>Cargando...</p>
       </div>
@@ -49,7 +49,7 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   if (isLoading) {
     return (
       <div className="loading-screen">
-        <h1>SAMAI Monitor</h1>
+        <h1>Alertas Judiciales<br /><small>by Dertyos</small></h1>
         <div className="spinner" />
         <p>Cargando...</p>
       </div>

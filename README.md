@@ -1,4 +1,4 @@
-# SAMAI Monitor
+# Alertas Judiciales by Dertyos
 
 Monitor automatizado de estados judiciales del sistema SAMAI (jurisdicción contencioso-administrativa, Colombia).
 

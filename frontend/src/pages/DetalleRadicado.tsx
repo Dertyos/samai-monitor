@@ -59,14 +59,6 @@ export default function DetalleRadicado() {
         </button>
         <h2>{radicadoFormato}</h2>
         <div className={styles.headerActions}>
-          <a
-            href={`https://samai.consejodeestado.gov.co/Vistas/Casos/list_procesos.aspx?guid=${radicadoFormato}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn-secondary"
-          >
-            Ver en SAMAI
-          </a>
           {query.data && (
             <button
               onClick={() => exportToCsv(query.data.actuaciones, radicadoId)}
@@ -82,6 +74,29 @@ export default function DetalleRadicado() {
           >
             {query.isFetching ? "Actualizando..." : "Actualizar"}
           </button>
+          <div className={styles.samaiLinkGroup}>
+            <a
+              href={query.data ? `https://samai.consejodeestado.gov.co/Vistas/Casos/list_procesos.aspx?guid=${radicadoFormato}${query.data.corporacion}` : `https://samai.consejodeestado.gov.co/Vistas/Casos/list_procesos.aspx?guid=${radicadoFormato}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-secondary"
+              title="Abrir en SAMAI. Si tienes error de corporación, cópialo y ábrelo en Incógnito."
+            >
+              Ver en SAMAI
+            </a>
+            <button
+              onClick={() => {
+                const url = query.data ? `https://samai.consejodeestado.gov.co/Vistas/Casos/list_procesos.aspx?guid=${radicadoFormato}${query.data.corporacion}` : `https://samai.consejodeestado.gov.co/Vistas/Casos/list_procesos.aspx?guid=${radicadoFormato}`;
+                navigator.clipboard.writeText(url);
+                alert("Enlace copiado.\n\nSi SAMAI indica que el proceso no existe en la corporación, pega el enlace en una ventana de Incógnito para ignorar tu sesión actual.");
+              }}
+              className="btn-secondary"
+              title="Copiar enlace para abrir en Incógnito"
+              style={{ padding: "0.25rem 0.5rem" }}
+            >
+              📋
+            </button>
+          </div>
         </div>
       </div>
 

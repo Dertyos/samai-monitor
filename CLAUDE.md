@@ -1,4 +1,4 @@
-# CLAUDE.md — SAMAI Monitor
+# CLAUDE.md — Alertas Judiciales by Dertyos
 
 ## Proyecto
 SaaS de monitoreo judicial para SAMAI (jurisdicción contencioso-administrativa, Colombia).
