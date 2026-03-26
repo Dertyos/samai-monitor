@@ -376,6 +376,55 @@ Flujos a verificar antes de deploy:
 
 ---
 
+## 2026-03-26 — Registro sin código de verificación (PreSignUp trigger)
+
+### Problema
+El flujo de registro anterior requería:
+1. Usuario ingresa email + contraseña → `signUp`
+2. Cognito llama `CognitoEmailSenderFunction` → envía código por email
+3. Usuario copia el código → `confirmSignUp`
+4. Login automático → dashboard
+
+Esto añade fricción innecesaria para un sistema B2B de bajo volumen.
+
+### Solución: PreSignUp Lambda trigger
+
+Cognito permite un trigger `PreSignUp` que se ejecuta **antes** de crear el usuario.
+Si la Lambda retorna `autoConfirmUser=True` y `autoVerifyEmail=True`, Cognito
+marca al usuario como `CONFIRMED` de inmediato, sin enviar ningún código.
+
+**Flujo nuevo:**
+1. Usuario ingresa email + contraseña → `signUp`
+2. Cognito llama `PreSignUpFunction` → auto-confirma
+3. Login automático → dashboard
+
+### Archivos modificados
+
+| Archivo | Cambio |
+|---|---|
+| `backend/functions/pre_signup/app.py` | **NUEVO** — Lambda de 4 líneas, retorna `autoConfirmUser=True` |
+| `template.yaml` | `PreSignUpFunction` + `PreSignUpPermission` + trigger en `UserPool.LambdaConfig.PreSignUp` |
+| `frontend/src/pages/Login.tsx` | Eliminado modo `"confirm"`, registro hace `signUp` → `signIn` directo |
+
+### Decisiones de diseño
+
+- **¿Por qué PreSignUp y no `AdminConfirmSignUp` en el backend?**
+  PreSignUp es síncrono y más simple: no requiere credenciales admin en el frontend
+  ni un endpoint adicional. Cognito lo llama automáticamente.
+
+- **¿Se sigue enviando email de bienvenida/verificación?**
+  No. `autoConfirmUser=True` suprime el envío de código de verificación.
+  El email de `forgot password` sigue funcionando normalmente (ese usa un trigger diferente).
+
+- **¿Se puede agregar verificación de dominio más adelante?**
+  Sí: cambiar `autoConfirmUser` a condicional por dominio de email, o mover
+  a una lista de dominios permitidos. El trigger es el lugar correcto para esa lógica.
+
+- **¿Qué pasa con usuarios ya existentes?**
+  Sin impacto. El trigger solo aplica a registros nuevos.
+
+---
+
 ## Fases Futuras (v2+)
 
 ### Fase 8: Custom Domain + SSL

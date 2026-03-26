@@ -7,12 +7,11 @@ import styles from "./Login.module.css";
 /**
  * Modos de la pagina de login:
  * - login: iniciar sesion con email + password
- * - register: crear cuenta nueva
- * - confirm: verificar codigo de email (post-registro)
+ * - register: crear cuenta nueva (sin codigo de verificacion)
  * - forgot: solicitar codigo de recuperacion de contrasena
  * - resetPassword: ingresar codigo + nueva contrasena
  */
-type Mode = "login" | "register" | "confirm" | "forgot" | "resetPassword";
+type Mode = "login" | "register" | "forgot" | "resetPassword";
 
 /**
  * Login — pagina publica de autenticacion.
@@ -53,12 +52,6 @@ export default function Login() {
 
         case "register":
           await auth.signUp(email, password);
-          setMode("confirm");
-          setSuccessMsg("Codigo de verificacion enviado a tu correo");
-          break;
-
-        case "confirm":
-          await auth.confirmSignUp(email, code);
           await auth.signIn(email, password);
           navigate("/dashboard", { replace: true });
           break;
@@ -100,13 +93,12 @@ export default function Login() {
     switch (mode) {
       case "login": return "Iniciar Sesion";
       case "register": return "Registrarse";
-      case "confirm": return "Confirmar";
       case "forgot": return "Enviar codigo";
       case "resetPassword": return "Cambiar contrasena";
     }
   };
 
-  const showTabs = mode === "login" || mode === "register" || mode === "confirm";
+  const showTabs = mode === "login" || mode === "register";
 
   return (
     <div className={styles.page}>
@@ -126,7 +118,7 @@ export default function Login() {
               Iniciar Sesion
             </button>
             <button
-              className={mode === "register" || mode === "confirm" ? "active" : ""}
+              className={mode === "register" ? "active" : ""}
               onClick={() => { clearMessages(); setMode("register"); }}
             >
               Registrarse
@@ -174,8 +166,8 @@ export default function Login() {
             </button>
           )}
 
-          {/* Codigo verificacion — confirm y resetPassword */}
-          {(mode === "confirm" || mode === "resetPassword") && (
+          {/* Codigo verificacion — resetPassword */}
+          {mode === "resetPassword" && (
             <input
               type="text"
               placeholder="Codigo de verificacion"

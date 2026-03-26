@@ -279,11 +279,31 @@ Resources:
       Principal: cognito-idp.amazonaws.com
       SourceArn: !Sub "arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*"
 
+  PreSignUpFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: samai-pre-signup
+      Handler: app.handler
+      CodeUri: backend/functions/pre_signup/
+      Description: Cognito PreSignUp trigger - auto-confirma usuarios sin codigo de verificacion
+      MemorySize: 128
+      Timeout: 5
+
+  PreSignUpPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt PreSignUpFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !Sub "arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*"
+
   UserPool:
     Type: AWS::Cognito::UserPool
     DependsOn:
       - CognitoEmailSenderFunction
       - CognitoEmailSenderPermission
+      - PreSignUpFunction
+      - PreSignUpPermission
     Properties:
       UserPoolName: samai-users
       AutoVerifiedAttributes:
@@ -291,6 +311,7 @@ Resources:
       UsernameAttributes:
         - email
       LambdaConfig:
+        PreSignUp: !GetAtt PreSignUpFunction.Arn
         CustomEmailSender:
           LambdaArn: !GetAtt CognitoEmailSenderFunction.Arn
           LambdaVersion: V1_0
