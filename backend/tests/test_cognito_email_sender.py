@@ -100,15 +100,16 @@ class TestCognitoEmailSender:
 
         mock_resend.Emails.send.assert_not_called()
 
-    def test_decrypt_code_calls_kms(self):
+    def test_decrypt_code_uses_encryption_sdk(self):
         from functions.cognito_email_sender.app import _decrypt_code
         import base64
 
-        mock_kms = MagicMock()
-        mock_kms.decrypt.return_value = {"Plaintext": b"123456"}
-
         encrypted = base64.b64encode(b"some-encrypted-data").decode()
-        result = _decrypt_code(mock_kms, encrypted)
+
+        with patch("functions.cognito_email_sender.app._enc_client") as mock_client, \
+             patch("functions.cognito_email_sender.app.aws_encryption_sdk.StrictAwsKmsMasterKeyProvider"):
+            mock_client.decrypt.return_value = (b"123456", MagicMock())
+            result = _decrypt_code(encrypted)
 
         assert result == "123456"
-        mock_kms.decrypt.assert_called_once()
+        mock_client.decrypt.assert_called_once()
