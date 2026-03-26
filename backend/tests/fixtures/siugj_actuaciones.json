@@ -1,0 +1,45 @@
+{
+  "numReg": 5,
+  "registros": [
+    {
+      "idRegistro": 5,
+      "fechaActuacion": "2022-03-31 10:00:00",
+      "actuacion": "Audiencia Programada",
+      "anotacion": "audiencia art. 80 - practicar pruebas",
+      "fechaInicia": "2022-03-31",
+      "fechaTermina": null
+    },
+    {
+      "idRegistro": 4,
+      "fechaActuacion": "2022-02-15 09:30:00",
+      "actuacion": "Traslado",
+      "anotacion": "se corre traslado a la contraparte",
+      "fechaInicia": "2022-02-15",
+      "fechaTermina": null
+    },
+    {
+      "idRegistro": 3,
+      "fechaActuacion": "2022-01-28 14:00:00",
+      "actuacion": "Auto de Sustanciacion",
+      "anotacion": "fija fecha de audiencia",
+      "fechaInicia": "2022-01-28",
+      "fechaTermina": null
+    },
+    {
+      "idRegistro": 2,
+      "fechaActuacion": "2022-01-20 11:00:00",
+      "actuacion": "Admite Demanda",
+      "anotacion": "se admite la demanda laboral ordinaria",
+      "fechaInicia": "2022-01-20",
+      "fechaTermina": null
+    },
+    {
+      "idRegistro": 1,
+      "fechaActuacion": "2022-01-12 18:57:36",
+      "actuacion": "Recepcion O Publicacion De Providencias",
+      "anotacion": "fija fecha audiencia art. 80 31.03.2022 - 8:00 am.",
+      "fechaInicia": "2022-01-12",
+      "fechaTermina": null
+    }
+  ]
+}

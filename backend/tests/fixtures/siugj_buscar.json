@@ -1,0 +1,19 @@
+{
+  "numReg": 1,
+  "registros": [
+    {
+      "idFormulario": "698",
+      "codigoUnicoProceso": "66170310500120160001100",
+      "nombreEspecialidad": "Laboral",
+      "despacho": "JUZGADO 001 LABORAL DEL CIRCUITO DE DOSQUEBRADAS",
+      "estadoProceso": "1",
+      "nombreTipoProceso": "Ordinario de primera Instancia",
+      "actor": "ALBERTO BURITICA SALGADO",
+      "demandado": "EMPRESA DE TRANSPORTE S.A.",
+      "folioRegistro": "TYBA___DOS_66170310500120160001100"
+    }
+  ],
+  "hasMore": false,
+  "page": 1,
+  "pageSize": 5
+}

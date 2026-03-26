@@ -30,12 +30,13 @@ export interface RadicadoDTO {
 }
 
 export interface RJProcesoDTO {
-  idProceso: number;
+  idProceso: number | null;  // null for SIUGJ results
   despacho: string;
   departamento: string;
   sujetosProcesales: string;
   fechaUltimaActuacion: string;
   llaveProceso: string;
+  sistema: "cpnu" | "siugj";  // which backend system found this process
 }
 
 export interface AlertaDTO {

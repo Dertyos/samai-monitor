@@ -65,6 +65,30 @@ class Actuacion:
             doc_hash=None,
         )
 
+    @classmethod
+    def from_siugj_api(cls, data: dict, radicado: str = "") -> Actuacion:
+        """Crea Actuacion desde respuesta JSON de SIUGJ.
+
+        Mapeo de campos:
+          idRegistro    → orden  (clave de diff, int incremental)
+          actuacion     → nombre
+          fechaActuacion → fecha
+          anotacion     → anotacion
+          fechaInicia   → registro
+        """
+        return cls(
+            radicado=radicado,
+            orden=int(data["idRegistro"]),
+            nombre=(data.get("actuacion") or "").strip(),
+            fecha=data.get("fechaActuacion") or "",
+            anotacion=data.get("anotacion") or "",
+            registro=data.get("fechaInicia") or "",
+            codigo="",
+            estado="",
+            decision=None,
+            doc_hash=None,
+        )
+
     def to_dynamo(self) -> dict:
         """Convierte a dict para DynamoDB."""
         item = {

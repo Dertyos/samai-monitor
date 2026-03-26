@@ -98,7 +98,7 @@ export default function AddRadicadoModal({ onAdd, onClose, error, loading }: Pro
         if (results.length > 0) {
           setRadicado(formatRadicadoInput(results[0].llaveProceso));
         }
-        // Auto-select if only one result
+        // Auto-select if only one result or all from same radicado (SIUGJ)
         if (results.length === 1) {
           setSelectedRj(results[0]);
         }
@@ -125,7 +125,13 @@ export default function AddRadicadoModal({ onAdd, onClose, error, loading }: Pro
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (fuente === "rama_judicial" && selectedRj) {
-      onAdd(digits, alias.trim(), "rama_judicial", selectedRj.idProceso);
+      if (selectedRj.sistema === "siugj") {
+        // SIUGJ: no idProceso — the radicado itself is the identifier
+        onAdd(digits, alias.trim(), "siugj");
+      } else {
+        // CPNU: pass idProceso for fast future lookups
+        onAdd(digits, alias.trim(), "rama_judicial", selectedRj.idProceso ?? undefined);
+      }
     } else {
       onAdd(digits, alias.trim(), "samai");
     }
@@ -197,17 +203,22 @@ export default function AddRadicadoModal({ onAdd, onClose, error, loading }: Pro
             </div>
           )}
 
-          {/* Rama Judicial results */}
+          {/* Rama Judicial results (CPNU + SIUGJ fallback) */}
           {rjResults.length > 0 && (
             <div className={styles.searchResults}>
               <p className={styles.rjHint}>Selecciona el despacho correcto:</p>
-              {rjResults.map((r) => (
+              {rjResults.map((r, i) => (
                 <div
-                  key={r.idProceso}
-                  className={`${styles.searchItem} ${selectedRj?.idProceso === r.idProceso ? styles.searchItemSelected : ""}`}
+                  key={`${r.llaveProceso}-${i}`}
+                  className={`${styles.searchItem} ${selectedRj?.llaveProceso === r.llaveProceso ? styles.searchItemSelected : ""}`}
                   onClick={() => handleSelectRj(r)}
                 >
-                  <span className={styles.searchItemRadicado}>{r.despacho}</span>
+                  <span className={styles.searchItemRadicado}>
+                    {r.despacho}
+                    <span className={r.sistema === "siugj" ? styles.badgeSiugj : styles.badgeCpnu}>
+                      {r.sistema === "siugj" ? "vía SIUGJ" : "vía CPNU"}
+                    </span>
+                  </span>
                   {r.sujetosProcesales && (
                     <span className={styles.searchItemDespacho}>{r.sujetosProcesales}</span>
                   )}

@@ -23,6 +23,7 @@ from radicado_utils import (
 )
 from samai_client import SamaiClient, SamaiApiError
 from rama_judicial_client import RamaJudicialClient, RamaJudicialApiError
+from siugj_client import SiugjClient, SiugjApiError
 from db import (
     guardar_radicado,
     obtener_radicados_usuario,
@@ -45,6 +46,7 @@ _radicados_table = _dynamodb.Table(os.environ.get("RADICADOS_TABLE", "samai-radi
 _alertas_table = _dynamodb.Table(os.environ.get("ALERTAS_TABLE", "samai-alertas"))
 samai_client = SamaiClient()
 rj_client = RamaJudicialClient()
+siugj_client = SiugjClient()
 
 
 def _response(status: int, body: Any = None) -> dict:
@@ -192,6 +194,24 @@ def _post_radicado(event: dict) -> dict:
             fuente="rama_judicial",
             id_proceso=id_proceso,
         )
+    elif fuente == "siugj":
+        try:
+            max_orden = siugj_client.get_max_id(norm)
+        except SiugjApiError:
+            logger.warning("No se pudo obtener max_id de SIUGJ para %s, usando 0", norm)
+            max_orden = 0
+
+        rad = Radicado(
+            user_id=user_id,
+            radicado=norm,
+            corporacion="",
+            radicado_formato=formatear_radicado(norm),
+            alias=body.get("alias", ""),
+            ultimo_orden=max_orden,
+            activo=True,
+            created_at=datetime.now(timezone.utc).isoformat(),
+            fuente="siugj",
+        )
     else:
         corp = extraer_corporacion(norm)
 
@@ -299,6 +319,8 @@ def _get_historial(event: dict) -> dict:
         if rad.id_proceso is None:
             return _response(400, {"error": "Radicado sin id_proceso"})
         actuaciones = rj_client.get_todas_actuaciones(rad.id_proceso)
+    elif rad.fuente == "siugj":
+        actuaciones = siugj_client.get_actuaciones(rad.radicado)
     else:
         actuaciones = samai_client.get_actuaciones(rad.corporacion, rad.radicado)
 
@@ -324,7 +346,39 @@ def _get_detalle(event: dict) -> dict:
     if rad is None:
         return _response(404, {"error": "Radicado no encontrado"})
 
-    if rad.fuente == "rama_judicial":
+    if rad.fuente == "siugj":
+        procesos = siugj_client.buscar_por_radicado(rad.radicado)
+        p = procesos[0] if procesos else {}
+        actuaciones = siugj_client.get_actuaciones(rad.radicado)
+        partes = []
+        if p.get("actor"):
+            partes.append({"nombre": p["actor"], "tipo": "Demandante/Accionante"})
+        if p.get("demandado"):
+            partes.append({"nombre": p["demandado"], "tipo": "Demandado/Indiciado"})
+        return _response(200, {
+            "proceso": {
+                "despacho": p.get("despacho", ""),
+                "ponente": "",
+                "tipoProceso": p.get("nombreEspecialidad", ""),
+                "claseActuacion": p.get("nombreTipoProceso", ""),
+                "fechaUltimaActuacion": actuaciones[0].fecha if actuaciones else "",
+            },
+            "partes": partes,
+            "actuaciones": [
+                {
+                    "orden": a.orden,
+                    "nombre": a.nombre,
+                    "fecha": a.fecha,
+                    "anotacion": a.anotacion,
+                    "estado": a.estado,
+                    "decision": a.decision,
+                    "docHash": a.doc_hash,
+                }
+                for a in actuaciones
+            ],
+            "fuente": "siugj",
+        })
+    elif rad.fuente == "rama_judicial":
         if rad.id_proceso is None:
             return _response(400, {"error": "Radicado sin id_proceso"})
 
@@ -445,30 +499,58 @@ def _get_buscar(event: dict) -> dict:
 
 
 def _get_buscar_rj(event: dict) -> dict:
-    """GET /buscar-rj/{numProceso} — buscar proceso en Rama Judicial (CPNU).
+    """GET /buscar-rj/{numProceso} — buscar en Rama Judicial (CPNU primero, SIUGJ fallback).
 
-    Retorna lista de procesos con idProceso, despacho y sujetosProcesales.
-    Un radicado puede tener múltiples resultados (distintos despachos).
+    Flujo transparente: intenta CPNU, si no encuentra intenta SIUGJ.
+    Cada resultado incluye campo 'sistema': 'cpnu' | 'siugj' para que el
+    frontend pueda mostrar de dónde vino sin que el usuario tenga que elegir.
     """
     num_proceso = _get_path_param(event, "numProceso")
     if not num_proceso or not validar_radicado(num_proceso):
         return _response(400, {"error": "Número de radicado inválido"})
 
     norm = normalizar_radicado(num_proceso)
+
+    # 1. Intentar CPNU
     try:
-        procesos = rj_client.buscar_por_radicado(norm)
+        cpnu_procesos = rj_client.buscar_por_radicado(norm)
     except RamaJudicialApiError as e:
         logger.warning("CPNU buscar_por_radicado error: %s", e)
-        return _response(502, {"error": str(e)})
+        cpnu_procesos = []
 
-    return _response(200, [
-        {
-            "idProceso": p.get("idProceso"),
-            "despacho": p.get("despacho", ""),
-            "departamento": p.get("departamento", ""),
-            "sujetosProcesales": p.get("sujetosProcesales", ""),
-            "fechaUltimaActuacion": p.get("fechaUltimaActuacion", ""),
-            "llaveProceso": p.get("llaveProceso", norm),
-        }
-        for p in procesos
-    ])
+    if cpnu_procesos:
+        return _response(200, [
+            {
+                "idProceso": p.get("idProceso"),
+                "despacho": p.get("despacho", ""),
+                "departamento": p.get("departamento", ""),
+                "sujetosProcesales": p.get("sujetosProcesales", ""),
+                "fechaUltimaActuacion": p.get("fechaUltimaActuacion", ""),
+                "llaveProceso": p.get("llaveProceso", norm),
+                "sistema": "cpnu",
+            }
+            for p in cpnu_procesos
+        ])
+
+    # 2. Fallback: intentar SIUGJ
+    try:
+        siugj_procesos = siugj_client.buscar_por_radicado(norm)
+    except SiugjApiError as e:
+        logger.warning("SIUGJ buscar_por_radicado error: %s", e)
+        siugj_procesos = []
+
+    if siugj_procesos:
+        return _response(200, [
+            {
+                "idProceso": None,
+                "despacho": p.get("despacho", ""),
+                "departamento": "",
+                "sujetosProcesales": f"{p.get('actor', '')} / {p.get('demandado', '')}".strip(" /"),
+                "fechaUltimaActuacion": "",
+                "llaveProceso": p.get("codigoUnicoProceso", norm),
+                "sistema": "siugj",
+            }
+            for p in siugj_procesos
+        ])
+
+    return _response(200, [])

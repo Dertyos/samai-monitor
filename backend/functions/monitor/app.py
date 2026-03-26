@@ -19,6 +19,7 @@ import resend
 from models import Actuacion, Alerta
 from samai_client import SamaiClient, SamaiApiError
 from rama_judicial_client import RamaJudicialClient, RamaJudicialApiError
+from siugj_client import SiugjClient, SiugjApiError
 from db import (
     obtener_radicados_unicos,
     guardar_actuaciones,
@@ -37,6 +38,7 @@ _actuaciones_table = _dynamodb.Table(os.environ.get("ACTUACIONES_TABLE", "samai-
 _alertas_table = _dynamodb.Table(os.environ.get("ALERTAS_TABLE", "samai-alertas"))
 samai_client = SamaiClient()
 rj_client = RamaJudicialClient()
+siugj_client = SiugjClient()
 
 # Resend API key — cargada desde SSM en cold start
 def _load_resend_api_key() -> str:
@@ -76,6 +78,14 @@ def handler(event: dict, context: Any) -> dict:
                     actuaciones_table=_actuaciones_table,
                     alertas_table=_alertas_table,
                     id_proceso=item["id_proceso"],
+                    radicado=radicado,
+                )
+            elif fuente == "siugj":
+                user_alertas = check_radicado_siugj(
+                    siugj_client=siugj_client,
+                    radicados_table=_radicados_table,
+                    actuaciones_table=_actuaciones_table,
+                    alertas_table=_alertas_table,
                     radicado=radicado,
                 )
             else:
@@ -252,6 +262,72 @@ def check_radicado_rj(
     return user_alertas
 
 
+def check_radicado_siugj(
+    *,
+    siugj_client: SiugjClient,
+    radicados_table: Any,
+    actuaciones_table: Any,
+    alertas_table: Any,
+    radicado: str,
+) -> dict[str, list[Alerta]]:
+    """Consulta SIUGJ para un radicado, detecta novedades, crea alertas.
+
+    Mismo patrón que check_radicado_rj pero usa SiugjClient con idRegistro.
+    Retorna dict de userId → lista de alertas generadas.
+    """
+    from boto3.dynamodb.conditions import Key
+
+    resp = radicados_table.query(
+        IndexName="radicado-index",
+        KeyConditionExpression=Key("radicado").eq(radicado),
+    )
+    all_followers = resp.get("Items", [])
+    followers = [f for f in all_followers if f.get("activo", True) and f.get("fuente") == "siugj"]
+    if not followers:
+        return {}
+
+    min_orden = min(int(item.get("ultimoOrden", 0)) for item in followers)
+
+    nuevas = siugj_client.get_actuaciones_nuevas(radicado, desde_id=min_orden)
+    if not nuevas:
+        return {}
+
+    guardar_actuaciones(actuaciones_table, nuevas)
+
+    max_orden = max(a.orden for a in nuevas)
+    now = datetime.now(timezone.utc).isoformat()
+
+    user_alertas: dict[str, list[Alerta]] = {}
+    for item in followers:
+        user_id = item["userId"]
+        user_ultimo_orden = int(item.get("ultimoOrden", 0))
+
+        nuevas_para_user = [a for a in nuevas if a.orden > user_ultimo_orden]
+        if not nuevas_para_user:
+            continue
+
+        alertas_user: list[Alerta] = []
+        for act in nuevas_para_user:
+            alerta = Alerta(
+                user_id=user_id,
+                radicado=radicado,
+                orden=act.orden,
+                nombre_actuacion=act.nombre,
+                fecha_actuacion=act.fecha,
+                anotacion=act.anotacion,
+                created_at=now,
+                enviado=False,
+                fuente="siugj",
+            )
+            guardar_alerta(alertas_table, alerta)
+            alertas_user.append(alerta)
+
+        user_alertas[user_id] = alertas_user
+        actualizar_ultimo_orden(radicados_table, user_id, radicado, max_orden)
+
+    return user_alertas
+
+
 def _send_email_alerts(user_alertas: dict[str, list[Alerta]]) -> None:
     """Envía correos de alerta via Resend."""
     sender = os.environ.get("EMAIL_SENDER", "alertas@alertas-judiciales.dertyos.com")
@@ -306,8 +382,8 @@ def _build_alert_email(alertas: list[Alerta]) -> tuple[str, str]:
         fmt = f"{radicado[:5]}-{radicado[5:7]}-{radicado[7:9]}-{radicado[9:12]}-{radicado[12:16]}-{radicado[16:21]}-{radicado[21:23]}"
         # Use the appropriate portal URL based on source
         rad_fuentes = {a.fuente for a in rad_alertas}
-        if "rama_judicial" in rad_fuentes:
-            portal_url = f"https://consultaprocesos.ramajudicial.gov.co/procesos/Index"
+        if "rama_judicial" in rad_fuentes or "siugj" in rad_fuentes:
+            portal_url = "https://consultaprocesos.ramajudicial.gov.co/procesos/Index"
             portal_label = "Ver en Rama Judicial"
         else:
             portal_url = f"https://samai.consejodeestado.gov.co/Vistas/Casos/list_procesos.aspx?guid={fmt}"

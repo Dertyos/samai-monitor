@@ -112,3 +112,26 @@
   display: block;
   margin-top: 0.1rem;
 }
+
+/* Sistema badges for search results */
+.badgeCpnu,
+.badgeSiugj {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 600;
+  font-family: var(--sans);
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  margin-left: 0.5rem;
+  vertical-align: middle;
+}
+
+.badgeCpnu {
+  background: rgba(52, 168, 83, 0.12);
+  color: #34a853;
+}
+
+.badgeSiugj {
+  background: rgba(251, 140, 0, 0.12);
+  color: #e65100;
+}
