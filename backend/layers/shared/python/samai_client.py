@@ -16,7 +16,7 @@ from models import Actuacion
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://samaicore.consejodeestado.gov.co/api"
-TIMEOUT = 30  # seconds
+TIMEOUT = 15  # seconds — API Gateway corta en 29s; 15s deja margen para reintentos
 TIMEOUT_BUSQUEDA = 10  # timeout reducido para búsqueda paralela de corporación
 MODO = "2"  # consulta pública
 

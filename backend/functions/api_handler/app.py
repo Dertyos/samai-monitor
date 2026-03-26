@@ -448,10 +448,20 @@ def _get_detalle(event: dict) -> dict:
             "idProceso": rad.id_proceso,
         })
     else:
-        datos_raw = samai_client.get_datos_proceso(rad.corporacion, rad.radicado)
+        try:
+            datos_raw = samai_client.get_datos_proceso(rad.corporacion, rad.radicado)
+        except SamaiApiError as e:
+            logger.warning("SAMAI no disponible para detalle de %s: %s", radicado_id, e)
+            return _response(503, {"error": "El servidor de SAMAI no está disponible en este momento. Intenta de nuevo en unos minutos."})
         datos = datos_raw.get("proceso", datos_raw) if isinstance(datos_raw, dict) else {}
-        partes = samai_client.get_sujetos_procesales(rad.corporacion, rad.radicado)
-        actuaciones = samai_client.get_actuaciones(rad.corporacion, rad.radicado)
+        try:
+            partes = samai_client.get_sujetos_procesales(rad.corporacion, rad.radicado)
+        except SamaiApiError:
+            partes = []
+        try:
+            actuaciones = samai_client.get_actuaciones(rad.corporacion, rad.radicado)
+        except SamaiApiError:
+            actuaciones = []
 
         return _response(200, {
             "proceso": {
