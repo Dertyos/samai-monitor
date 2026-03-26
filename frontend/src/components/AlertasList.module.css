@@ -129,6 +129,16 @@
 }
 
 
+/* Historial mode — alertas leídas, estilo más apagado */
+.groupHistorial .groupHeader {
+  background: var(--bg);
+  opacity: 0.8;
+}
+
+.groupHistorial .item {
+  opacity: 0.75;
+}
+
 @media (max-width: 640px) {
   .groupRadicado {
     font-size: 0.75rem;

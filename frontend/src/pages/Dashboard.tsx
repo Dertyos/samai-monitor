@@ -15,6 +15,7 @@ import AddRadicadoModal from "../components/AddRadicadoModal";
 import ConfirmModal from "../components/ConfirmModal";
 import RadicadoCard from "../components/RadicadoCard";
 import AlertasList from "../components/AlertasList";
+import AppLogo from "../components/AppLogo";
 import { RadicadoCardSkeleton, StatsBarSkeleton } from "../components/Skeleton";
 import { useAuth } from "../hooks/useAuth";
 import { useTheme } from "../hooks/useTheme";
@@ -35,6 +36,7 @@ export default function Dashboard() {
   const [deleteTarget, setDeleteTarget] = useState<RadicadoDTO | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<"recent" | "alias" | "activo">("recent");
+  const [showHistorial, setShowHistorial] = useState(false);
   const isMobile = window.innerWidth <= 640;
   const [viewMode, setViewMode] = useState<"grid" | "list">(
     () => isMobile ? "list" : ((localStorage.getItem("viewMode") as "grid" | "list") ?? "grid")
@@ -148,6 +150,10 @@ export default function Dashboard() {
     () => alertasQuery.data?.filter((a) => !a.leido) ?? [],
     [alertasQuery.data],
   );
+  const readAlertas = useMemo(
+    () => alertasQuery.data?.filter((a) => a.leido) ?? [],
+    [alertasQuery.data],
+  );
   const unreadCount = unreadAlertas.length;
 
   useEffect(() => {
@@ -159,7 +165,8 @@ export default function Dashboard() {
   return (
     <div className={styles.dashboard}>
       <header>
-        <div>
+        <div className={styles.headerBrand}>
+          <AppLogo size={32} />
           <h1>
             Alertas Judiciales
             {unreadCount > 0 && (
@@ -172,7 +179,12 @@ export default function Dashboard() {
           <Link to="/perfil" className={styles.email} title="Mi cuenta">
             {email}
           </Link>
-          <button onClick={toggleTheme} className="theme-toggle" title="Cambiar tema">
+          <button
+            onClick={toggleTheme}
+            className="theme-toggle"
+            title={theme === "light" ? "Cambiar a modo oscuro" : "Cambiar a modo claro"}
+            aria-label={theme === "light" ? "Cambiar a modo oscuro" : "Cambiar a modo claro"}
+          >
             {theme === "light" ? "\u{1F319}" : "\u{2600}\u{FE0F}"}
           </button>
           <button onClick={handleSignOut} className="btn-secondary">
@@ -211,8 +223,10 @@ export default function Dashboard() {
                   className={`${styles.viewToggleBtn} ${viewMode === "grid" ? styles.viewToggleBtnActive : ""}`}
                   onClick={() => handleSetViewMode("grid")}
                   title="Vista tarjetas"
+                  aria-label="Vista tarjetas"
+                  aria-pressed={viewMode === "grid"}
                 >
-                  <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor">
+                  <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
                     <rect x="1" y="1" width="6" height="6" rx="1"/>
                     <rect x="9" y="1" width="6" height="6" rx="1"/>
                     <rect x="1" y="9" width="6" height="6" rx="1"/>
@@ -223,8 +237,10 @@ export default function Dashboard() {
                   className={`${styles.viewToggleBtn} ${viewMode === "list" ? styles.viewToggleBtnActive : ""}`}
                   onClick={() => handleSetViewMode("list")}
                   title="Vista lista"
+                  aria-label="Vista lista"
+                  aria-pressed={viewMode === "list"}
                 >
-                  <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor">
+                  <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
                     <rect x="1" y="2" width="14" height="2" rx="1"/>
                     <rect x="1" y="7" width="14" height="2" rx="1"/>
                     <rect x="1" y="12" width="14" height="2" rx="1"/>
@@ -270,14 +286,45 @@ export default function Dashboard() {
           )}
 
           {radicadosQuery.data?.length === 0 && !searchQuery ? (
-            <div className="empty-state">
-              <p className="empty-state-icon">&#x1F4CB;</p>
-              <p className="empty-state-text">No tienes radicados monitoreados</p>
-              <p className="empty-state-hint">Agrega uno con el boton "+ Agregar" para empezar</p>
+            <div className={styles.onboarding}>
+              <h3 className={styles.onboardingTitle}>Bienvenido a Alertas Judiciales</h3>
+              <p className={styles.onboardingSubtitle}>Monitorea tus procesos en SAMAI y Rama Judicial. Recibe alertas cuando haya nuevas actuaciones.</p>
+              <div className={styles.onboardingSteps}>
+                <div className={styles.onboardingStep}>
+                  <span className={styles.onboardingStepNum}>1</span>
+                  <div>
+                    <strong>Agrega un radicado</strong>
+                    <p>Haz clic en "+ Agregar" e ingresa el numero de tu proceso. Puedes buscarlo por nombre o numero parcial.</p>
+                  </div>
+                </div>
+                <div className={styles.onboardingStep}>
+                  <span className={styles.onboardingStepNum}>2</span>
+                  <div>
+                    <strong>El sistema lo monitorea</strong>
+                    <p>Cada dia el monitor consulta SAMAI y Rama Judicial para detectar nuevas actuaciones automaticamente.</p>
+                  </div>
+                </div>
+                <div className={styles.onboardingStep}>
+                  <span className={styles.onboardingStepNum}>3</span>
+                  <div>
+                    <strong>Recibe alertas</strong>
+                    <p>Cuando haya actuaciones nuevas te avisamos aqui y por correo electronico.</p>
+                  </div>
+                </div>
+              </div>
+              <button onClick={() => setShowAddModal(true)} className="primary" style={{ marginTop: "1.5rem" }}>
+                + Agregar primer radicado
+              </button>
             </div>
           ) : searchQuery && filteredRadicados.length === 0 && (radicadosQuery.data?.length ?? 0) > 0 ? (
             <div className="empty-state">
-              <p className="empty-state-icon">&#x1F50D;</p>
+              <div className="empty-state-icon">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <circle cx="11" cy="11" r="8"/>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                  <line x1="8" y1="11" x2="14" y2="11"/>
+                </svg>
+              </div>
               <p className="empty-state-text">Sin resultados para "{searchQuery}"</p>
               <p className="empty-state-hint">Intenta con otro termino de busqueda</p>
             </div>
@@ -342,12 +389,37 @@ export default function Dashboard() {
           )}
           {alertasQuery.data && unreadCount === 0 && (
             <div className="empty-state">
-              <p className="empty-state-icon">&#x2705;</p>
-              <p className="empty-state-text">No hay alertas nuevas</p>
-              <p className="empty-state-hint">Estas al dia. Las alertas aparecen cuando el monitor detecta nuevas actuaciones.</p>
+              <div className="empty-state-icon">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                  <polyline points="22 4 12 14.01 9 11.01"/>
+                </svg>
+              </div>
+              <p className="empty-state-text">Estas al dia</p>
+              <p className="empty-state-hint">Las alertas aparecen cuando el monitor detecta nuevas actuaciones.</p>
             </div>
           )}
         </section>
+
+        {/* Historial de alertas leidas */}
+        {readAlertas.length > 0 && (
+          <section className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <button
+                className={styles.historialToggle}
+                onClick={() => setShowHistorial((v) => !v)}
+                aria-expanded={showHistorial}
+              >
+                <span className={styles.historialChevron}>{showHistorial ? "▾" : "▸"}</span>
+                Historial leido
+                <span className={styles.historialCount}>{readAlertas.length}</span>
+              </button>
+            </div>
+            {showHistorial && (
+              <AlertasList alertas={readAlertas} historialMode />
+            )}
+          </section>
+        )}
       </main>
 
       {showAddModal && (

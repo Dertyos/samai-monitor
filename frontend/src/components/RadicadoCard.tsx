@@ -125,29 +125,35 @@ export default function RadicadoCard({
         onClick={() => setMenuOpen(!menuOpen)}
         className={`btn-secondary ${styles.menuBtn}`}
         title="Mas acciones"
+        aria-label="Mas acciones"
+        aria-expanded={menuOpen}
+        aria-haspopup="menu"
       >
         &#x22EF;
       </button>
       {menuOpen && (
-        <div className={styles.menu}>
+        <div className={styles.menu} role="menu">
           <button
+            role="menuitem"
             onClick={() => { setEditing(true); setMenuOpen(false); }}
             disabled={isEditing}
           >
-            {isEditing ? "..." : "Editar alias"}
+            {isEditing ? "Guardando..." : "Editar alias"}
           </button>
           <button
+            role="menuitem"
             onClick={() => { onToggleActivo(); setMenuOpen(false); }}
             disabled={isToggling}
           >
-            {isToggling ? "..." : radicado.activo ? "Pausar monitoreo" : "Reactivar monitoreo"}
+            {isToggling ? "Cambiando..." : radicado.activo ? "Pausar monitoreo" : "Reactivar monitoreo"}
           </button>
           <button
+            role="menuitem"
             onClick={() => { setMenuOpen(false); onDelete(); }}
             className={styles.menuDanger}
             disabled={isDeleting}
           >
-            {isDeleting ? "..." : "Eliminar"}
+            {isDeleting ? "Eliminando..." : "Eliminar"}
           </button>
         </div>
       )}

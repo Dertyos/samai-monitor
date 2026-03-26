@@ -7,6 +7,8 @@ import styles from "./AlertasList.module.css";
 
 interface Props {
   alertas: AlertaDTO[];
+  /** Cuando es true, muestra estilo compacto para alertas leídas */
+  historialMode?: boolean;
 }
 
 /**
@@ -15,7 +17,7 @@ interface Props {
  * Clic en una alerta la marca como leida (desaparece) y navega al detalle.
  * Cada grupo se puede colapsar/expandir clicando el header.
  */
-export default function AlertasList({ alertas }: Props) {
+export default function AlertasList({ alertas, historialMode = false }: Props) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -58,17 +60,21 @@ export default function AlertasList({ alertas }: Props) {
       {Array.from(grouped.entries()).map(([radicado, items]) => {
         const isCollapsed = collapsed.has(radicado);
         return (
-          <div key={radicado} className={styles.group}>
+          <div key={radicado} className={`${styles.group} ${historialMode ? styles.groupHistorial : ""}`}>
             <div
               className={styles.groupHeader}
               onClick={() => toggleGroup(radicado)}
+              role="button"
+              aria-expanded={!isCollapsed}
             >
               <span className={styles.chevron}>{isCollapsed ? "\u25B8" : "\u25BE"}</span>
               <span className={styles.groupRadicado}>
                 {formatRadicado(radicado)}
               </span>
               <span className={styles.groupCount}>
-                {items.length} nueva{items.length !== 1 ? "s" : ""}
+                {historialMode
+                  ? `${items.length} leída${items.length !== 1 ? "s" : ""}`
+                  : `${items.length} nueva${items.length !== 1 ? "s" : ""}`}
               </span>
             </div>
             {!isCollapsed &&
@@ -80,7 +86,7 @@ export default function AlertasList({ alertas }: Props) {
                 >
                   <div className={styles.itemHeader}>
                     <span className={styles.actuacion}>
-                      <span className={styles.unreadDot} />
+                      {!a.leido && <span className={styles.unreadDot} />}
                       {decodeHtml(a.nombreActuacion)}
                     </span>
                     <span className={styles.orden}>#{a.orden}</span>
