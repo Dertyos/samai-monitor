@@ -35,8 +35,9 @@ export default function Dashboard() {
   const [deleteTarget, setDeleteTarget] = useState<RadicadoDTO | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<"recent" | "alias" | "activo">("recent");
+  const isMobile = window.innerWidth <= 640;
   const [viewMode, setViewMode] = useState<"grid" | "list">(
-    () => (localStorage.getItem("viewMode") as "grid" | "list") ?? "grid"
+    () => isMobile ? "list" : ((localStorage.getItem("viewMode") as "grid" | "list") ?? "grid")
   );
   const handleSetViewMode = (mode: "grid" | "list") => {
     localStorage.setItem("viewMode", mode);

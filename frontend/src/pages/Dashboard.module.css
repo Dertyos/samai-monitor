@@ -183,6 +183,10 @@
 
 /* Responsive header */
 @media (max-width: 640px) {
+  .viewToggle {
+    display: none;
+  }
+
   .statsBar {
     grid-template-columns: repeat(2, 1fr);
   }
