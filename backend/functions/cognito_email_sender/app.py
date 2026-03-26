@@ -5,8 +5,8 @@ Cognito invoca esta Lambda en vez de usar SES para todos los correos:
 - Reenvío de código
 - Recuperación de contraseña
 
-El código de verificación viene cifrado con KMS; esta Lambda lo
-descifra y envía el correo con Resend.
+El código de verificación viene cifrado con el AWS Encryption SDK (no raw KMS).
+Esta Lambda usa aws_encryption_sdk para descifrarlo correctamente.
 """
 from __future__ import annotations
 
@@ -15,8 +15,10 @@ import logging
 import os
 from typing import Any
 
+import aws_encryption_sdk
 import boto3
 import resend
+from aws_encryption_sdk.identifiers import CommitmentPolicy
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -35,7 +37,10 @@ try:
 except Exception:
     logger.warning("Could not load Resend API key from SSM — emails will fail")
 
-_kms = boto3.client("kms", region_name=os.environ.get("AWS_REGION", "us-east-1"))
+_kms_key_arn = os.environ.get("KMS_KEY_ARN", "")
+_enc_client = aws_encryption_sdk.EncryptionSDKClient(
+    commitment_policy=CommitmentPolicy.FORBID_ENCRYPT_ALLOW_DECRYPT
+)
 
 # Trigger sources que manejamos
 _SIGNUP_TRIGGERS = {"CustomEmailSender_SignUp", "CustomEmailSender_ResendCode"}
@@ -55,7 +60,7 @@ def handler(event: dict, context: Any) -> dict:
         logger.warning("Missing email or code in event, skipping")
         return event
 
-    code = _decrypt_code(_kms, encrypted_code)
+    code = _decrypt_code(encrypted_code)
     sender = os.environ.get("EMAIL_SENDER", "alertas@alertas-judiciales.dertyos.com")
 
     if trigger in _SIGNUP_TRIGGERS:
@@ -82,11 +87,20 @@ def handler(event: dict, context: Any) -> dict:
     return event
 
 
-def _decrypt_code(kms_client: Any, encrypted_code: str) -> str:
-    """Descifra el código de verificación con KMS."""
-    ciphertext = base64.b64decode(encrypted_code)
-    resp = kms_client.decrypt(CiphertextBlob=ciphertext)
-    return resp["Plaintext"].decode("utf-8") if isinstance(resp["Plaintext"], bytes) else str(resp["Plaintext"])
+def _decrypt_code(encrypted_code: str) -> str:
+    """Descifra el código de verificación con AWS Encryption SDK.
+
+    Cognito cifra el código usando el AWS Encryption SDK (no raw KMS),
+    por lo que se debe usar aws_encryption_sdk.decrypt(), no kms.decrypt().
+    """
+    key_provider = aws_encryption_sdk.StrictAwsKmsMasterKeyProvider(
+        key_ids=[_kms_key_arn]
+    )
+    plaintext, _ = _enc_client.decrypt(
+        source=base64.b64decode(encrypted_code),
+        key_provider=key_provider,
+    )
+    return plaintext.decode("utf-8") if isinstance(plaintext, bytes) else str(plaintext)
 
 
 def _build_verification_email(code: str) -> str:
