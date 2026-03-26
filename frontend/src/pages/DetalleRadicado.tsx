@@ -149,7 +149,7 @@ export default function DetalleRadicado() {
           {/* Seccion 3: Historial de actuaciones */}
           <ActuacionesSection
             actuaciones={query.data.actuaciones}
-            corporacion={query.data.corporacion}
+            corporacion={query.data.corporacion ?? ""}
             radicadoId={radicadoId}
             search={actuacionSearch}
             onSearchChange={setActuacionSearch}
