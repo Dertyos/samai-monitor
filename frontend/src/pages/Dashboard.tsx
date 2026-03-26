@@ -35,6 +35,7 @@ export default function Dashboard() {
   const [deleteTarget, setDeleteTarget] = useState<RadicadoDTO | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<"recent" | "alias" | "activo">("recent");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const queryClient = useQueryClient();
   const { theme, toggle: toggleTheme } = useTheme();
   const toast = useToast();
@@ -197,9 +198,36 @@ export default function Dashboard() {
         <section className={styles.section}>
           <div className={styles.sectionHeader}>
             <h2>Mis Radicados</h2>
-            <button onClick={() => setShowAddModal(true)} className="primary">
-              + Agregar
-            </button>
+            <div className={styles.sectionActions}>
+              <div className={styles.viewToggle}>
+                <button
+                  className={`${styles.viewToggleBtn} ${viewMode === "grid" ? styles.viewToggleBtnActive : ""}`}
+                  onClick={() => setViewMode("grid")}
+                  title="Vista tarjetas"
+                >
+                  <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor">
+                    <rect x="1" y="1" width="6" height="6" rx="1"/>
+                    <rect x="9" y="1" width="6" height="6" rx="1"/>
+                    <rect x="1" y="9" width="6" height="6" rx="1"/>
+                    <rect x="9" y="9" width="6" height="6" rx="1"/>
+                  </svg>
+                </button>
+                <button
+                  className={`${styles.viewToggleBtn} ${viewMode === "list" ? styles.viewToggleBtnActive : ""}`}
+                  onClick={() => setViewMode("list")}
+                  title="Vista lista"
+                >
+                  <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor">
+                    <rect x="1" y="2" width="14" height="2" rx="1"/>
+                    <rect x="1" y="7" width="14" height="2" rx="1"/>
+                    <rect x="1" y="12" width="14" height="2" rx="1"/>
+                  </svg>
+                </button>
+              </div>
+              <button onClick={() => setShowAddModal(true)} className="primary">
+                + Agregar
+              </button>
+            </div>
           </div>
 
           {radicadosQuery.data && radicadosQuery.data.length > 0 && (
@@ -224,7 +252,7 @@ export default function Dashboard() {
           )}
 
           {radicadosQuery.isLoading && (
-            <div className={styles.radicadosGrid}>
+            <div className={viewMode === "grid" ? styles.radicadosGrid : styles.radicadosList}>
               {[0, 1, 2].map((i) => <RadicadoCardSkeleton key={i} />)}
             </div>
           )}
@@ -234,12 +262,13 @@ export default function Dashboard() {
             </p>
           )}
 
-          <div className={styles.radicadosGrid}>
+          <div className={viewMode === "grid" ? styles.radicadosGrid : styles.radicadosList}>
             {filteredRadicados.map((r: RadicadoDTO) => (
               <RadicadoCard
                 key={r.radicado}
                 radicado={r}
                 isSelected={false}
+                listMode={viewMode === "list"}
                 onSelect={() => navigate(`/radicado/${r.radicado}`)}
                 onDelete={() => setDeleteTarget(r)}
                 onEditAlias={(alias) => editAliasMutation.mutate({ radicado: r.radicado, alias })}

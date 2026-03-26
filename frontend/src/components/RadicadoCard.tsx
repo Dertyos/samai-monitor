@@ -5,6 +5,7 @@ import styles from "./RadicadoCard.module.css";
 interface Props {
   radicado: RadicadoDTO;
   isSelected: boolean;
+  listMode?: boolean;
   onSelect: () => void;
   onDelete: () => void;
   onEditAlias: (newAlias: string) => void;
@@ -23,6 +24,7 @@ interface Props {
 export default function RadicadoCard({
   radicado,
   isSelected,
+  listMode = false,
   onSelect,
   onDelete,
   onEditAlias,
@@ -63,82 +65,119 @@ export default function RadicadoCard({
     }
   };
 
+  const cardClass = [
+    styles.card,
+    listMode ? styles.cardList : "",
+    isSelected ? styles.selected : "",
+    !radicado.activo ? styles.inactive : "",
+  ].filter(Boolean).join(" ");
+
+  const aliasNode = !editing && radicado.alias ? (
+    <span
+      className={styles.alias}
+      onDoubleClick={(e) => { e.stopPropagation(); setEditing(true); }}
+      title="Doble click para editar"
+    >
+      {radicado.alias}
+    </span>
+  ) : editing ? (
+    <input
+      type="text"
+      value={aliasInput}
+      onChange={(e) => setAliasInput(e.target.value)}
+      onBlur={handleSaveAlias}
+      onKeyDown={handleKeyDown}
+      onClick={(e) => e.stopPropagation()}
+      className={styles.aliasInput}
+      autoFocus
+      placeholder="Alias"
+    />
+  ) : null;
+
+  const badgesNode = (
+    <div className={styles.badges}>
+      {radicado.fuente === "rama_judicial" && (
+        <span className={styles.badgeRj} title="Fuente: Rama Judicial">R.J.</span>
+      )}
+      <span className={radicado.activo ? styles.statusActive : styles.statusInactive}>
+        {radicado.activo ? "Activo" : "Pausado"}
+      </span>
+    </div>
+  );
+
+  const menuNode = (
+    <div className={styles.menuWrapper} ref={menuRef}>
+      <button
+        onClick={() => setMenuOpen(!menuOpen)}
+        className={`btn-secondary ${styles.menuBtn}`}
+        title="Mas acciones"
+      >
+        &#x22EF;
+      </button>
+      {menuOpen && (
+        <div className={styles.menu}>
+          <button
+            onClick={() => { setEditing(true); setMenuOpen(false); }}
+            disabled={isEditing}
+          >
+            {isEditing ? "..." : "Editar alias"}
+          </button>
+          <button
+            onClick={() => { onToggleActivo(); setMenuOpen(false); }}
+            disabled={isToggling}
+          >
+            {isToggling ? "..." : radicado.activo ? "Pausar monitoreo" : "Reactivar monitoreo"}
+          </button>
+          <button
+            onClick={() => { setMenuOpen(false); onDelete(); }}
+            className={styles.menuDanger}
+            disabled={isDeleting}
+          >
+            {isDeleting ? "..." : "Eliminar"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
+  if (listMode) {
+    return (
+      <div className={cardClass}>
+        <div className={styles.listMain} onClick={onSelect}>
+          <span className={styles.radicadoFmt}>{radicado.radicadoFormato}</span>
+          {aliasNode}
+        </div>
+        <span className={`${styles.meta} ${styles.listMeta}`}>
+          #{radicado.ultimoOrden}
+        </span>
+        {badgesNode}
+        <div className={styles.actions}>
+          <button onClick={onSelect} className="btn-secondary">
+            Ver detalle
+          </button>
+          {menuNode}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className={`${styles.card} ${isSelected ? styles.selected : ""} ${!radicado.activo ? styles.inactive : ""}`}>
+    <div className={cardClass}>
       <div className={styles.header} onClick={onSelect}>
         <span className={styles.radicadoFmt}>{radicado.radicadoFormato}</span>
-        {!editing && radicado.alias && (
-          <span
-            className={styles.alias}
-            onDoubleClick={(e) => { e.stopPropagation(); setEditing(true); }}
-            title="Doble click para editar"
-          >
-            {radicado.alias}
-          </span>
-        )}
-        {editing && (
-          <input
-            type="text"
-            value={aliasInput}
-            onChange={(e) => setAliasInput(e.target.value)}
-            onBlur={handleSaveAlias}
-            onKeyDown={handleKeyDown}
-            onClick={(e) => e.stopPropagation()}
-            className={styles.aliasInput}
-            autoFocus
-            placeholder="Alias"
-          />
-        )}
+        {aliasNode}
       </div>
       <div className={styles.body}>
         <span className={styles.meta}>
           Ultima actuacion: #{radicado.ultimoOrden}
         </span>
-        <div className={styles.badges}>
-          {radicado.fuente === "rama_judicial" && (
-            <span className={styles.badgeRj} title="Fuente: Rama Judicial">R.J.</span>
-          )}
-          <span className={radicado.activo ? styles.statusActive : styles.statusInactive}>
-            {radicado.activo ? "Activo" : "Pausado"}
-          </span>
-        </div>
+        {badgesNode}
       </div>
       <div className={styles.actions}>
         <button onClick={onSelect} className="btn-secondary">
           Ver detalle
         </button>
-        <div className={styles.menuWrapper} ref={menuRef}>
-          <button
-            onClick={() => setMenuOpen(!menuOpen)}
-            className={`btn-secondary ${styles.menuBtn}`}
-            title="Mas acciones"
-          >
-            &#x22EF;
-          </button>
-          {menuOpen && (
-            <div className={styles.menu}>
-              <button
-                onClick={() => { setEditing(true); setMenuOpen(false); }}
-                disabled={isEditing}
-              >
-                {isEditing ? "..." : "Editar alias"}
-              </button>
-              <button
-                onClick={() => { onToggleActivo(); setMenuOpen(false); }}
-                disabled={isToggling}
-              >
-                {isToggling ? "..." : radicado.activo ? "Pausar monitoreo" : "Reactivar monitoreo"}
-              </button>
-              <button
-                onClick={() => { setMenuOpen(false); onDelete(); }}
-                className={styles.menuDanger}
-                disabled={isDeleting}
-              >
-                {isDeleting ? "..." : "Eliminar"}
-              </button>
-            </div>
-          )}
-        </div>
+        {menuNode}
       </div>
     </div>
   );

@@ -165,8 +165,54 @@
   background: rgba(220, 38, 38, 0.08) !important;
 }
 
+/* Lista mode */
+.cardList {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.cardList .actions {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.listMain {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.listMain .radicadoFmt {
+  flex-shrink: 0;
+}
+
+.listMain .alias {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.listMeta {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 @media (max-width: 640px) {
   .radicadoFmt {
     font-size: 0.8rem;
+  }
+
+  .cardList {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .listMeta {
+    display: none;
   }
 }
