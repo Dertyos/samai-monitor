@@ -1,15 +1,15 @@
 import { useState, useEffect } from "react";
-import { buscarProceso } from "../lib/api";
+import { buscarProceso, buscarRamaJudicial, type RJProcesoDTO } from "../lib/api";
 import styles from "./AddRadicadoModal.module.css";
 
 interface Props {
-  onAdd: (radicado: string, alias: string) => void;
+  onAdd: (radicado: string, alias: string, fuente: string, idProceso?: number) => void;
   onClose: () => void;
   error: string | null;
   loading: boolean;
 }
 
-interface SearchResult {
+interface SamaiSearchResult {
   llaveProceso: string;
   despacho: string;
 }
@@ -32,17 +32,25 @@ function formatRadicadoInput(value: string): string {
 /**
  * AddRadicadoModal — modal para agregar un radicado a monitorear.
  *
- * Dos formas de ingresar el radicado:
- * 1. Buscar en SAMAI por numero parcial y seleccionar de resultados
- * 2. Escribir el numero completo (23 digitos) directamente
- *
- * Reutilizable: recibe callbacks onAdd y onClose.
+ * Soporta dos fuentes:
+ * - SAMAI: búsqueda por nombre/número parcial (jurisdicción contencioso-administrativa)
+ * - Rama Judicial: búsqueda CPNU por número de radicado (civil, penal, familia, tutelas, etc.)
  */
 export default function AddRadicadoModal({ onAdd, onClose, error, loading }: Props) {
+  const [fuente, setFuente] = useState<"samai" | "rama_judicial">("samai");
+
+  // Shared
   const [radicado, setRadicado] = useState("");
   const [alias, setAlias] = useState("");
+
+  // SAMAI search
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [samaiResults, setSamaiResults] = useState<SamaiSearchResult[]>([]);
+
+  // Rama Judicial search + selected process
+  const [rjResults, setRjResults] = useState<RJProcesoDTO[]>([]);
+  const [selectedRj, setSelectedRj] = useState<RJProcesoDTO | null>(null);
+
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
@@ -55,17 +63,46 @@ export default function AddRadicadoModal({ onAdd, onClose, error, loading }: Pro
     return () => document.removeEventListener("keydown", handle);
   }, [onClose, loading]);
 
+  // Reset search state when switching fuente
+  useEffect(() => {
+    setSearchQuery("");
+    setSamaiResults([]);
+    setRjResults([]);
+    setSelectedRj(null);
+    setHasSearched(false);
+    setSearchError(null);
+    setRadicado("");
+  }, [fuente]);
+
   const digits = radicado.replace(/\D/g, "");
   const isValid = digits.length === 23;
+
+  // For Rama Judicial: also need a selected process
+  const canSubmit = isValid && (fuente === "samai" || selectedRj !== null);
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
     setSearching(true);
     setSearchError(null);
     setHasSearched(true);
+    setSamaiResults([]);
+    setRjResults([]);
     try {
-      const results = await buscarProceso(searchQuery.trim()) as SearchResult[];
-      setSearchResults(results);
+      if (fuente === "samai") {
+        const results = await buscarProceso(searchQuery.trim()) as SamaiSearchResult[];
+        setSamaiResults(results);
+      } else {
+        const results = await buscarRamaJudicial(searchQuery.trim());
+        setRjResults(results);
+        // Auto-fill radicado from first result
+        if (results.length > 0) {
+          setRadicado(formatRadicadoInput(results[0].llaveProceso));
+        }
+        // Auto-select if only one result
+        if (results.length === 1) {
+          setSelectedRj(results[0]);
+        }
+      }
     } catch (err) {
       setSearchError(err instanceof Error ? err.message : "Error en busqueda");
     } finally {
@@ -73,16 +110,25 @@ export default function AddRadicadoModal({ onAdd, onClose, error, loading }: Pro
     }
   };
 
-  const handleSelectResult = (result: SearchResult) => {
+  const handleSelectSamai = (result: SamaiSearchResult) => {
     setRadicado(formatRadicadoInput(result.llaveProceso));
-    setSearchResults([]);
+    setSamaiResults([]);
     setSearchQuery("");
     setHasSearched(false);
   };
 
+  const handleSelectRj = (result: RJProcesoDTO) => {
+    setSelectedRj(result);
+    setRadicado(formatRadicadoInput(result.llaveProceso));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onAdd(digits, alias.trim());
+    if (fuente === "rama_judicial" && selectedRj) {
+      onAdd(digits, alias.trim(), "rama_judicial", selectedRj.idProceso);
+    } else {
+      onAdd(digits, alias.trim(), "samai");
+    }
   };
 
   return (
@@ -90,14 +136,32 @@ export default function AddRadicadoModal({ onAdd, onClose, error, loading }: Pro
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h3>Agregar Radicado</h3>
 
-        {/* Seccion de busqueda */}
+        {/* Source selector */}
+        <div className={styles.sourceTabs}>
+          <button
+            type="button"
+            className={fuente === "samai" ? styles.sourceTabActive : styles.sourceTab}
+            onClick={() => setFuente("samai")}
+          >
+            SAMAI
+          </button>
+          <button
+            type="button"
+            className={fuente === "rama_judicial" ? styles.sourceTabActive : styles.sourceTab}
+            onClick={() => setFuente("rama_judicial")}
+          >
+            Rama Judicial
+          </button>
+        </div>
+
+        {/* Search section */}
         <div className={styles.searchSection}>
           <label>
-            Buscar en SAMAI (opcional)
+            {fuente === "samai" ? "Buscar en SAMAI (opcional)" : "Buscar por radicado en CPNU"}
             <div style={{ display: "flex", gap: "0.5rem" }}>
               <input
                 type="text"
-                placeholder="Numero de proceso..."
+                placeholder={fuente === "samai" ? "Numero de proceso..." : "73001-23-33-000-2019-00343-00"}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleSearch(); }}}
@@ -115,13 +179,14 @@ export default function AddRadicadoModal({ onAdd, onClose, error, loading }: Pro
 
           {searchError && <div className="error">{searchError}</div>}
 
-          {searchResults.length > 0 && (
+          {/* SAMAI results */}
+          {samaiResults.length > 0 && (
             <div className={styles.searchResults}>
-              {searchResults.map((r, i) => (
+              {samaiResults.map((r, i) => (
                 <div
                   key={`${r.llaveProceso}-${i}`}
                   className={styles.searchItem}
-                  onClick={() => handleSelectResult(r)}
+                  onClick={() => handleSelectSamai(r)}
                 >
                   <span className={styles.searchItemRadicado}>{r.llaveProceso}</span>
                   {r.despacho && (
@@ -132,12 +197,38 @@ export default function AddRadicadoModal({ onAdd, onClose, error, loading }: Pro
             </div>
           )}
 
-          {hasSearched && searchResults.length === 0 && !searching && !searchError && (
+          {/* Rama Judicial results */}
+          {rjResults.length > 0 && (
+            <div className={styles.searchResults}>
+              <p className={styles.rjHint}>Selecciona el despacho correcto:</p>
+              {rjResults.map((r) => (
+                <div
+                  key={r.idProceso}
+                  className={`${styles.searchItem} ${selectedRj?.idProceso === r.idProceso ? styles.searchItemSelected : ""}`}
+                  onClick={() => handleSelectRj(r)}
+                >
+                  <span className={styles.searchItemRadicado}>{r.despacho}</span>
+                  {r.sujetosProcesales && (
+                    <span className={styles.searchItemDespacho}>{r.sujetosProcesales}</span>
+                  )}
+                  {r.fechaUltimaActuacion && (
+                    <span className={styles.searchItemMeta}>
+                      Ultima actuacion: {r.fechaUltimaActuacion.slice(0, 10)}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {hasSearched && samaiResults.length === 0 && rjResults.length === 0 && !searching && !searchError && (
             <p className={styles.noResults}>Sin resultados</p>
           )}
         </div>
 
-        <p className={styles.divider}>o ingresa el numero directamente</p>
+        {fuente === "samai" && (
+          <p className={styles.divider}>o ingresa el numero directamente</p>
+        )}
 
         <form onSubmit={handleSubmit}>
           <label>
@@ -146,13 +237,23 @@ export default function AddRadicadoModal({ onAdd, onClose, error, loading }: Pro
               type="text"
               placeholder="73001-23-33-000-2019-00343-00"
               value={radicado}
-              onChange={(e) => setRadicado(formatRadicadoInput(e.target.value))}
+              onChange={(e) => {
+                const formatted = formatRadicadoInput(e.target.value);
+                setRadicado(formatted);
+                // If user edits radicado manually in RJ mode, clear selection
+                if (fuente === "rama_judicial") setSelectedRj(null);
+              }}
               required
               className={radicado && !isValid ? "input-warning" : ""}
             />
             {radicado && !isValid && (
               <span className="input-hint">
                 {digits.length}/23 digitos
+              </span>
+            )}
+            {fuente === "rama_judicial" && isValid && !selectedRj && (
+              <span className="input-hint">
+                Busca arriba para seleccionar el despacho
               </span>
             )}
           </label>
@@ -170,7 +271,7 @@ export default function AddRadicadoModal({ onAdd, onClose, error, loading }: Pro
             <button type="button" onClick={onClose} className="btn-secondary">
               Cancelar
             </button>
-            <button type="submit" className="primary" disabled={loading || !isValid}>
+            <button type="submit" className="primary" disabled={loading || !canSubmit}>
               {loading ? "Agregando..." : "Agregar"}
             </button>
           </div>

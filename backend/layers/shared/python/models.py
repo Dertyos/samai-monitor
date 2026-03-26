@@ -1,4 +1,4 @@
-"""Modelos de datos del sistema SAMAI Monitor."""
+"""Modelos de datos del sistema Alertas Judiciales by Dertyos."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -40,6 +40,31 @@ class Actuacion:
             doc_hash=doc_hash,
         )
 
+    @classmethod
+    def from_rama_judicial_api(cls, data: dict) -> Actuacion:
+        """Crea Actuacion desde respuesta JSON de la API CPNU (Rama Judicial).
+
+        Mapeo de campos:
+          consActuacion → orden
+          actuacion     → nombre
+          fechaActuacion → fecha
+          anotacion     → anotacion
+          fechaRegistro  → registro
+          codRegla       → codigo
+        """
+        return cls(
+            radicado=data.get("llaveProceso", ""),
+            orden=int(data["consActuacion"]),
+            nombre=(data.get("actuacion") or "").strip(),
+            fecha=data.get("fechaActuacion") or "",
+            anotacion=data.get("anotacion") or "",
+            registro=data.get("fechaRegistro") or "",
+            codigo=(data.get("codRegla") or "").strip(),
+            estado="",
+            decision=None,
+            doc_hash=None,
+        )
+
     def to_dynamo(self) -> dict:
         """Convierte a dict para DynamoDB."""
         item = {
@@ -65,38 +90,49 @@ class Radicado:
 
     user_id: str
     radicado: str  # sin guiones, 23 dígitos
-    corporacion: str  # código de 7 dígitos
+    corporacion: str  # código de 7 dígitos (solo relevante para fuente="samai")
     radicado_formato: str  # con guiones
     alias: str = ""  # nombre descriptivo dado por el usuario
-    ultimo_orden: int = 0  # último Orden conocido
+    ultimo_orden: int = 0  # último Orden/consActuacion conocido
     activo: bool = True
     created_at: str = ""  # ISO datetime
+    fuente: str = "samai"  # "samai" | "rama_judicial"
+    id_proceso: int | None = None  # idProceso del CPNU (solo para fuente="rama_judicial")
 
     def to_dynamo(self) -> dict:
         """Convierte a dict para DynamoDB."""
-        return {
+        item: dict = {
             "userId": self.user_id,
             "radicado": self.radicado,
-            "corporacion": self.corporacion,
             "radicadoFormato": self.radicado_formato,
             "alias": self.alias,
             "ultimoOrden": self.ultimo_orden,
             "activo": self.activo,
             "createdAt": self.created_at,
+            "fuente": self.fuente,
         }
+        # Only store corporacion if non-empty (it's a GSI key; empty strings not allowed)
+        if self.corporacion:
+            item["corporacion"] = self.corporacion
+        if self.id_proceso is not None:
+            item["idProceso"] = self.id_proceso
+        return item
 
     @classmethod
     def from_dynamo(cls, item: dict) -> Radicado:
         """Crea Radicado desde item DynamoDB."""
+        id_proceso_raw = item.get("idProceso")
         return cls(
             user_id=item["userId"],
             radicado=item["radicado"],
-            corporacion=item["corporacion"],
+            corporacion=item.get("corporacion", ""),
             radicado_formato=item.get("radicadoFormato", ""),
             alias=item.get("alias", ""),
             ultimo_orden=int(item.get("ultimoOrden", 0)),
             activo=item.get("activo", True),
             created_at=item.get("createdAt", ""),
+            fuente=item.get("fuente", "samai"),
+            id_proceso=int(id_proceso_raw) if id_proceso_raw is not None else None,
         )
 
 
@@ -114,6 +150,7 @@ class Alerta:
     enviado: bool = False
     leido: bool = False
     read_at: str = ""  # ISO datetime cuando se marcó como leída
+    fuente: str = "samai"  # "samai" | "rama_judicial"
 
     @property
     def sk(self) -> str:
@@ -133,6 +170,7 @@ class Alerta:
             "createdAt": self.created_at,
             "enviado": self.enviado,
             "leido": self.leido,
+            "fuente": self.fuente,
         }
         if self.read_at:
             item["readAt"] = self.read_at
@@ -152,4 +190,5 @@ class Alerta:
             enviado=item.get("enviado", False),
             leido=item.get("leido", False),
             read_at=item.get("readAt", ""),
+            fuente=item.get("fuente", "samai"),
         )

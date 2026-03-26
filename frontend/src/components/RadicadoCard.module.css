@@ -74,6 +74,18 @@
   letter-spacing: 0.03em;
 }
 
+.badges {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.badgeRj {
+  composes: status;
+  background: rgba(99, 102, 241, 0.12);
+  color: #6366f1;
+}
+
 .statusActive {
   composes: status;
   background: var(--success-light);

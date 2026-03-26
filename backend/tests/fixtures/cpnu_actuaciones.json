@@ -1,0 +1,80 @@
+{
+  "actuaciones": [
+    {
+      "idRegActuacion": 1383136315,
+      "llaveProceso": "11001400300120240012600",
+      "consActuacion": 5,
+      "fechaActuacion": "2024-03-05T00:00:00",
+      "actuacion": "Envío Expediente",
+      "anotacion": "SE ENVIA A LA CORTE CONSTITUCIONAL",
+      "fechaInicial": null,
+      "fechaFinal": null,
+      "fechaRegistro": "2024-03-05T00:00:00",
+      "codRegla": "00",
+      "conDocumentos": false,
+      "cant": 5
+    },
+    {
+      "idRegActuacion": 1383136314,
+      "llaveProceso": "11001400300120240012600",
+      "consActuacion": 4,
+      "fechaActuacion": "2024-02-20T00:00:00",
+      "actuacion": "Fallo de Tutela",
+      "anotacion": "SE CONCEDE LA TUTELA",
+      "fechaInicial": null,
+      "fechaFinal": null,
+      "fechaRegistro": "2024-02-20T00:00:00",
+      "codRegla": "01",
+      "conDocumentos": true,
+      "cant": 5
+    },
+    {
+      "idRegActuacion": 1383136313,
+      "llaveProceso": "11001400300120240012600",
+      "consActuacion": 3,
+      "fechaActuacion": "2024-02-18T00:00:00",
+      "actuacion": "Traslado a la parte demandada",
+      "anotacion": "SE CORRE TRASLADO",
+      "fechaInicial": null,
+      "fechaFinal": null,
+      "fechaRegistro": "2024-02-18T00:00:00",
+      "codRegla": "02",
+      "conDocumentos": false,
+      "cant": 5
+    },
+    {
+      "idRegActuacion": 1383136312,
+      "llaveProceso": "11001400300120240012600",
+      "consActuacion": 2,
+      "fechaActuacion": "2024-02-14T00:00:00",
+      "actuacion": "Auto Admisorio",
+      "anotacion": "SE ADMITE LA DEMANDA",
+      "fechaInicial": null,
+      "fechaFinal": null,
+      "fechaRegistro": "2024-02-14T00:00:00",
+      "codRegla": "03",
+      "conDocumentos": false,
+      "cant": 5
+    },
+    {
+      "idRegActuacion": 1383136311,
+      "llaveProceso": "11001400300120240012600",
+      "consActuacion": 1,
+      "fechaActuacion": "2024-02-12T00:00:00",
+      "actuacion": "Reparto",
+      "anotacion": "INGRESA POR REPARTO",
+      "fechaInicial": null,
+      "fechaFinal": null,
+      "fechaRegistro": "2024-02-12T00:00:00",
+      "codRegla": "04",
+      "conDocumentos": false,
+      "cant": 5
+    }
+  ],
+  "paginacion": {
+    "cantidadRegistros": 5,
+    "registrosPagina": 40,
+    "cantidadPaginas": 1,
+    "pagina": 1
+  }
+}

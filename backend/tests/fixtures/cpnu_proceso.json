@@ -1,0 +1,23 @@
+{
+  "tipoConsulta": "NumeroRadicacion",
+  "procesos": [
+    {
+      "idProceso": 149525880,
+      "idConexion": 259,
+      "llaveProceso": "11001400300120240012600",
+      "fechaProceso": "2024-02-12T00:00:00",
+      "fechaUltimaActuacion": "2024-03-05T00:00:00",
+      "despacho": "JUZGADO 001 CIVIL MUNICIPAL DE BOGOTÁ",
+      "departamento": "BOGOTÁ",
+      "sujetosProcesales": "Demandante: JUAN PEREZ | Demandado: ENTIDAD X",
+      "esPrivado": false,
+      "cantFilas": -1
+    }
+  ],
+  "paginacion": {
+    "cantidadRegistros": 1,
+    "registrosPagina": 20,
+    "cantidadPaginas": 1,
+    "pagina": 1
+  }
+}

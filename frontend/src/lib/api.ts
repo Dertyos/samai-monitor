@@ -25,6 +25,17 @@ export interface RadicadoDTO {
   alias: string;
   ultimoOrden: number;
   activo: boolean;
+  fuente?: string;       // "samai" | "rama_judicial"
+  idProceso?: number | null;
+}
+
+export interface RJProcesoDTO {
+  idProceso: number;
+  despacho: string;
+  departamento: string;
+  sujetosProcesales: string;
+  fechaUltimaActuacion: string;
+  llaveProceso: string;
 }
 
 export interface AlertaDTO {
@@ -65,7 +76,9 @@ export interface DetalleDTO {
   proceso: ProcesoDTO;
   partes: ParteDTO[];
   actuaciones: ActuacionDTO[];
-  corporacion: string;
+  corporacion?: string;
+  fuente?: string;
+  idProceso?: number;
 }
 
 export async function getRadicados(): Promise<RadicadoDTO[]> {
@@ -75,11 +88,15 @@ export async function getRadicados(): Promise<RadicadoDTO[]> {
 
 export async function addRadicado(
   radicado: string,
-  alias: string
+  alias: string,
+  fuente: string = "samai",
+  idProceso?: number,
 ): Promise<RadicadoDTO> {
+  const body: Record<string, unknown> = { radicado, alias, fuente };
+  if (idProceso !== undefined) body.id_proceso = idProceso;
   const res = await authFetch("/radicados", {
     method: "POST",
-    body: JSON.stringify({ radicado, alias }),
+    body: JSON.stringify(body),
   });
   return res.json();
 }
@@ -138,5 +155,11 @@ export async function markAlertaRead(sk: string): Promise<void> {
 
 export async function buscarProceso(numProceso: string): Promise<unknown[]> {
   const res = await authFetch(`/buscar/${numProceso}`);
+  return res.json();
+}
+
+export async function buscarRamaJudicial(numProceso: string): Promise<RJProcesoDTO[]> {
+  const digits = numProceso.replace(/\D/g, "");
+  const res = await authFetch(`/buscar-rj/${digits}`);
   return res.json();
 }

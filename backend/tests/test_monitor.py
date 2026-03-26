@@ -165,6 +165,120 @@ class TestMonitorCheckRadicado:
         assert rads[0].ultimo_orden == 177
 
 
+class TestMonitorCheckRadicadoRj:
+    """check_radicado_rj: consulta CPNU, detecta novedades, crea alertas."""
+
+    def _make_rj_radicado(self, user_id: str = USER_A, ultimo_orden: int = 3) -> Radicado:
+        return Radicado(
+            user_id=user_id,
+            radicado=RADICADO,
+            corporacion="",
+            radicado_formato="73001-23-33-000-2019-00343-00",
+            alias="Caso RJ",
+            ultimo_orden=ultimo_orden,
+            activo=True,
+            created_at="2026-03-20T10:00:00",
+            fuente="rama_judicial",
+            id_proceso=149525880,
+        )
+
+    def _make_rj_actuacion(self, orden: int) -> Actuacion:
+        return Actuacion(
+            radicado=RADICADO,
+            orden=orden,
+            nombre="Envío Expediente",
+            fecha="2024-03-05T00:00:00",
+            anotacion=f"Detalle orden {orden}",
+            registro="2024-03-05T00:00:00",
+        )
+
+    def test_detecta_actuaciones_nuevas(self, dynamodb_resource):
+        from functions.monitor.app import check_radicado_rj
+
+        radicados_table = dynamodb_resource.Table("samai-radicados")
+        actuaciones_table = dynamodb_resource.Table("samai-actuaciones")
+        alertas_table = dynamodb_resource.Table("samai-alertas")
+
+        guardar_radicado(radicados_table, self._make_rj_radicado(USER_A, ultimo_orden=3))
+
+        mock_client = MagicMock()
+        mock_client.get_actuaciones_nuevas.return_value = [
+            self._make_rj_actuacion(5),
+            self._make_rj_actuacion(4),
+        ]
+
+        alertas = check_radicado_rj(
+            rj_client=mock_client,
+            radicados_table=radicados_table,
+            actuaciones_table=actuaciones_table,
+            alertas_table=alertas_table,
+            id_proceso=149525880,
+            radicado=RADICADO,
+        )
+
+        assert USER_A in alertas
+        assert len(alertas[USER_A]) == 2
+        # Todas las alertas tienen fuente="rama_judicial"
+        assert all(a.fuente == "rama_judicial" for a in alertas[USER_A])
+
+    def test_sin_id_proceso_retorna_vacio(self, dynamodb_resource):
+        from functions.monitor.app import check_radicado_rj
+
+        mock_client = MagicMock()
+        result = check_radicado_rj(
+            rj_client=mock_client,
+            radicados_table=dynamodb_resource.Table("samai-radicados"),
+            actuaciones_table=dynamodb_resource.Table("samai-actuaciones"),
+            alertas_table=dynamodb_resource.Table("samai-alertas"),
+            id_proceso=None,
+            radicado=RADICADO,
+        )
+
+        assert result == {}
+        mock_client.get_actuaciones_nuevas.assert_not_called()
+
+    def test_sin_novedades_no_genera_alertas(self, dynamodb_resource):
+        from functions.monitor.app import check_radicado_rj
+
+        radicados_table = dynamodb_resource.Table("samai-radicados")
+        guardar_radicado(radicados_table, self._make_rj_radicado(USER_A, ultimo_orden=5))
+
+        mock_client = MagicMock()
+        mock_client.get_actuaciones_nuevas.return_value = []
+
+        alertas = check_radicado_rj(
+            rj_client=mock_client,
+            radicados_table=radicados_table,
+            actuaciones_table=dynamodb_resource.Table("samai-actuaciones"),
+            alertas_table=dynamodb_resource.Table("samai-alertas"),
+            id_proceso=149525880,
+            radicado=RADICADO,
+        )
+
+        assert alertas == {}
+
+    def test_actualiza_ultimo_orden(self, dynamodb_resource):
+        from functions.monitor.app import check_radicado_rj
+
+        radicados_table = dynamodb_resource.Table("samai-radicados")
+        guardar_radicado(radicados_table, self._make_rj_radicado(USER_A, ultimo_orden=3))
+
+        mock_client = MagicMock()
+        mock_client.get_actuaciones_nuevas.return_value = [self._make_rj_actuacion(5)]
+
+        check_radicado_rj(
+            rj_client=mock_client,
+            radicados_table=radicados_table,
+            actuaciones_table=dynamodb_resource.Table("samai-actuaciones"),
+            alertas_table=dynamodb_resource.Table("samai-alertas"),
+            id_proceso=149525880,
+            radicado=RADICADO,
+        )
+
+        rads = obtener_radicados_usuario(radicados_table, USER_A)
+        assert rads[0].ultimo_orden == 5
+
+
 class TestMonitorHandler:
     """handler: orquesta el flujo completo EventBridge → check → alertas."""
 
@@ -208,7 +322,7 @@ class TestSendEmailAlerts:
         mock_resend.Emails.send.assert_called_once()
         call_args = mock_resend.Emails.send.call_args[0][0]
         assert call_args["to"] == ["test@example.com"]
-        assert "SAMAI Monitor" in call_args["from"]
+        assert "Alertas Judiciales" in call_args["from"]
         assert "actuación" in call_args["subject"]
 
     def test_skips_user_without_email(self, dynamodb_resource):

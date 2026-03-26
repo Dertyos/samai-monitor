@@ -75,30 +75,38 @@ def toggle_activo(table: Any, user_id: str, radicado: str) -> bool | None:
     return new_val
 
 
-def obtener_radicados_unicos(table: Any) -> list[tuple[str, str]]:
-    """Obtiene todos los radicados únicos (deduplicados) con su corporación.
+def obtener_radicados_unicos(table: Any) -> list[dict]:
+    """Obtiene todos los radicados únicos (deduplicados) para el monitor.
 
     Escanea la tabla completa y deduplica por radicado.
-    Retorna lista de tuplas (corporacion, radicado).
+    Retorna lista de dicts con las claves necesarias para cada fuente:
+      - radicado, fuente, corporacion (samai), id_proceso (rama_judicial)
     """
-    resp = table.scan(ProjectionExpression="corporacion, radicado")
+    resp = table.scan(
+        ProjectionExpression="corporacion, radicado, fuente, idProceso"
+    )
     items = resp.get("Items", [])
 
     # Paginar si hay más
     while "LastEvaluatedKey" in resp:
         resp = table.scan(
-            ProjectionExpression="corporacion, radicado",
+            ProjectionExpression="corporacion, radicado, fuente, idProceso",
             ExclusiveStartKey=resp["LastEvaluatedKey"],
         )
         items.extend(resp.get("Items", []))
 
     seen: set[str] = set()
-    unicos: list[tuple[str, str]] = []
+    unicos: list[dict] = []
     for item in items:
         rad = item["radicado"]
         if rad not in seen:
             seen.add(rad)
-            unicos.append((item["corporacion"], rad))
+            unicos.append({
+                "radicado": rad,
+                "fuente": item.get("fuente", "samai"),
+                "corporacion": item.get("corporacion", ""),
+                "id_proceso": int(item["idProceso"]) if item.get("idProceso") else None,
+            })
 
     return unicos
 

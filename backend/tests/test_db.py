@@ -132,7 +132,10 @@ class TestObtenerRadicadosUnicos:
         unicos = obtener_radicados_unicos(radicados_table)
         # Debe haber solo 1 radicado único (con su corporación)
         assert len(unicos) == 1
-        assert unicos[0] == (CORP, RADICADO)
+        assert unicos[0]["radicado"] == RADICADO
+        assert unicos[0]["corporacion"] == CORP
+        assert unicos[0]["fuente"] == "samai"
+        assert unicos[0]["id_proceso"] is None
 
     def test_multiples_radicados(self, radicados_table):
         rad1 = _make_radicado()

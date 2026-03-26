@@ -72,8 +72,8 @@ export default function Dashboard() {
   }, [radicadosQuery.data, searchQuery, sortBy]);
 
   const addMutation = useMutation({
-    mutationFn: ({ radicado, alias }: { radicado: string; alias: string }) =>
-      addRadicado(radicado, alias),
+    mutationFn: ({ radicado, alias, fuente, idProceso }: { radicado: string; alias: string; fuente: string; idProceso?: number }) =>
+      addRadicado(radicado, alias, fuente, idProceso),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["radicados"] });
       setShowAddModal(false);
@@ -144,8 +144,8 @@ export default function Dashboard() {
 
   useEffect(() => {
     document.title = unreadCount > 0
-      ? `(${unreadCount}) SAMAI Monitor`
-      : "SAMAI Monitor";
+      ? `(${unreadCount}) Alertas Judiciales`
+      : "Alertas Judiciales";
   }, [unreadCount]);
 
   return (
@@ -153,10 +153,11 @@ export default function Dashboard() {
       <header>
         <div>
           <h1>
-            SAMAI Monitor
+            Alertas Judiciales
             {unreadCount > 0 && (
               <span className={styles.badge}>{unreadCount}</span>
             )}
+            <br /><small>by Dertyos</small>
           </h1>
         </div>
         <div className={styles.headerRight}>
@@ -315,7 +316,7 @@ export default function Dashboard() {
 
       {showAddModal && (
         <AddRadicadoModal
-          onAdd={(radicado, alias) => addMutation.mutate({ radicado, alias })}
+          onAdd={(radicado, alias, fuente, idProceso) => addMutation.mutate({ radicado, alias, fuente, idProceso })}
           onClose={() => setShowAddModal(false)}
           error={
             addMutation.error instanceof Error

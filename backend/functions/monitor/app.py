@@ -18,6 +18,7 @@ import resend
 
 from models import Actuacion, Alerta
 from samai_client import SamaiClient, SamaiApiError
+from rama_judicial_client import RamaJudicialClient, RamaJudicialApiError
 from db import (
     obtener_radicados_unicos,
     guardar_actuaciones,
@@ -35,6 +36,7 @@ _radicados_table = _dynamodb.Table(os.environ.get("RADICADOS_TABLE", "samai-radi
 _actuaciones_table = _dynamodb.Table(os.environ.get("ACTUACIONES_TABLE", "samai-actuaciones"))
 _alertas_table = _dynamodb.Table(os.environ.get("ALERTAS_TABLE", "samai-alertas"))
 samai_client = SamaiClient()
+rj_client = RamaJudicialClient()
 
 # Resend API key — cargada desde SSM en cold start
 def _load_resend_api_key() -> str:
@@ -63,21 +65,33 @@ def handler(event: dict, context: Any) -> dict:
     all_user_alertas: dict[str, list[Alerta]] = {}
     errores = 0
 
-    for corp, radicado in unicos:
+    for item in unicos:
+        radicado = item["radicado"]
+        fuente = item["fuente"]
         try:
-            user_alertas = check_radicado(
-                samai_client=samai_client,
-                radicados_table=_radicados_table,
-                actuaciones_table=_actuaciones_table,
-                alertas_table=_alertas_table,
-                corporacion=corp,
-                radicado=radicado,
-            )
+            if fuente == "rama_judicial":
+                user_alertas = check_radicado_rj(
+                    rj_client=rj_client,
+                    radicados_table=_radicados_table,
+                    actuaciones_table=_actuaciones_table,
+                    alertas_table=_alertas_table,
+                    id_proceso=item["id_proceso"],
+                    radicado=radicado,
+                )
+            else:
+                user_alertas = check_radicado(
+                    samai_client=samai_client,
+                    radicados_table=_radicados_table,
+                    actuaciones_table=_actuaciones_table,
+                    alertas_table=_alertas_table,
+                    corporacion=item["corporacion"],
+                    radicado=radicado,
+                )
             # Merge alertas por usuario
             for user_id, alertas in user_alertas.items():
                 all_user_alertas.setdefault(user_id, []).extend(alertas)
         except Exception:
-            logger.exception("Error procesando radicado %s", radicado)
+            logger.exception("Error procesando radicado %s (fuente=%s)", radicado, fuente)
             errores += 1
 
     # 3. Enviar correos
@@ -168,6 +182,76 @@ def check_radicado(
     return user_alertas
 
 
+def check_radicado_rj(
+    *,
+    rj_client: RamaJudicialClient,
+    radicados_table: Any,
+    actuaciones_table: Any,
+    alertas_table: Any,
+    id_proceso: int | None,
+    radicado: str,
+) -> dict[str, list[Alerta]]:
+    """Consulta CPNU para un radicado de Rama Judicial, detecta novedades, crea alertas.
+
+    Retorna dict de userId → lista de alertas generadas.
+    """
+    from boto3.dynamodb.conditions import Key
+
+    if id_proceso is None:
+        logger.warning("Radicado %s de rama_judicial sin id_proceso, omitiendo", radicado)
+        return {}
+
+    resp = radicados_table.query(
+        IndexName="radicado-index",
+        KeyConditionExpression=Key("radicado").eq(radicado),
+    )
+    all_followers = resp.get("Items", [])
+    followers = [f for f in all_followers if f.get("activo", True) and f.get("fuente") == "rama_judicial"]
+    if not followers:
+        return {}
+
+    min_orden = min(int(item.get("ultimoOrden", 0)) for item in followers)
+
+    nuevas = rj_client.get_actuaciones_nuevas(id_proceso, desde_cons=min_orden)
+    if not nuevas:
+        return {}
+
+    guardar_actuaciones(actuaciones_table, nuevas)
+
+    max_orden = max(a.orden for a in nuevas)
+    now = datetime.now(timezone.utc).isoformat()
+
+    user_alertas: dict[str, list[Alerta]] = {}
+    for item in followers:
+        user_id = item["userId"]
+        user_ultimo_orden = int(item.get("ultimoOrden", 0))
+
+        nuevas_para_user = [a for a in nuevas if a.orden > user_ultimo_orden]
+        if not nuevas_para_user:
+            continue
+
+        alertas_user: list[Alerta] = []
+        for act in nuevas_para_user:
+            alerta = Alerta(
+                user_id=user_id,
+                radicado=radicado,
+                orden=act.orden,
+                nombre_actuacion=act.nombre,
+                fecha_actuacion=act.fecha,
+                anotacion=act.anotacion,
+                created_at=now,
+                enviado=False,
+                fuente="rama_judicial",
+            )
+            guardar_alerta(alertas_table, alerta)
+            alertas_user.append(alerta)
+
+        user_alertas[user_id] = alertas_user
+        actualizar_ultimo_orden(radicados_table, user_id, radicado, max_orden)
+
+    return user_alertas
+
+
 def _send_email_alerts(user_alertas: dict[str, list[Alerta]]) -> None:
     """Envía correos de alerta via Resend."""
     sender = os.environ.get("EMAIL_SENDER", "alertas@alertas-judiciales.dertyos.com")
@@ -183,7 +267,7 @@ def _send_email_alerts(user_alertas: dict[str, list[Alerta]]) -> None:
 
             subject, body_html = _build_alert_email(alertas)
             resend.Emails.send({
-                "from": f"SAMAI Monitor <{sender}>",
+                "from": f"Alertas Judiciales <{sender}>",
                 "to": [email],
                 "subject": subject,
                 "html": body_html,
@@ -215,15 +299,22 @@ def _build_alert_email(alertas: list[Alerta]) -> tuple[str, str]:
 
     n_radicados = len(by_radicado)
     n_actuaciones = len(alertas)
-    subject = f"SAMAI Monitor: {n_actuaciones} nueva(s) actuación(es) en {n_radicados} proceso(s)"
+    subject = f"Alertas Judiciales: {n_actuaciones} nueva(s) actuación(es) en {n_radicados} proceso(s)"
 
     rows = ""
     for radicado, rad_alertas in by_radicado.items():
         fmt = f"{radicado[:5]}-{radicado[5:7]}-{radicado[7:9]}-{radicado[9:12]}-{radicado[12:16]}-{radicado[16:21]}-{radicado[21:23]}"
-        samai_url = f"https://samai.consejodeestado.gov.co/Vistas/Casos/list_procesos.aspx?guid={fmt}"
+        # Use the appropriate portal URL based on source
+        rad_fuentes = {a.fuente for a in rad_alertas}
+        if "rama_judicial" in rad_fuentes:
+            portal_url = f"https://consultaprocesos.ramajudicial.gov.co/procesos/Index"
+            portal_label = "Ver en Rama Judicial"
+        else:
+            portal_url = f"https://samai.consejodeestado.gov.co/Vistas/Casos/list_procesos.aspx?guid={fmt}"
+            portal_label = "Ver en SAMAI"
         rows += (
             f'<tr><td colspan="3" style="background:#f0f0f0;padding:8px;font-weight:bold;">'
-            f'{fmt} &nbsp; <a href="{samai_url}" style="font-size:12px;font-weight:normal;">Ver en SAMAI</a>'
+            f'{fmt} &nbsp; <a href="{portal_url}" style="font-size:12px;font-weight:normal;">{portal_label}</a>'
             f'</td></tr>'
         )
         for a in sorted(rad_alertas, key=lambda x: x.orden, reverse=True):
@@ -240,7 +331,7 @@ def _build_alert_email(alertas: list[Alerta]) -> tuple[str, str]:
 <html>
 <head><meta charset="UTF-8"></head>
 <body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
-<h2 style="color:#1a73e8;">SAMAI Monitor</h2>
+<h2 style="color:#1a73e8;">Alertas Judiciales <small>by Dertyos</small></h2>
 <p>Se detectaron <strong>{n_actuaciones}</strong> nueva(s) actuación(es) en <strong>{n_radicados}</strong> proceso(s):</p>
 <table style="border-collapse:collapse;width:100%;" border="1" cellpadding="4">
 <tr style="background:#1a73e8;color:white;">
@@ -252,7 +343,7 @@ def _build_alert_email(alertas: list[Alerta]) -> tuple[str, str]:
 <a href="https://alertas-judiciales.dertyos.com" style="display:inline-block;background:#1a73e8;color:white;padding:10px 20px;text-decoration:none;border-radius:4px;font-size:14px;">Gestiona tus alertas aquí</a>
 </p>
 <p style="color:#666;font-size:12px;margin-top:20px;">
-Este correo fue enviado automáticamente por SAMAI Monitor.
+Este correo fue enviado automáticamente por Alertas Judiciales by Dertyos.
 </p>
 </body></html>"""
 

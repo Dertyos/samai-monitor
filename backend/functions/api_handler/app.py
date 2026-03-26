@@ -22,6 +22,7 @@ from radicado_utils import (
     RadicadoInvalido,
 )
 from samai_client import SamaiClient, SamaiApiError
+from rama_judicial_client import RamaJudicialClient, RamaJudicialApiError
 from db import (
     guardar_radicado,
     obtener_radicados_usuario,
@@ -43,6 +44,7 @@ _dynamodb = boto3.resource("dynamodb")
 _radicados_table = _dynamodb.Table(os.environ.get("RADICADOS_TABLE", "samai-radicados"))
 _alertas_table = _dynamodb.Table(os.environ.get("ALERTAS_TABLE", "samai-alertas"))
 samai_client = SamaiClient()
+rj_client = RamaJudicialClient()
 
 
 def _response(status: int, body: Any = None) -> dict:
@@ -135,6 +137,10 @@ def handler(event: dict, context: Any) -> dict:
         if method == "GET" and path.startswith("/buscar/"):
             return _get_buscar(event)
 
+        # GET /buscar-rj/{numProceso}
+        if method == "GET" and path.startswith("/buscar-rj/"):
+            return _get_buscar_rj(event)
+
         return _response(404, {"error": "Ruta no encontrada"})
 
     except Exception:
@@ -155,39 +161,67 @@ def _post_radicado(event: dict) -> dict:
         return _response(400, {"error": f"Radicado inválido: {raw}"})
 
     norm = normalizar_radicado(raw)
-    corp = extraer_corporacion(norm)
+    fuente = body.get("fuente", "samai")
 
-    # Check duplicado
+    # Check duplicado — un mismo radicado puede estar en ambas fuentes
     existing = obtener_radicado(_radicados_table, user_id, norm)
-    if existing is not None:
+    if existing is not None and existing.fuente == fuente:
         return _response(409, {"error": "Radicado ya registrado"})
 
-    # Fetch max orden actual para no generar alertas falsas en el primer run
-    try:
-        max_orden = samai_client.get_max_orden(corp, norm)
-    except SamaiApiError:
-        logger.warning("No se pudo obtener max_orden de SAMAI para %s, usando 0", norm)
-        max_orden = 0
+    if fuente == "rama_judicial":
+        id_proceso = body.get("id_proceso")
+        if not id_proceso:
+            return _response(400, {"error": "Campo 'id_proceso' requerido para fuente rama_judicial"})
+        id_proceso = int(id_proceso)
 
-    rad = Radicado(
-        user_id=user_id,
-        radicado=norm,
-        corporacion=corp,
-        radicado_formato=formatear_radicado(norm),
-        alias=body.get("alias", ""),
-        ultimo_orden=max_orden,
-        activo=True,
-        created_at=datetime.now(timezone.utc).isoformat(),
-    )
+        try:
+            max_orden = rj_client.get_max_cons_actuacion(id_proceso)
+        except RamaJudicialApiError:
+            logger.warning("No se pudo obtener max_cons de CPNU para %s, usando 0", norm)
+            max_orden = 0
+
+        rad = Radicado(
+            user_id=user_id,
+            radicado=norm,
+            corporacion="",
+            radicado_formato=formatear_radicado(norm),
+            alias=body.get("alias", ""),
+            ultimo_orden=max_orden,
+            activo=True,
+            created_at=datetime.now(timezone.utc).isoformat(),
+            fuente="rama_judicial",
+            id_proceso=id_proceso,
+        )
+    else:
+        corp = extraer_corporacion(norm)
+
+        try:
+            max_orden = samai_client.get_max_orden(corp, norm)
+        except SamaiApiError:
+            logger.warning("No se pudo obtener max_orden de SAMAI para %s, usando 0", norm)
+            max_orden = 0
+
+        rad = Radicado(
+            user_id=user_id,
+            radicado=norm,
+            corporacion=corp,
+            radicado_formato=formatear_radicado(norm),
+            alias=body.get("alias", ""),
+            ultimo_orden=max_orden,
+            activo=True,
+            created_at=datetime.now(timezone.utc).isoformat(),
+        )
 
     guardar_radicado(_radicados_table, rad)
-    logger.info("Radicado creado: %s para usuario %s", norm, user_id)
+    logger.info("Radicado creado: %s (fuente=%s) para usuario %s", norm, fuente, user_id)
 
     return _response(201, {
         "radicado": rad.radicado,
         "radicadoFormato": rad.radicado_formato,
         "corporacion": rad.corporacion,
         "alias": rad.alias,
+        "fuente": rad.fuente,
+        "idProceso": rad.id_proceso,
     })
 
 
@@ -203,6 +237,8 @@ def _get_radicados(event: dict) -> dict:
             "alias": r.alias,
             "ultimoOrden": r.ultimo_orden,
             "activo": r.activo,
+            "fuente": r.fuente,
+            "idProceso": r.id_proceso,
         }
         for r in radicados
     ])
@@ -251,7 +287,7 @@ def _delete_radicado(event: dict) -> dict:
 
 
 def _get_historial(event: dict) -> dict:
-    """GET /radicados/{id}/historial — actuaciones via SAMAI API."""
+    """GET /radicados/{id}/historial — actuaciones (SAMAI o Rama Judicial)."""
     user_id = _get_user_id(event)
     radicado_id = _get_path_param(event, "id")
 
@@ -259,7 +295,13 @@ def _get_historial(event: dict) -> dict:
     if rad is None:
         return _response(404, {"error": "Radicado no encontrado"})
 
-    actuaciones = samai_client.get_actuaciones(rad.corporacion, rad.radicado)
+    if rad.fuente == "rama_judicial":
+        if rad.id_proceso is None:
+            return _response(400, {"error": "Radicado sin id_proceso"})
+        actuaciones = rj_client.get_todas_actuaciones(rad.id_proceso)
+    else:
+        actuaciones = samai_client.get_actuaciones(rad.corporacion, rad.radicado)
+
     return _response(200, [
         {
             "orden": a.orden,
@@ -274,7 +316,7 @@ def _get_historial(event: dict) -> dict:
 
 
 def _get_detalle(event: dict) -> dict:
-    """GET /radicados/{id}/detalle — datos completos del proceso."""
+    """GET /radicados/{id}/detalle — datos completos del proceso (SAMAI o Rama Judicial)."""
     user_id = _get_user_id(event)
     radicado_id = _get_path_param(event, "id")
 
@@ -282,40 +324,80 @@ def _get_detalle(event: dict) -> dict:
     if rad is None:
         return _response(404, {"error": "Radicado no encontrado"})
 
-    datos_raw = samai_client.get_datos_proceso(rad.corporacion, rad.radicado)
-    datos = datos_raw.get("proceso", datos_raw) if isinstance(datos_raw, dict) else {}
-    partes = samai_client.get_sujetos_procesales(rad.corporacion, rad.radicado)
-    actuaciones = samai_client.get_actuaciones(rad.corporacion, rad.radicado)
+    if rad.fuente == "rama_judicial":
+        if rad.id_proceso is None:
+            return _response(400, {"error": "Radicado sin id_proceso"})
 
-    return _response(200, {
-        "proceso": {
-            "despacho": datos.get("Seccion", ""),
-            "ponente": datos.get("Ponente", ""),
-            "tipoProceso": datos.get("tipoProceso", ""),
-            "claseActuacion": datos.get("claseProceso", ""),
-            "fechaUltimaActuacion": datos.get("UltimaActuacionDespachoFecha", ""),
-        },
-        "partes": [
-            {
-                "nombre": p.get("NOMBRE", ""),
-                "tipo": p.get("TIPO", ""),
-            }
-            for p in partes
-        ],
-        "actuaciones": [
-            {
-                "orden": a.orden,
-                "nombre": a.nombre,
-                "fecha": a.fecha,
-                "anotacion": a.anotacion,
-                "estado": a.estado,
-                "decision": a.decision,
-                "docHash": a.doc_hash,
-            }
-            for a in actuaciones
-        ],
-        "corporacion": rad.corporacion,
-    })
+        detalle = rj_client.get_detalle(rad.id_proceso)
+        sujetos = rj_client.get_sujetos(rad.id_proceso)
+        actuaciones = rj_client.get_todas_actuaciones(rad.id_proceso)
+
+        return _response(200, {
+            "proceso": {
+                "despacho": detalle.get("despacho", ""),
+                "ponente": detalle.get("ponente", ""),
+                "tipoProceso": detalle.get("tipoProceso", ""),
+                "claseActuacion": detalle.get("claseProceso", ""),
+                "fechaUltimaActuacion": detalle.get("ultimaActualizacion", ""),
+            },
+            "partes": [
+                {
+                    "nombre": s.get("nombreRazonSocial", ""),
+                    "tipo": s.get("tipoSujeto", ""),
+                }
+                for s in sujetos
+            ],
+            "actuaciones": [
+                {
+                    "orden": a.orden,
+                    "nombre": a.nombre,
+                    "fecha": a.fecha,
+                    "anotacion": a.anotacion,
+                    "estado": a.estado,
+                    "decision": a.decision,
+                    "docHash": a.doc_hash,
+                }
+                for a in actuaciones
+            ],
+            "fuente": "rama_judicial",
+            "idProceso": rad.id_proceso,
+        })
+    else:
+        datos_raw = samai_client.get_datos_proceso(rad.corporacion, rad.radicado)
+        datos = datos_raw.get("proceso", datos_raw) if isinstance(datos_raw, dict) else {}
+        partes = samai_client.get_sujetos_procesales(rad.corporacion, rad.radicado)
+        actuaciones = samai_client.get_actuaciones(rad.corporacion, rad.radicado)
+
+        return _response(200, {
+            "proceso": {
+                "despacho": datos.get("Seccion", ""),
+                "ponente": datos.get("Ponente", ""),
+                "tipoProceso": datos.get("tipoProceso", ""),
+                "claseActuacion": datos.get("claseProceso", ""),
+                "fechaUltimaActuacion": datos.get("UltimaActuacionDespachoFecha", ""),
+            },
+            "partes": [
+                {
+                    "nombre": p.get("NOMBRE", ""),
+                    "tipo": p.get("TIPO", ""),
+                }
+                for p in partes
+            ],
+            "actuaciones": [
+                {
+                    "orden": a.orden,
+                    "nombre": a.nombre,
+                    "fecha": a.fecha,
+                    "anotacion": a.anotacion,
+                    "estado": a.estado,
+                    "decision": a.decision,
+                    "docHash": a.doc_hash,
+                }
+                for a in actuaciones
+            ],
+            "corporacion": rad.corporacion,
+            "fuente": "samai",
+        })
 
 
 def _patch_read_all(event: dict) -> dict:
@@ -360,3 +442,33 @@ def _get_buscar(event: dict) -> dict:
     num_proceso = _get_path_param(event, "numProceso")
     resultados = samai_client.buscar_proceso(num_proceso)
     return _response(200, resultados)
+
+
+def _get_buscar_rj(event: dict) -> dict:
+    """GET /buscar-rj/{numProceso} — buscar proceso en Rama Judicial (CPNU).
+
+    Retorna lista de procesos con idProceso, despacho y sujetosProcesales.
+    Un radicado puede tener múltiples resultados (distintos despachos).
+    """
+    num_proceso = _get_path_param(event, "numProceso")
+    if not num_proceso or not validar_radicado(num_proceso):
+        return _response(400, {"error": "Número de radicado inválido"})
+
+    norm = normalizar_radicado(num_proceso)
+    try:
+        procesos = rj_client.buscar_por_radicado(norm)
+    except RamaJudicialApiError as e:
+        logger.warning("CPNU buscar_por_radicado error: %s", e)
+        return _response(502, {"error": str(e)})
+
+    return _response(200, [
+        {
+            "idProceso": p.get("idProceso"),
+            "despacho": p.get("despacho", ""),
+            "departamento": p.get("departamento", ""),
+            "sujetosProcesales": p.get("sujetosProcesales", ""),
+            "fechaUltimaActuacion": p.get("fechaUltimaActuacion", ""),
+            "llaveProceso": p.get("llaveProceso", norm),
+        }
+        for p in procesos
+    ])

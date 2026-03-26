@@ -94,9 +94,14 @@ export default function RadicadoCard({
         <span className={styles.meta}>
           Ultima actuacion: #{radicado.ultimoOrden}
         </span>
-        <span className={radicado.activo ? styles.statusActive : styles.statusInactive}>
-          {radicado.activo ? "Activo" : "Pausado"}
-        </span>
+        <div className={styles.badges}>
+          {radicado.fuente === "rama_judicial" && (
+            <span className={styles.badgeRj} title="Fuente: Rama Judicial">R.J.</span>
+          )}
+          <span className={radicado.activo ? styles.statusActive : styles.statusInactive}>
+            {radicado.activo ? "Activo" : "Pausado"}
+          </span>
+        </div>
       </div>
       <div className={styles.actions}>
         <button onClick={onSelect} className="btn-secondary">

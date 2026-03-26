@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: SAMAI Monitor — Monitoreo de estados judiciales
+Description: Alertas Judiciales by Dertyos — Monitoreo de estados judiciales
 
 Globals:
   Function:
@@ -134,6 +134,12 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /buscar/{numProceso}
             Method: GET
+        GetBuscarRj:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /buscar-rj/{numProceso}
+            Method: GET
 
   MonitorFunction:
     Type: AWS::Serverless::Function
@@ -147,7 +153,7 @@ Resources:
       Environment:
         Variables:
           USER_POOL_ID: !Ref UserPool
-          EMAIL_SENDER: "alertas@alertas-judiciales.dertyos.com"
+          EMAIL_SENDER: "notificaciones-judiciales@dertyos.com"
           RESEND_API_KEY_SSM: "/samai-monitor/resend-api-key"
       Policies:
         - DynamoDBCrudPolicy:
@@ -224,14 +230,14 @@ Resources:
           - Sid: AllowCognitoEncrypt
             Effect: Allow
             Principal:
-              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+              Service: cognito-idp.amazonaws.com
             Action:
+              - kms:CreateGrant
               - kms:Encrypt
-              - kms:GenerateDataKey
             Resource: "*"
             Condition:
               StringEquals:
-                aws:PrincipalServiceName: cognito-idp.amazonaws.com
+                aws:SourceAccount: !Ref "AWS::AccountId"
 
   CognitoKmsKeyAlias:
     Type: AWS::KMS::Alias
@@ -250,8 +256,9 @@ Resources:
       Timeout: 30
       Environment:
         Variables:
-          EMAIL_SENDER: "alertas@alertas-judiciales.dertyos.com"
+          EMAIL_SENDER: "notificaciones-judiciales@dertyos.com"
           RESEND_API_KEY_SSM: "/samai-monitor/resend-api-key"
+          KMS_KEY_ARN: !GetAtt CognitoKmsKey.Arn
       Policies:
         - Statement:
             - Effect: Allow
