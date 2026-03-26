@@ -221,6 +221,24 @@ def _post_radicado(event: dict) -> dict:
             logger.warning("No se pudo obtener max_orden de SAMAI para %s, usando 0", norm)
             max_orden = 0
 
+        # 2da+ instancia: SAMAI puede usar una corporacion diferente (dígitos [0:5]+[7:9]).
+        # Si no se encontraron actuaciones y el radicado no es 1ra instancia, intentar
+        # la corporacion alternativa y usarla si retorna datos.
+        if max_orden == 0 and norm[-2:] != "00":
+            corp_alt = norm[:5] + norm[7:9]
+            if corp_alt != corp:
+                try:
+                    max_orden_alt = samai_client.get_max_orden(corp_alt, norm)
+                    if max_orden_alt > 0:
+                        logger.info(
+                            "Radicado %s: corporacion alternativa %s -> %d actuaciones",
+                            norm, corp_alt, max_orden_alt,
+                        )
+                        corp = corp_alt
+                        max_orden = max_orden_alt
+                except SamaiApiError:
+                    pass
+
         rad = Radicado(
             user_id=user_id,
             radicado=norm,
