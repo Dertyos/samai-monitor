@@ -139,24 +139,32 @@ export default function Login() {
 
         <form onSubmit={handleSubmit}>
           {/* Email — siempre visible */}
-          <input
-            type="email"
-            placeholder="Correo electronico"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
+          <label>
+            Correo electronico
+            <input
+              type="email"
+              placeholder="nombre@ejemplo.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoComplete="email"
+            />
+          </label>
 
           {/* Password — login y register */}
           {(mode === "login" || mode === "register") && (
-            <input
-              type="password"
-              placeholder="Contrasena"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={8}
-            />
+            <label>
+              Contrasena
+              <input
+                type="password"
+                placeholder="Minimo 8 caracteres"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={8}
+                autoComplete={mode === "login" ? "current-password" : "new-password"}
+              />
+            </label>
           )}
 
           {/* Link forgot password — solo en login */}
@@ -168,25 +176,33 @@ export default function Login() {
 
           {/* Codigo verificacion — resetPassword */}
           {mode === "resetPassword" && (
-            <input
-              type="text"
-              placeholder="Codigo de verificacion"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              required
-            />
+            <label>
+              Codigo de verificacion
+              <input
+                type="text"
+                placeholder="Ingresa el codigo enviado a tu correo"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                required
+                autoComplete="one-time-code"
+              />
+            </label>
           )}
 
           {/* Nueva contrasena — resetPassword */}
           {mode === "resetPassword" && (
-            <input
-              type="password"
-              placeholder="Nueva contrasena"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              required
-              minLength={8}
-            />
+            <label>
+              Nueva contrasena
+              <input
+                type="password"
+                placeholder="Minimo 8 caracteres"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                required
+                minLength={8}
+                autoComplete="new-password"
+              />
+            </label>
           )}
 
           {successMsg && <div className="success-msg">{successMsg}</div>}

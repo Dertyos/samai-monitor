@@ -1,8 +1,11 @@
 import { useState, useMemo } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getDetalle, getDocumentoUrl, type ActuacionDTO } from "../lib/api";
 import { formatDate, formatRadicado, decodeHtml } from "../lib/utils";
+import { useToast } from "../hooks/useToast";
+import { useTheme } from "../hooks/useTheme";
+import AppLogo from "../components/AppLogo";
 
 function exportToCsv(actuaciones: ActuacionDTO[], radicado: string): void {
   const header = "Orden,Actuacion,Fecha,Estado,Decision,Anotacion";
@@ -36,6 +39,8 @@ export default function DetalleRadicado() {
   const { radicadoId } = useParams<{ radicadoId: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const toast = useToast();
+  const { theme, toggle: toggleTheme } = useTheme();
   const [actuacionSearch, setActuacionSearch] = useState("");
   const [copied, setCopied] = useState(false);
 
@@ -60,6 +65,22 @@ export default function DetalleRadicado() {
   const radicadoFormato = formatRadicado(radicadoId);
 
   return (
+    <div className={styles.pageWrapper}>
+      <header className={styles.appHeader}>
+        <Link to="/dashboard" className={styles.appHeaderBrand}>
+          <AppLogo size={26} />
+          Alertas Judiciales
+        </Link>
+        <button
+          onClick={toggleTheme}
+          className="theme-toggle"
+          aria-label={theme === "light" ? "Cambiar a modo oscuro" : "Cambiar a modo claro"}
+          title={theme === "light" ? "Cambiar a modo oscuro" : "Cambiar a modo claro"}
+        >
+          {theme === "light" ? "\u{1F319}" : "\u{2600}\u{FE0F}"}
+        </button>
+      </header>
+
     <div className={styles.page}>
       <div className={styles.header}>
         <button onClick={() => navigate("/dashboard")} className="btn-back">
@@ -114,10 +135,11 @@ export default function DetalleRadicado() {
                   onClick={() => {
                     const url = query.data ? `https://samai.consejodeestado.gov.co/Vistas/Casos/list_procesos.aspx?guid=${radicadoFormato}${query.data.corporacion}` : `https://samai.consejodeestado.gov.co/Vistas/Casos/list_procesos.aspx?guid=${radicadoFormato}`;
                     navigator.clipboard.writeText(url);
-                    alert("Enlace copiado.\n\nSi SAMAI indica que el proceso no existe en la corporación, pega el enlace en una ventana de Incógnito para ignorar tu sesión actual.");
+                    toast.info("Enlace copiado. Si SAMAI da error de corporacion, pegalo en Incognito.");
                   }}
                   className="btn-secondary"
-                  title="Copiar enlace para abrir en Incógnito"
+                  title="Copiar enlace para abrir en Incognito"
+                  aria-label="Copiar enlace de SAMAI"
                   style={{ padding: "0.25rem 0.5rem" }}
                 >
                   📋
@@ -184,6 +206,7 @@ export default function DetalleRadicado() {
           />
         </>
       )}
+    </div>
     </div>
   );
 }
@@ -268,13 +291,17 @@ function ActuacionesSection({
             </h3>
 
             {actuaciones.length > 5 && (
-              <input
-                type="text"
-                placeholder="Filtrar actuaciones..."
-                value={search}
-                onChange={(e) => onSearchChange(e.target.value)}
-                className={styles.actuacionSearch}
-              />
+              <label className={styles.actuacionSearchLabel}>
+                <span className="sr-only">Filtrar actuaciones</span>
+                <input
+                  type="search"
+                  placeholder="Filtrar actuaciones..."
+                  value={search}
+                  onChange={(e) => onSearchChange(e.target.value)}
+                  className={styles.actuacionSearch}
+                  aria-label="Filtrar actuaciones"
+                />
+              </label>
             )}
 
             {/* Mobile: cards */}
