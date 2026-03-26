@@ -258,7 +258,7 @@ Resources:
         Variables:
           EMAIL_SENDER: "notificaciones-judiciales@dertyos.com"
           RESEND_API_KEY_SSM: "/samai-monitor/resend-api-key"
-          KMS_KEY_ARN: !GetAtt CognitoKmsKey.Arn
+          KMS_KEY_ARN: !Sub "arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/${CognitoKmsKey}"
       Policies:
         - Statement:
             - Effect: Allow
@@ -269,7 +269,7 @@ Resources:
             - Effect: Allow
               Action:
                 - kms:Decrypt
-              Resource: !GetAtt CognitoKmsKey.Arn
+              Resource: !Sub "arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/${CognitoKmsKey}"
 
   CognitoEmailSenderPermission:
     Type: AWS::Lambda::Permission
@@ -294,7 +294,7 @@ Resources:
         CustomEmailSender:
           LambdaArn: !GetAtt CognitoEmailSenderFunction.Arn
           LambdaVersion: V1_0
-        KMSKeyID: !GetAtt CognitoKmsKey.Arn
+        KMSKeyID: !Sub "arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/${CognitoKmsKey}"
       Policies:
         PasswordPolicy:
           MinimumLength: 8
