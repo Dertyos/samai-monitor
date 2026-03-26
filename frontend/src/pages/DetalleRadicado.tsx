@@ -37,6 +37,14 @@ export default function DetalleRadicado() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [actuacionSearch, setActuacionSearch] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyRadicado = () => {
+    navigator.clipboard.writeText(radicadoId!).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
 
   const query = useQuery({
     queryKey: ["detalle", radicadoId],
@@ -57,7 +65,13 @@ export default function DetalleRadicado() {
         <button onClick={() => navigate("/dashboard")} className="btn-back">
           &larr; Volver
         </button>
-        <h2>{radicadoFormato}</h2>
+        <h2
+          onClick={handleCopyRadicado}
+          title={copied ? "¡Copiado!" : "Copiar número"}
+          style={{ cursor: "copy" }}
+        >
+          {copied ? "¡Copiado!" : radicadoFormato}
+        </h2>
         <div className={styles.headerActions}>
           {query.data && (
             <button

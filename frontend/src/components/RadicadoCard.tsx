@@ -94,11 +94,25 @@ export default function RadicadoCard({
     />
   ) : null;
 
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyRadicado = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const digits = radicado.radicado.replace(/\D/g, "");
+    navigator.clipboard.writeText(digits).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
+
   const badgesNode = (
     <div className={styles.badges}>
-      {radicado.fuente === "rama_judicial" && (
-        <span className={styles.badgeRj} title="Fuente: Rama Judicial">R.J.</span>
-      )}
+      <span
+        className={radicado.fuente === "rama_judicial" ? styles.badgeRj : styles.badgeSamai}
+        title={radicado.fuente === "rama_judicial" ? "Fuente: Rama Judicial" : "Fuente: SAMAI"}
+      >
+        {radicado.fuente === "rama_judicial" ? "Rama J." : "Samai"}
+      </span>
       <span className={radicado.activo ? styles.statusActive : styles.statusInactive}>
         {radicado.activo ? "Activo" : "Pausado"}
       </span>
@@ -144,7 +158,14 @@ export default function RadicadoCard({
     return (
       <div className={cardClass}>
         <div className={styles.listMain} onClick={onSelect}>
-          <span className={styles.radicadoFmt}>{radicado.radicadoFormato}</span>
+          <span
+          className={styles.radicadoFmt}
+          onClick={handleCopyRadicado}
+          title={copied ? "¡Copiado!" : "Copiar número"}
+          style={{ cursor: "copy" }}
+        >
+          {copied ? "¡Copiado!" : radicado.radicadoFormato}
+        </span>
           {aliasNode}
         </div>
         <span className={`${styles.meta} ${styles.listMeta}`}>
@@ -164,7 +185,14 @@ export default function RadicadoCard({
   return (
     <div className={cardClass}>
       <div className={styles.header} onClick={onSelect}>
-        <span className={styles.radicadoFmt}>{radicado.radicadoFormato}</span>
+        <span
+          className={styles.radicadoFmt}
+          onClick={handleCopyRadicado}
+          title={copied ? "¡Copiado!" : "Copiar número"}
+          style={{ cursor: "copy" }}
+        >
+          {copied ? "¡Copiado!" : radicado.radicadoFormato}
+        </span>
         {aliasNode}
       </div>
       <div className={styles.body}>

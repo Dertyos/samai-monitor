@@ -86,6 +86,12 @@
   color: #6366f1;
 }
 
+.badgeSamai {
+  composes: status;
+  background: rgba(26, 115, 232, 0.1);
+  color: #1a73e8;
+}
+
 .statusActive {
   composes: status;
   background: var(--success-light);
