@@ -269,46 +269,46 @@ export default function Dashboard() {
             </p>
           )}
 
-          <div className={viewMode === "grid" ? styles.radicadosGrid : styles.radicadosList}>
-            {filteredRadicados.map((r: RadicadoDTO) => (
-              <RadicadoCard
-                key={r.radicado}
-                radicado={r}
-                isSelected={false}
-                listMode={viewMode === "list"}
-                onSelect={() => navigate(`/radicado/${r.radicado}`)}
-                onDelete={() => setDeleteTarget(r)}
-                onEditAlias={(alias) => editAliasMutation.mutate({ radicado: r.radicado, alias })}
-                onToggleActivo={() => toggleMutation.mutate(r.radicado)}
-                isDeleting={
-                  deleteMutation.isPending &&
-                  deleteMutation.variables === r.radicado
-                }
-                isEditing={
-                  editAliasMutation.isPending &&
-                  editAliasMutation.variables?.radicado === r.radicado
-                }
-                isToggling={
-                  toggleMutation.isPending &&
-                  toggleMutation.variables === r.radicado
-                }
-              />
-            ))}
-            {radicadosQuery.data?.length === 0 && !searchQuery && (
-              <div className="empty-state">
-                <p className="empty-state-icon">&#x1F4CB;</p>
-                <p className="empty-state-text">No tienes radicados monitoreados</p>
-                <p className="empty-state-hint">Agrega uno con el boton "+ Agregar" para empezar</p>
-              </div>
-            )}
-            {searchQuery && filteredRadicados.length === 0 && (radicadosQuery.data?.length ?? 0) > 0 && (
-              <div className="empty-state">
-                <p className="empty-state-icon">&#x1F50D;</p>
-                <p className="empty-state-text">Sin resultados para "{searchQuery}"</p>
-                <p className="empty-state-hint">Intenta con otro termino de busqueda</p>
-              </div>
-            )}
-          </div>
+          {radicadosQuery.data?.length === 0 && !searchQuery ? (
+            <div className="empty-state">
+              <p className="empty-state-icon">&#x1F4CB;</p>
+              <p className="empty-state-text">No tienes radicados monitoreados</p>
+              <p className="empty-state-hint">Agrega uno con el boton "+ Agregar" para empezar</p>
+            </div>
+          ) : searchQuery && filteredRadicados.length === 0 && (radicadosQuery.data?.length ?? 0) > 0 ? (
+            <div className="empty-state">
+              <p className="empty-state-icon">&#x1F50D;</p>
+              <p className="empty-state-text">Sin resultados para "{searchQuery}"</p>
+              <p className="empty-state-hint">Intenta con otro termino de busqueda</p>
+            </div>
+          ) : (
+            <div className={viewMode === "grid" ? styles.radicadosGrid : styles.radicadosList}>
+              {filteredRadicados.map((r: RadicadoDTO) => (
+                <RadicadoCard
+                  key={r.radicado}
+                  radicado={r}
+                  isSelected={false}
+                  listMode={viewMode === "list"}
+                  onSelect={() => navigate(`/radicado/${r.radicado}`)}
+                  onDelete={() => setDeleteTarget(r)}
+                  onEditAlias={(alias) => editAliasMutation.mutate({ radicado: r.radicado, alias })}
+                  onToggleActivo={() => toggleMutation.mutate(r.radicado)}
+                  isDeleting={
+                    deleteMutation.isPending &&
+                    deleteMutation.variables === r.radicado
+                  }
+                  isEditing={
+                    editAliasMutation.isPending &&
+                    editAliasMutation.variables?.radicado === r.radicado
+                  }
+                  isToggling={
+                    toggleMutation.isPending &&
+                    toggleMutation.variables === r.radicado
+                  }
+                />
+              ))}
+            </div>
+          )}
         </section>
 
         <section className={styles.section}>
