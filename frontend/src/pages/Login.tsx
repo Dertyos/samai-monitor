@@ -7,11 +7,12 @@ import styles from "./Login.module.css";
 /**
  * Modos de la pagina de login:
  * - login: iniciar sesion con email + password
- * - register: crear cuenta nueva (sin codigo de verificacion)
+ * - register: crear cuenta nueva
+ * - verifyEmail: ingresar codigo de verificacion enviado al correo tras registro
  * - forgot: solicitar codigo de recuperacion de contrasena
  * - resetPassword: ingresar codigo + nueva contrasena
  */
-type Mode = "login" | "register" | "forgot" | "resetPassword";
+type Mode = "login" | "register" | "verifyEmail" | "forgot" | "resetPassword";
 
 /**
  * Login — pagina publica de autenticacion.
@@ -52,6 +53,12 @@ export default function Login() {
 
         case "register":
           await auth.signUp(email, password);
+          setMode("verifyEmail");
+          setSuccessMsg("Codigo enviado a tu correo. Ingrésalo para activar tu cuenta.");
+          break;
+
+        case "verifyEmail":
+          await auth.confirmSignUp(email, code);
           await auth.signIn(email, password);
           navigate("/dashboard", { replace: true });
           break;
@@ -93,12 +100,14 @@ export default function Login() {
     switch (mode) {
       case "login": return "Iniciar Sesion";
       case "register": return "Registrarse";
+      case "verifyEmail": return "Verificar cuenta";
       case "forgot": return "Enviar codigo";
       case "resetPassword": return "Cambiar contrasena";
     }
   };
 
   const showTabs = mode === "login" || mode === "register";
+  const showBackToLogin = mode === "forgot" || mode === "resetPassword" || mode === "verifyEmail";
 
   return (
     <div className={styles.page}>
@@ -126,13 +135,15 @@ export default function Login() {
           </div>
         )}
 
-        {(mode === "forgot" || mode === "resetPassword") && (
+        {showBackToLogin && (
           <div style={{ marginBottom: "1rem" }}>
             <button className={styles.forgotLink} onClick={switchToLogin}>
               &larr; Volver a iniciar sesion
             </button>
             <h3 style={{ marginTop: "0.5rem" }}>
-              {mode === "forgot" ? "Recuperar contrasena" : "Nueva contrasena"}
+              {mode === "verifyEmail" && "Verifica tu correo"}
+              {mode === "forgot" && "Recuperar contrasena"}
+              {mode === "resetPassword" && "Nueva contrasena"}
             </h3>
           </div>
         )}
@@ -174,16 +185,18 @@ export default function Login() {
             </button>
           )}
 
-          {/* Codigo verificacion — resetPassword */}
-          {mode === "resetPassword" && (
+          {/* Codigo verificacion — verifyEmail y resetPassword */}
+          {(mode === "verifyEmail" || mode === "resetPassword") && (
             <label>
               Codigo de verificacion
               <input
                 type="text"
-                placeholder="Ingresa el codigo enviado a tu correo"
+                placeholder="Codigo de verificacion (6 digitos)"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 required
+                maxLength={6}
+                inputMode="numeric"
                 autoComplete="one-time-code"
               />
             </label>
@@ -211,6 +224,25 @@ export default function Login() {
           <button type="submit" className="primary" disabled={loading}>
             {getSubmitLabel()}
           </button>
+
+          {mode === "verifyEmail" && (
+            <button
+              type="button"
+              className={styles.forgotLink}
+              disabled={loading}
+              onClick={async () => {
+                clearMessages();
+                try {
+                  await auth.resendVerificationCode(email);
+                  setSuccessMsg("Codigo reenviado. Revisa tu correo.");
+                } catch (e) {
+                  setLocalError(e instanceof Error ? e.message : "Error al reenviar");
+                }
+              }}
+            >
+              Reenviar codigo
+            </button>
+          )}
         </form>
       </div>
     </div>

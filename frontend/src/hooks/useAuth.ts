@@ -3,6 +3,7 @@ import {
   signIn as cognitoSignIn,
   signUp as cognitoSignUp,
   confirmSignUp as cognitoConfirm,
+  resendConfirmationCode as cognitoResendCode,
   signOut as cognitoSignOut,
   forgotPassword as cognitoForgotPassword,
   confirmForgotPassword as cognitoConfirmForgotPassword,
@@ -74,6 +75,10 @@ export function useAuth() {
     await cognitoConfirm(email, code);
   }, []);
 
+  const resendVerificationCode = useCallback(async (email: string) => {
+    await cognitoResendCode(email);
+  }, []);
+
   const forgotPassword = useCallback(async (email: string) => {
     await cognitoForgotPassword(email);
   }, []);
@@ -102,6 +107,7 @@ export function useAuth() {
     signIn,
     signUp,
     confirmSignUp,
+    resendVerificationCode,
     forgotPassword,
     confirmForgotPassword,
     changePassword,

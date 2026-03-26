@@ -285,77 +285,77 @@ export default function Dashboard() {
             </p>
           )}
 
-          <div className={viewMode === "grid" ? styles.radicadosGrid : styles.radicadosList}>
-            {filteredRadicados.map((r: RadicadoDTO) => (
-              <RadicadoCard
-                key={r.radicado}
-                radicado={r}
-                isSelected={false}
-                listMode={viewMode === "list"}
-                onSelect={() => navigate(`/radicado/${r.radicado}`)}
-                onDelete={() => setDeleteTarget(r)}
-                onEditAlias={(alias) => editAliasMutation.mutate({ radicado: r.radicado, alias })}
-                onToggleActivo={() => toggleMutation.mutate(r.radicado)}
-                isDeleting={
-                  deleteMutation.isPending &&
-                  deleteMutation.variables === r.radicado
-                }
-                isEditing={
-                  editAliasMutation.isPending &&
-                  editAliasMutation.variables?.radicado === r.radicado
-                }
-                isToggling={
-                  toggleMutation.isPending &&
-                  toggleMutation.variables === r.radicado
-                }
-              />
-            ))}
-            {radicadosQuery.data?.length === 0 && !searchQuery && (
-              <div className={styles.onboarding}>
-                <h3 className={styles.onboardingTitle}>Bienvenido a Alertas Judiciales</h3>
-                <p className={styles.onboardingSubtitle}>Monitorea tus procesos en SAMAI y Rama Judicial. Recibe alertas cuando haya nuevas actuaciones.</p>
-                <div className={styles.onboardingSteps}>
-                  <div className={styles.onboardingStep}>
-                    <span className={styles.onboardingStepNum}>1</span>
-                    <div>
-                      <strong>Agrega un radicado</strong>
-                      <p>Haz clic en "+ Agregar" e ingresa el numero de tu proceso. Puedes buscarlo por nombre o numero parcial.</p>
-                    </div>
-                  </div>
-                  <div className={styles.onboardingStep}>
-                    <span className={styles.onboardingStepNum}>2</span>
-                    <div>
-                      <strong>El sistema lo monitorea</strong>
-                      <p>Cada dia el monitor consulta SAMAI y Rama Judicial para detectar nuevas actuaciones automaticamente.</p>
-                    </div>
-                  </div>
-                  <div className={styles.onboardingStep}>
-                    <span className={styles.onboardingStepNum}>3</span>
-                    <div>
-                      <strong>Recibe alertas</strong>
-                      <p>Cuando haya actuaciones nuevas te avisamos aqui y por correo electronico.</p>
-                    </div>
+          {radicadosQuery.data?.length === 0 && !searchQuery ? (
+            <div className={styles.onboarding}>
+              <h3 className={styles.onboardingTitle}>Bienvenido a Alertas Judiciales</h3>
+              <p className={styles.onboardingSubtitle}>Monitorea tus procesos en SAMAI y Rama Judicial. Recibe alertas cuando haya nuevas actuaciones.</p>
+              <div className={styles.onboardingSteps}>
+                <div className={styles.onboardingStep}>
+                  <span className={styles.onboardingStepNum}>1</span>
+                  <div>
+                    <strong>Agrega un radicado</strong>
+                    <p>Haz clic en "+ Agregar" e ingresa el numero de tu proceso. Puedes buscarlo por nombre o numero parcial.</p>
                   </div>
                 </div>
-                <button onClick={() => setShowAddModal(true)} className="primary" style={{ marginTop: "1.5rem" }}>
-                  + Agregar primer radicado
-                </button>
-              </div>
-            )}
-            {searchQuery && filteredRadicados.length === 0 && (radicadosQuery.data?.length ?? 0) > 0 && (
-              <div className="empty-state">
-                <div className="empty-state-icon">
-                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <circle cx="11" cy="11" r="8"/>
-                    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                    <line x1="8" y1="11" x2="14" y2="11"/>
-                  </svg>
+                <div className={styles.onboardingStep}>
+                  <span className={styles.onboardingStepNum}>2</span>
+                  <div>
+                    <strong>El sistema lo monitorea</strong>
+                    <p>Cada dia el monitor consulta SAMAI y Rama Judicial para detectar nuevas actuaciones automaticamente.</p>
+                  </div>
                 </div>
-                <p className="empty-state-text">Sin resultados para "{searchQuery}"</p>
-                <p className="empty-state-hint">Intenta con otro termino de busqueda</p>
+                <div className={styles.onboardingStep}>
+                  <span className={styles.onboardingStepNum}>3</span>
+                  <div>
+                    <strong>Recibe alertas</strong>
+                    <p>Cuando haya actuaciones nuevas te avisamos aqui y por correo electronico.</p>
+                  </div>
+                </div>
               </div>
-            )}
-          </div>
+              <button onClick={() => setShowAddModal(true)} className="primary" style={{ marginTop: "1.5rem" }}>
+                + Agregar primer radicado
+              </button>
+            </div>
+          ) : searchQuery && filteredRadicados.length === 0 && (radicadosQuery.data?.length ?? 0) > 0 ? (
+            <div className="empty-state">
+              <div className="empty-state-icon">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <circle cx="11" cy="11" r="8"/>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                  <line x1="8" y1="11" x2="14" y2="11"/>
+                </svg>
+              </div>
+              <p className="empty-state-text">Sin resultados para "{searchQuery}"</p>
+              <p className="empty-state-hint">Intenta con otro termino de busqueda</p>
+            </div>
+          ) : (
+            <div className={viewMode === "grid" ? styles.radicadosGrid : styles.radicadosList}>
+              {filteredRadicados.map((r: RadicadoDTO) => (
+                <RadicadoCard
+                  key={r.radicado}
+                  radicado={r}
+                  isSelected={false}
+                  listMode={viewMode === "list"}
+                  onSelect={() => navigate(`/radicado/${r.radicado}`)}
+                  onDelete={() => setDeleteTarget(r)}
+                  onEditAlias={(alias) => editAliasMutation.mutate({ radicado: r.radicado, alias })}
+                  onToggleActivo={() => toggleMutation.mutate(r.radicado)}
+                  isDeleting={
+                    deleteMutation.isPending &&
+                    deleteMutation.variables === r.radicado
+                  }
+                  isEditing={
+                    editAliasMutation.isPending &&
+                    editAliasMutation.variables?.radicado === r.radicado
+                  }
+                  isToggling={
+                    toggleMutation.isPending &&
+                    toggleMutation.variables === r.radicado
+                  }
+                />
+              ))}
+            </div>
+          )}
         </section>
 
         <section className={styles.section}>

@@ -1,16 +1,13 @@
 """
 PreSignUp Cognito trigger.
 
-Auto-confirma y auto-verifica el email de cada usuario nuevo,
-eliminando el paso de código de verificación en el registro.
-
 Cognito llama este trigger ANTES de crear el usuario.
-Retornar autoConfirmUser=True + autoVerifyEmail=True hace que
-el usuario quede CONFIRMED de inmediato, sin enviar ningún código.
+NO auto-confirmamos para que Cognito envíe el código de verificación
+vía CustomEmailSender Lambda. El usuario debe ingresar el código
+para confirmar su cuenta antes de poder iniciar sesión.
 """
 
 
 def handler(event: dict, context: object) -> dict:  # noqa: ARG001
-    event["response"]["autoConfirmUser"] = True
-    event["response"]["autoVerifyEmail"] = True
+    # No auto-confirm: Cognito enviará código 6 dígitos via CustomEmailSender
     return event

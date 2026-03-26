@@ -84,6 +84,19 @@ export function confirmSignUp(email: string, code: string): Promise<void> {
   });
 }
 
+export function resendConfirmationCode(email: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const user = new CognitoUser({ Username: email, Pool: userPool });
+    user.resendConfirmationCode((err) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
 export function signOut(): void {
   const user = getCurrentUser();
   if (user) {
