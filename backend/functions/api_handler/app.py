@@ -239,6 +239,43 @@ def _post_radicado(event: dict) -> dict:
                 except SamaiApiError:
                     pass
 
+        # Fallback CPNU: si SAMAI no tiene el proceso, buscarlo en Rama Judicial (CPNU).
+        # Esto ocurre con procesos del Tribunal Administrativo que no están en SAMAI.
+        if max_orden == 0:
+            try:
+                rj_results = rj_client.buscar_por_radicado(norm)
+                if rj_results and rj_results[0].get("idProceso"):
+                    id_proceso_rj = int(rj_results[0]["idProceso"])
+                    max_orden_rj = rj_client.get_max_cons_actuacion(id_proceso_rj)
+                    logger.info(
+                        "SAMAI sin datos para %s, encontrado en CPNU (idProceso=%d, max_orden=%d)",
+                        norm, id_proceso_rj, max_orden_rj,
+                    )
+                    rad = Radicado(
+                        user_id=user_id,
+                        radicado=norm,
+                        corporacion="",
+                        radicado_formato=formatear_radicado(norm),
+                        alias=body.get("alias", ""),
+                        ultimo_orden=max_orden_rj,
+                        activo=True,
+                        created_at=datetime.now(timezone.utc).isoformat(),
+                        fuente="rama_judicial",
+                        id_proceso=id_proceso_rj,
+                    )
+                    guardar_radicado(_radicados_table, rad)
+                    logger.info("Radicado creado: %s (fuente=rama_judicial via auto-fallback) para usuario %s", norm, user_id)
+                    return _response(201, {
+                        "radicado": rad.radicado,
+                        "radicadoFormato": rad.radicado_formato,
+                        "corporacion": rad.corporacion,
+                        "alias": rad.alias,
+                        "fuente": rad.fuente,
+                        "idProceso": rad.id_proceso,
+                    })
+            except (RamaJudicialApiError, Exception) as e:
+                logger.warning("CPNU fallback falló para %s: %s", norm, e)
+
         rad = Radicado(
             user_id=user_id,
             radicado=norm,
