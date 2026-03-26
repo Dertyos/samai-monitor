@@ -425,6 +425,50 @@ marca al usuario como `CONFIRMED` de inmediato, sin enviar ningún código.
 
 ---
 
+## 2026-03-26 — Fix correo de verificación en registro (parte 2)
+
+### Contexto
+El commit `3d76b21` re-habilitó el flujo de verificación por email al registrarse
+(revirtió el auto-confirm del PreSignUp trigger). Sin embargo, la Lambda
+`samai-cognito-email-sender` seguía fallando con `InvalidCiphertextException`.
+
+### Causa raíz
+`_decrypt_code` usaba `kms_client.decrypt()` directamente (raw KMS API), pero
+Cognito cifra el código de verificación usando el **formato del AWS Encryption SDK**
+(mensaje envuelto con header + data key cifrada + cuerpo AES-GCM). El raw KMS
+no puede leer este formato → `InvalidCiphertextException`.
+
+### Fix 1: AWS Encryption SDK
+- Reemplazado `kms_client.decrypt(CiphertextBlob=...)` por
+  `aws_encryption_sdk.EncryptionSDKClient.decrypt(source=..., key_provider=...)`
+- `aws-encryption-sdk>=3.1.0` ya estaba en `backend/layers/shared/python/requirements.txt`
+  pero nunca había sido importado por ninguna Lambda.
+
+### Fix 2: Arquitectura Lambda x86_64
+Al importar `aws_encryption_sdk`, la Lambda carga `cryptography/_rust.abi3.so`
+(binario nativo Rust). El CI/CD corre en x86_64 y compilaba el `.so` para x86_64,
+pero Lambda estaba configurado como `arm64` → fallo de arquitectura.
+
+**Solución**: cambiar `Architectures: arm64` → `x86_64` en `template.yaml`.
+El CI siempre corre en x86_64, por lo que los binarios ahora coinciden.
+
+### Verificación en producción
+Logs de CloudWatch tras el deploy:
+```
+[INFO] Cognito email trigger: CustomEmailSender_ResendCode for julian100@dertyos.com
+[INFO] Email sent to julian100@dertyos.com for trigger CustomEmailSender_ResendCode
+```
+Sin `InvalidCiphertextException`. Correos enviados via Resend con dominio `@dertyos.com`.
+
+### Archivos modificados
+| Archivo | Cambio |
+|---|---|
+| `backend/functions/cognito_email_sender/app.py` | `_decrypt_code` usa AWS Encryption SDK |
+| `backend/tests/test_cognito_email_sender.py` | Test actualizado para mockear `_enc_client` |
+| `template.yaml` | `Architectures: x86_64` (era arm64) |
+
+---
+
 ## Fases Futuras (v2+)
 
 ### Fase 8: Custom Domain + SSL
