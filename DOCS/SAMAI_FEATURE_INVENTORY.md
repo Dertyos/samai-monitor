@@ -197,6 +197,22 @@ Muestra representativa:
 | 2500023 | Tribunal Administrativo de Cundinamarca |
 | 0500123 | Tribunal Administrativo de Antioquia |
 
+## 4.6. GUID de proceso en URLs de SAMAI
+
+El `guid` que aparece en `list_procesos.aspx?guid=...` es la concatenacion de:
+```
+GUID (30 chars) = radicado_23_digitos + corporacion_7_digitos
+```
+Ejemplo: `guid=110013335030202400100012500023`
+- Radicado: `11001333503020240010001` (23 digitos)
+- Corporacion: `2500023` = Tribunal Administrativo de Cundinamarca
+
+**IMPORTANTE - Los primeros 7 digitos del radicado NO siempre coinciden con el codigo SAMAI:**
+- Un radicado `11001333...` puede estar en el Tribunal de Cundinamarca (`2500023`), no en el Juzgado de Bogota (`1100133`)
+- Esto ocurre cuando el proceso es llevado por un Tribunal de la region, aunque el radicado encode la ciudad (Bogota=`11001`)
+- Nuestro `extraer_corporacion` usa primeros 7 digitos como default, y hace fallback probando
+  los 28 Tribunales + Consejo de Estado en paralelo (ThreadPoolExecutor) cuando el default falla
+
 ---
 
 # 5. VENTANILLA VIRTUAL

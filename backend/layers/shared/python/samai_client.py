@@ -6,6 +6,7 @@ No tiene estado, no habla con DynamoDB, no envía correos.
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 import requests
@@ -16,7 +17,42 @@ logger = logging.getLogger(__name__)
 
 BASE_URL = "https://samaicore.consejodeestado.gov.co/api"
 TIMEOUT = 30  # seconds
+TIMEOUT_BUSQUEDA = 10  # timeout reducido para búsqueda paralela de corporación
 MODO = "2"  # consulta pública
+
+# Consejo de Estado + 27 Tribunales Administrativos de Colombia (de WEstados.aspx).
+# Se usan como candidatos cuando la corporacion extraída del radicado no retorna datos.
+# Los Juzgados Administrativos no se incluyen porque su código = primeros 7 dígitos del radicado.
+_TRIBUNALES_Y_CE: list[str] = [
+    "1100103",  # Consejo de Estado
+    "0500123",  # Tribunal Administrativo de Antioquia
+    "8100123",  # Tribunal Administrativo de Arauca
+    "0800123",  # Tribunal Administrativo del Atlántico
+    "1300123",  # Tribunal Administrativo de Bolívar
+    "1500123",  # Tribunal Administrativo de Boyacá
+    "1700123",  # Tribunal Administrativo de Caldas
+    "1800123",  # Tribunal Administrativo del Caquetá
+    "8500123",  # Tribunal Administrativo del Casanare
+    "1900123",  # Tribunal Administrativo del Cauca
+    "2000123",  # Tribunal Administrativo del Cesar
+    "2700123",  # Tribunal Administrativo del Chocó
+    "2300123",  # Tribunal Administrativo de Córdoba
+    "2500023",  # Tribunal Administrativo de Cundinamarca (código especial)
+    "4100123",  # Tribunal Administrativo del Huila
+    "4400123",  # Tribunal Administrativo de la Guajira
+    "4700123",  # Tribunal Administrativo del Magdalena
+    "5000123",  # Tribunal Administrativo del Meta
+    "5200123",  # Tribunal Administrativo de Nariño
+    "5400123",  # Tribunal Administrativo de Norte de Santander
+    "8600123",  # Tribunal Administrativo del Putumayo
+    "6300123",  # Tribunal Administrativo del Quindío
+    "6600123",  # Tribunal Administrativo de Risaralda
+    "8800123",  # Tribunal Administrativo de San Andrés
+    "6800123",  # Tribunal Administrativo de Santander
+    "7000123",  # Tribunal Administrativo de Sucre
+    "7300123",  # Tribunal Administrativo del Tolima
+    "7600123",  # Tribunal Administrativo del Valle del Cauca
+]
 
 
 class SamaiApiError(Exception):
@@ -71,6 +107,39 @@ class SamaiClient:
         if not actuaciones:
             return 0
         return actuaciones[0].orden
+
+    def encontrar_corporacion(self, radicado: str, excluir: list[str] | None = None) -> str | None:
+        """Busca la corporacion SAMAI correcta probando Tribunales y Consejo de Estado en paralelo.
+
+        Se usa como fallback cuando la corporacion por defecto (primeros 7 dígitos del radicado)
+        no retorna actuaciones. Sólo prueba Tribunales + Consejo de Estado (28 opciones) porque
+        los Juzgados normalmente coinciden con los primeros 7 dígitos.
+
+        Retorna el código de corporación si se encuentran actuaciones, None si no.
+        """
+        excluir_set = set(excluir or [])
+        candidatos = [c for c in _TRIBUNALES_Y_CE if c not in excluir_set]
+
+        def _probar(corp: str) -> tuple[str, int]:
+            try:
+                url = f"{self.base_url}/Procesos/HistorialActuaciones/{corp}/{radicado}/{MODO}"
+                resp = self.session.get(url, timeout=TIMEOUT_BUSQUEDA)
+                resp.raise_for_status()
+                if not resp.text.strip():
+                    return corp, 0
+                data = resp.json()
+                return corp, len(data) if isinstance(data, list) else 0
+            except Exception:
+                return corp, 0
+
+        with ThreadPoolExecutor(max_workers=14) as executor:
+            futures = {executor.submit(_probar, c): c for c in candidatos}
+            for future in as_completed(futures):
+                corp, n = future.result()
+                if n > 0:
+                    logger.info("Radicado %s: corporacion encontrada %s (%d actuaciones)", radicado, corp, n)
+                    return corp
+        return None
 
     def buscar_proceso(self, num_proceso: str) -> list[dict]:
         """Busca un proceso en todo SAMAI.
