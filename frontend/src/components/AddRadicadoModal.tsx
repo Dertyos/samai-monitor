@@ -137,9 +137,17 @@ export default function AddRadicadoModal({ onAdd, onClose, error, loading }: Pro
     }
   };
 
+  // Track where mousedown started so text-selection drags don't close the modal
+  const mouseDownOnOverlay = { current: false };
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="modal-overlay"
+      onMouseDown={(e) => { mouseDownOnOverlay.current = e.target === e.currentTarget; }}
+      onMouseUp={(e) => { if (mouseDownOnOverlay.current && e.target === e.currentTarget && !loading) onClose(); }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="modal" onMouseDown={(e) => e.stopPropagation()}>
         <h3>Agregar Radicado</h3>
 
         {/* Source selector */}
