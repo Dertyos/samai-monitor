@@ -35,7 +35,13 @@ export default function Dashboard() {
   const [deleteTarget, setDeleteTarget] = useState<RadicadoDTO | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<"recent" | "alias" | "activo">("recent");
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [viewMode, setViewMode] = useState<"grid" | "list">(
+    () => (localStorage.getItem("viewMode") as "grid" | "list") ?? "grid"
+  );
+  const handleSetViewMode = (mode: "grid" | "list") => {
+    localStorage.setItem("viewMode", mode);
+    setViewMode(mode);
+  };
   const queryClient = useQueryClient();
   const { theme, toggle: toggleTheme } = useTheme();
   const toast = useToast();
@@ -202,7 +208,7 @@ export default function Dashboard() {
               <div className={styles.viewToggle}>
                 <button
                   className={`${styles.viewToggleBtn} ${viewMode === "grid" ? styles.viewToggleBtnActive : ""}`}
-                  onClick={() => setViewMode("grid")}
+                  onClick={() => handleSetViewMode("grid")}
                   title="Vista tarjetas"
                 >
                   <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor">
@@ -214,7 +220,7 @@ export default function Dashboard() {
                 </button>
                 <button
                   className={`${styles.viewToggleBtn} ${viewMode === "list" ? styles.viewToggleBtnActive : ""}`}
-                  onClick={() => setViewMode("list")}
+                  onClick={() => handleSetViewMode("list")}
                   title="Vista lista"
                 >
                   <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor">
