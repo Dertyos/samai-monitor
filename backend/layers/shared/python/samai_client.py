@@ -121,6 +121,7 @@ class SamaiClient:
         candidatos = [c for c in _TRIBUNALES_Y_CE if c not in excluir_set]
 
         def _probar(corp: str) -> tuple[str, int]:
+            """Retorna (corp, max_orden) donde max_orden es el Orden más alto encontrado (0 si vacío)."""
             try:
                 url = f"{self.base_url}/Procesos/HistorialActuaciones/{corp}/{radicado}/{MODO}"
                 resp = self.session.get(url, timeout=TIMEOUT_BUSQUEDA)
@@ -128,18 +129,32 @@ class SamaiClient:
                 if not resp.text.strip():
                     return corp, 0
                 data = resp.json()
-                return corp, len(data) if isinstance(data, list) else 0
+                if not isinstance(data, list) or not data:
+                    return corp, 0
+                max_orden = max((item.get("Orden", 0) for item in data), default=0)
+                return corp, max_orden
             except Exception:
                 return corp, 0
 
         with ThreadPoolExecutor(max_workers=14) as executor:
             futures = {executor.submit(_probar, c): c for c in candidatos}
-            for future in as_completed(futures):
-                corp, n = future.result()
-                if n > 0:
-                    logger.info("Radicado %s: corporacion encontrada %s (%d actuaciones)", radicado, corp, n)
-                    return corp
-        return None
+            resultados = [f.result() for f in as_completed(futures)]
+
+        validos = [(corp, orden) for corp, orden in resultados if orden > 0]
+        if not validos:
+            return None
+
+        # Si (en el raro caso) el mismo radicado aparece en varios tribunales,
+        # retornar el que tiene la actuación más reciente (mayor Orden).
+        mejor_corp, mejor_orden = max(validos, key=lambda x: x[1])
+        logger.info(
+            "Radicado %s: corporacion encontrada %s (max_orden=%d, total_con_datos=%d)",
+            radicado,
+            mejor_corp,
+            mejor_orden,
+            len(validos),
+        )
+        return mejor_corp
 
     def buscar_proceso(self, num_proceso: str) -> list[dict]:
         """Busca un proceso en todo SAMAI.
