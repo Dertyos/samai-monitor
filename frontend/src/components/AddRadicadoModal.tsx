@@ -231,32 +231,22 @@ export default function AddRadicadoModal({ onAdd, onClose, error, loading }: Pro
         )}
 
         <form onSubmit={handleSubmit}>
-          <label>
-            Numero de radicado
-            <input
-              type="text"
-              placeholder="73001-23-33-000-2019-00343-00"
-              value={radicado}
-              onChange={(e) => {
-                const formatted = formatRadicadoInput(e.target.value);
-                setRadicado(formatted);
-                // If user edits radicado manually in RJ mode, clear selection
-                if (fuente === "rama_judicial") setSelectedRj(null);
-              }}
-              required
-              className={radicado && !isValid ? "input-warning" : ""}
-            />
-            {radicado && !isValid && (
-              <span className="input-hint">
-                {digits.length}/23 digitos
-              </span>
-            )}
-            {fuente === "rama_judicial" && isValid && !selectedRj && (
-              <span className="input-hint">
-                Busca arriba para seleccionar el despacho
-              </span>
-            )}
-          </label>
+          {fuente === "samai" && (
+            <label>
+              Numero de radicado
+              <input
+                type="text"
+                placeholder="73001-23-33-000-2019-00343-00"
+                value={radicado}
+                onChange={(e) => setRadicado(formatRadicadoInput(e.target.value))}
+                required
+                className={radicado && !isValid ? "input-warning" : ""}
+              />
+              {radicado && !isValid && (
+                <span className="input-hint">{digits.length}/23 digitos</span>
+              )}
+            </label>
+          )}
           <label>
             Alias (opcional)
             <input
