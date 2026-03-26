@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { queryClient } from "../lib/queryClient";
 import {
   signIn as cognitoSignIn,
   signUp as cognitoSignUp,
@@ -99,6 +100,7 @@ export function useAuth() {
 
   const signOut = useCallback(() => {
     cognitoSignOut();
+    queryClient.clear();
     setState({ isAuthenticated: false, isLoading: false, email: null, error: null });
   }, []);
 
