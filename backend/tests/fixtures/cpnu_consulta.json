@@ -1,0 +1,34 @@
+{
+  "tipoConsulta": "NumeroRadicacion",
+  "procesos": [
+    {
+      "idProceso": 161456211,
+      "idConexion": 320,
+      "llaveProceso": "08573408900320230024200",
+      "fechaProceso": "2023-10-17T00:00:00",
+      "fechaUltimaActuacion": "2026-03-26T00:00:00",
+      "despacho": "JUZGADO 003 PROMISCUO MUNICIPAL DE PUERTO COLOMBIA ",
+      "departamento": "ATLÁNTICO",
+      "sujetosProcesales": "Demandante/accionante: OLGA LUCIA LEAL\r\n\t\t\t\t\tBAZURTO | Demandante/accionante: URBINA RAMIREZ JOSE ELICIO  \r\n\t\t\t\t\t (Emplazado) | Demandante/accionante: SANTOS OSMA OSCAR JAVIER  \r\n\t\t\t\t\t (Emplazado) | Demandado/indiciado/causante: JOSE ALBERTO PINILLA ROCHA  \r\n\t\t\t\t\t (Emplazado) | Demandado/indiciado/causante: jaime alberto lascar\r\n\t\t\t\t\tposada (Emplazado) | Demandado/indiciado/causante: JOHN AMAURY LINARES ARIAS  \r\n\t\t\t\t\t (Emplazado) | Demandado/indiciado/causante: ISIDRO AQUILINO AUSIQUE RAMIREZ  \r\n\t\t\t\t\t (Emplazado) | Demandado/indiciado/causante: LUIS FRANCISCO RAMOS SALAMANCA  \r\n\t\t\t\t\t (Emplazado) | Demandado/indiciado/causante: SANCHEZ TRIVIÑO WILLIAM JESUS  \r\n\t\t\t\t\t (Emplazado) | Demandado/indiciado/causante: SANCHEZ RODRIGUEZ ILDEFONSO  \r\n\t\t\t\t\t (Emplazado) | Demandado/indiciado/causante: JIMI HERNANDO HERRERA MONTAÑEZ  \r\n\t\t\t\t\t (Emplazado) | Demandado/indiciado/causante: RODRIGUEZ VARGAS OSCAR ALEJANDRO  \r\n\t\t\t\t\t (Emplazado) | Demandado/indiciado/causante: CARLOS ALBERTO ALARCON FUQUENE  \r\n\t\t\t\t\t (Emplazado) | Demandado/indiciado/causante: oscar javier montes\r\n\t\t\t\t\tjimenez (Emplazado) | Demandado/indiciado/causante: PEDRO ANTONIO LADINO POVEDA  \r\n\t\t\t\t\t (Emplazado) | Demandado/indiciado/causante: uRIEL EDGARDO HERNANDEZ\r\n\t\t\t\t\tGAITAN (Emplazado) | Demandado/indiciado/causante: SANDOVAL SANCHEZ EDGAR  \r\n\t\t\t\t\t (Emplazado) | Demandado/indiciado/causante: SARMIENTO ALARCON EDGAR  \r\n\t\t\t\t\t (Emplazado) | Demandado/indiciado/causante: TORRES BENAVIDES GILDARDO  \r\n\t\t\t\t\t (Emplazado) | Demandado/indiciado/causante: CARDENAS CASAS JOSE RICARDO  \r\n\t\t\t\t\t (Emplazado) ...",
+      "esPrivado": false,
+      "cantFilas": -1
+    }
+  ],
+  "parametros": {
+    "numero": "08573408900320230024200",
+    "nombre": null,
+    "tipoPersona": null,
+    "idSujeto": null,
+    "ponente": null,
+    "claseProceso": null,
+    "codificacionDespacho": null,
+    "soloActivos": false
+  },
+  "paginacion": {
+    "cantidadRegistros": 1,
+    "registrosPagina": 20,
+    "cantidadPaginas": 1,
+    "pagina": 1,
+    "paginas": null
+  }
+}
