@@ -57,6 +57,7 @@ export function useAuth() {
     try {
       const session = await cognitoSignIn(email, password);
       const userEmail = session.getIdToken().payload["email"] as string;
+      queryClient.clear();
       setState({ isAuthenticated: true, isLoading: false, email: userEmail, error: null });
     } catch (err) {
       setState((s) => ({
