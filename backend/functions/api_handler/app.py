@@ -35,6 +35,7 @@ from db import (
     marcar_todas_leidas,
     actualizar_alias,
     toggle_activo,
+    actualizar_corporacion,
 )
 
 logger = logging.getLogger(__name__)
@@ -453,13 +454,40 @@ def _get_detalle(event: dict) -> dict:
         except SamaiApiError as e:
             logger.warning("SAMAI no disponible para detalle de %s: %s", radicado_id, e)
             return _response(503, {"error": "El servidor de SAMAI no está disponible en este momento. Intenta de nuevo en unos minutos."})
+
+        # Auto-heal: si la corporacion almacenada no retorna datos, buscar la correcta.
+        # Ocurre cuando SAMAI estaba caído al registrar el radicado y se guardó la
+        # corporacion por defecto (primeros 7 dígitos), que puede no corresponder al
+        # tribunal/corporacion real del proceso.
+        corp_usada = rad.corporacion
+        if not datos_raw:
+            logger.info(
+                "Corporacion %s no retorna datos para %s — buscando corporacion correcta",
+                rad.corporacion, radicado_id,
+            )
+            try:
+                corp_nueva = samai_client.encontrar_corporacion(rad.radicado, excluir=[rad.corporacion])
+            except Exception:
+                corp_nueva = None
+            if corp_nueva and corp_nueva != rad.corporacion:
+                logger.info(
+                    "Auto-heal: actualizando corporacion %s -> %s para radicado %s",
+                    rad.corporacion, corp_nueva, radicado_id,
+                )
+                actualizar_corporacion(_radicados_table, user_id, radicado_id, corp_nueva)
+                corp_usada = corp_nueva
+                try:
+                    datos_raw = samai_client.get_datos_proceso(corp_nueva, rad.radicado)
+                except SamaiApiError:
+                    datos_raw = {}
+
         datos = datos_raw.get("proceso", datos_raw) if isinstance(datos_raw, dict) else {}
         try:
-            partes = samai_client.get_sujetos_procesales(rad.corporacion, rad.radicado)
+            partes = samai_client.get_sujetos_procesales(corp_usada, rad.radicado)
         except SamaiApiError:
             partes = []
         try:
-            actuaciones = samai_client.get_actuaciones(rad.corporacion, rad.radicado)
+            actuaciones = samai_client.get_actuaciones(corp_usada, rad.radicado)
         except SamaiApiError:
             actuaciones = []
 
@@ -490,7 +518,7 @@ def _get_detalle(event: dict) -> dict:
                 }
                 for a in actuaciones
             ],
-            "corporacion": rad.corporacion,
+            "corporacion": corp_usada,
             "fuente": "samai",
         })
 

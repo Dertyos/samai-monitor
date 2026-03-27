@@ -469,6 +469,97 @@ Sin `InvalidCiphertextException`. Correos enviados via Resend con dominio `@dert
 
 ---
 
+## 2026-03-26 — Fix React Query: caché contaminada entre sesiones de usuario
+
+### Problema
+Al cerrar sesión e iniciar con otra cuenta, el nuevo usuario veía brevemente los
+radicados de la sesión anterior (caché de React Query no se limpiaba al hacer signOut).
+El caso inverso también fallaba: cerrar sesión desde una cuenta con radicados e iniciar
+con una cuenta vacía → los radicados de la sesión anterior seguían visibles.
+
+### Causa raíz
+`queryClient` estaba definido como variable de módulo en `App.tsx`. React Query mantiene
+la caché en memoria durante toda la vida del proceso — al cambiar de usuario, los datos
+del usuario anterior seguían en caché y se mostraban hasta el siguiente refetch.
+
+### Solución
+1. Extraído `queryClient` a `frontend/src/lib/queryClient.ts` (módulo compartido).
+2. Llamar `queryClient.clear()` en `signIn` (para limpiar caché de sesión anterior)
+   y en `signOut` (para no exponer datos al siguiente usuario).
+
+### Archivos modificados
+| Archivo | Cambio |
+|---|---|
+| `frontend/src/lib/queryClient.ts` | **NUEVO** — `QueryClient` con `staleTime: 30s, retry: 1` |
+| `frontend/src/App.tsx` | Import `queryClient` desde `lib/queryClient` |
+| `frontend/src/hooks/useAuth.ts` | `queryClient.clear()` en `signIn` y `signOut` |
+
+---
+
+## 2026-03-26 — Fix SAMAI caído: 503 claro + reducción de timeout
+
+### Problema 1: "Error interno" cuando SAMAI está caído
+Al abrir el detalle de un radicado mientras SAMAI devuelve 502/timeout, la `SamaiApiError`
+no estaba capturada en `_get_detalle` → propagaba al handler global → devolvía HTTP 500
+con mensaje genérico "Error interno". El frontend mostraba "Error: Error interno".
+
+### Solución 1
+Envolver `get_datos_proceso`, `get_sujetos_procesales` y `get_actuaciones` en `try/except`:
+- Si `get_datos_proceso` falla → retornar HTTP 503 con mensaje claro al usuario.
+- Si `get_sujetos_procesales` o `get_actuaciones` fallan → retornar listas vacías (graceful degradation).
+
+### Problema 2: Frontend colgado para siempre
+El timeout del cliente SAMAI era 30 segundos, pero API Gateway HTTP corta las Lambda
+a los 29 segundos. Si SAMAI no respondía en 30s, Lambda era terminada por API Gateway
+antes de poder retornar un error → el frontend recibía un timeout sin mensaje, la UI
+mostraba el spinner "Consultando datos del proceso..." indefinidamente.
+
+### Solución 2
+Reducido `TIMEOUT = 30` → `TIMEOUT = 15` en `samai_client.py`. 15 segundos deja margen
+para que Lambda retorne un 503 limpio antes del corte de API Gateway.
+
+### Archivos modificados
+| Archivo | Cambio |
+|---|---|
+| `backend/layers/shared/python/samai_client.py` | `TIMEOUT = 15` (era 30) |
+| `backend/functions/api_handler/app.py` | `_get_detalle`: try/except para SamaiApiError, 503 con mensaje claro |
+
+---
+
+## 2026-03-26 — Fix corporación incorrecta en "Ver en SAMAI" (auto-heal)
+
+### Problema
+El botón "Ver en SAMAI" construye la URL con el código de corporación almacenado:
+```
+https://samai.consejodeestado.gov.co/...?guid={radicado}-{corporacion}
+```
+Algunos radicados mostraban el error: **"El proceso XXX no Existe en la Corporación 1100133"**.
+
+### Causa raíz
+Cuando se registra un radicado y SAMAI está caído en ese momento, `encontrar_corporacion()`
+falla en todos sus 28 requests → retorna `None` → el radicado se guarda con la corporación
+por defecto (`extraer_corporacion()` = primeros 7 dígitos del radicado, ej. `1100133`).
+Cuando SAMAI vuelve a estar disponible, la corporación almacenada puede ser incorrecta
+(el proceso puede estar en Consejo de Estado `1100103` o en un Tribunal diferente).
+
+### Solución: Auto-heal en `_get_detalle`
+Al consultar el detalle, si `get_datos_proceso(corp_almacenada, radicado)` retorna vacío
+(la corporación es incorrecta pero SAMAI está disponible):
+1. Llamar `encontrar_corporacion(radicado, excluir=[corp_almacenada])` — búsqueda paralela en 28 corporaciones.
+2. Si se encuentra una corporación correcta, actualizar DynamoDB con `actualizar_corporacion()`.
+3. Reintentar `get_datos_proceso`, `get_sujetos_procesales` y `get_actuaciones` con la corporación nueva.
+4. Retornar `corporacion: corp_usada` en la respuesta → el frontend usa el valor correcto para la URL de SAMAI.
+
+La corrección es **permanente**: los siguientes accesos ya usan la corporación correcta directamente.
+
+### Archivos modificados
+| Archivo | Cambio |
+|---|---|
+| `backend/layers/shared/python/db.py` | **NUEVO** `actualizar_corporacion()` — `update_item` sobre campo `corporacion` |
+| `backend/functions/api_handler/app.py` | Import `actualizar_corporacion` + lógica auto-heal en `_get_detalle` |
+
+---
+
 ## Fases Futuras (v2+)
 
 ### Fase 8: Custom Domain + SSL

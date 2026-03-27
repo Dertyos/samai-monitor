@@ -47,6 +47,15 @@ def eliminar_radicado(table: Any, user_id: str, radicado: str) -> bool:
     return True
 
 
+def actualizar_corporacion(table: Any, user_id: str, radicado: str, corporacion: str) -> None:
+    """Actualiza la corporacion de un radicado en DynamoDB."""
+    table.update_item(
+        Key={"userId": user_id, "radicado": radicado},
+        UpdateExpression="SET corporacion = :c",
+        ExpressionAttributeValues={":c": corporacion},
+    )
+
+
 def actualizar_alias(table: Any, user_id: str, radicado: str, alias: str) -> bool:
     """Actualiza el alias de un radicado. Retorna True si existia."""
     try:
