@@ -35,7 +35,13 @@ export default function Dashboard() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<RadicadoDTO | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortBy, setSortBy] = useState<"recent" | "alias" | "activo">("recent");
+  const [sortBy, setSortBy] = useState<"recent" | "alias" | "activo">(
+    () => (localStorage.getItem("sortBy") as "recent" | "alias" | "activo") ?? "recent"
+  );
+  const handleSetSortBy = (sort: "recent" | "alias" | "activo") => {
+    localStorage.setItem("sortBy", sort);
+    setSortBy(sort);
+  };
   const [showHistorial, setShowHistorial] = useState(false);
   const isMobile = window.innerWidth <= 640;
   const [viewMode, setViewMode] = useState<"grid" | "list">(
@@ -264,7 +270,7 @@ export default function Dashboard() {
               />
               <select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as "recent" | "alias" | "activo")}
+                onChange={(e) => handleSetSortBy(e.target.value as "recent" | "alias" | "activo")}
                 className={styles.sortSelect}
               >
                 <option value="recent">Mas recientes</option>
