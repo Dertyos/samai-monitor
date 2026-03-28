@@ -2,22 +2,24 @@
    DETALLE RADICADO — Vista completa del proceso
    ============================================ */
 
-/* Wrapper full-page: header + contenido */
+/* Wrapper full-page: flex column para que pageBody llene el espacio restante */
 .pageWrapper {
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   background: var(--bg);
 }
 
-/* Header consistente con Dashboard */
+/* Header: no necesita sticky, no se mueve al ser flex-shrink: 0 */
 .appHeader {
+  flex-shrink: 0;
   background: var(--header-bg);
   padding: 0.75rem 2rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid var(--border);
-  position: sticky;
-  top: 0;
   z-index: 10;
   backdrop-filter: blur(10px);
 }
@@ -41,10 +43,14 @@
    ============================================ */
 
 .pageBody {
+  flex: 1;
+  min-height: 0;         /* crítico: permite que flex children shrink */
+  overflow: hidden;
   display: flex;
-  align-items: flex-start;
+  align-items: stretch;  /* sidebar y page llenan el alto disponible */
   gap: 1.25rem;
   max-width: 1280px;
+  width: 100%;
   margin: 0 auto;
   padding: 0 1.5rem;
 }
@@ -54,6 +60,7 @@
   min-width: 0;          /* evita overflow en flex */
   max-width: 960px;
   padding: 1.5rem 0;
+  overflow-y: auto;      /* el contenido hace scroll aquí */
 }
 
 /* ============================================
@@ -63,9 +70,6 @@
 .caseSidebar {
   width: 230px;
   flex-shrink: 0;
-  position: sticky;
-  top: 60px;
-  height: calc(100vh - 72px);
   overflow-y: auto;
   background: var(--card-bg);
   border: 1px solid var(--border);
@@ -75,7 +79,7 @@
   flex-direction: column;
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
-  margin-top: 1.5rem;
+  margin: 1.5rem 0;      /* espacio arriba y abajo */
   transition: width 0.2s ease, min-width 0.2s ease;
 }
 
