@@ -81,6 +81,11 @@ export default function Dashboard() {
     return radicadosQuery.data.some((r) => r.activo) && radicadosQuery.data.some((r) => !r.activo);
   }, [radicadosQuery.data]);
 
+  const hasAlias = useMemo(() => {
+    if (!radicadosQuery.data) return false;
+    return radicadosQuery.data.some((r) => r.alias.trim() !== "");
+  }, [radicadosQuery.data]);
+
   const filteredRadicados = useMemo(() => {
     if (!radicadosQuery.data) return [];
     return radicadosQuery.data
@@ -295,7 +300,7 @@ export default function Dashboard() {
                   className={styles.sortSelect}
                 >
                   <option value="recent">Mas recientes</option>
-                  <option value="alias">Por alias</option>
+                  {hasAlias && <option value="alias">Por alias</option>}
                   {hasMixedActivo && <option value="activo">Activos primero</option>}
                   <option value="numero">Por número</option>
                 </select>
