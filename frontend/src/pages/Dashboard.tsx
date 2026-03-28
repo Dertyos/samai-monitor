@@ -294,13 +294,15 @@ export default function Dashboard() {
                   <option value="activo">Activos primero</option>
                   <option value="numero">Por número</option>
                 </select>
-                <button
-                  onClick={handleToggleSortDir}
-                  className={styles.sortDirBtn}
-                  title={sortDir === "asc" ? "Cambiar a descendente" : "Cambiar a ascendente"}
-                >
-                  {sortDir === "asc" ? "↑" : "↓"}
-                </button>
+                {sortBy !== "activo" && (
+                  <button
+                    onClick={handleToggleSortDir}
+                    className={styles.sortDirBtn}
+                    title={sortDir === "asc" ? "Cambiar a descendente" : "Cambiar a ascendente"}
+                  >
+                    {sortDir === "asc" ? "↑" : "↓"}
+                  </button>
+                )}
               </div>
             </div>
           )}
