@@ -48,7 +48,16 @@ export default function DetalleRadicado() {
   const [actuacionSearch, setActuacionSearch] = useState("");
   const [copied, setCopied] = useState(false);
   const [sidebarSearch, setSidebarSearch] = useState("");
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(
+    () => localStorage.getItem("detalleSidebarOpen") !== "false"
+  );
   const currentItemRef = useRef<HTMLButtonElement>(null);
+
+  const handleToggleSidebar = () => {
+    const next = !sidebarOpen;
+    localStorage.setItem("detalleSidebarOpen", String(next));
+    setSidebarOpen(next);
+  };
 
   const handleCopyRadicado = () => {
     navigator.clipboard.writeText(radicadoId!).then(() => {
@@ -284,45 +293,66 @@ export default function DetalleRadicado() {
 
         {/* Sidebar de navegación entre casos (solo desktop ≥1024px) */}
         {showNav && (
-          <aside className={styles.caseSidebar}>
+          <aside className={`${styles.caseSidebar}${!sidebarOpen ? ` ${styles.caseSidebarCollapsed}` : ""}`}>
             <div className={styles.sidebarTitle}>
-              Mis casos{" "}
-              <span className={styles.sidebarCount}>{sortedRadicados.length}</span>
-            </div>
-            <div className={styles.sidebarSearchWrap}>
-              <input
-                type="search"
-                placeholder="Buscar caso..."
-                value={sidebarSearch}
-                onChange={(e) => setSidebarSearch(e.target.value)}
-                className={styles.sidebarSearch}
-                aria-label="Filtrar casos en sidebar"
-              />
-            </div>
-            {sidebarSearch && (
-              <div className={styles.sidebarFilterInfo}>
-                {sidebarFiltered.length} de {sortedRadicados.length}
-              </div>
-            )}
-            <nav className={styles.sidebarList}>
-              {sidebarFiltered.map((r) => (
-                <button
-                  key={r.radicado}
-                  ref={r.radicado === radicadoId ? currentItemRef : undefined}
-                  className={`${styles.caseNavItem}${r.radicado === radicadoId ? ` ${styles.caseNavItemCurrent}` : ""}`}
-                  onClick={() => navigate(`/radicado/${r.radicado}`)}
-                  title={r.radicadoFormato}
-                >
-                  <span className={styles.caseNavItemAlias}>
-                    {r.alias || r.radicadoFormato}
-                  </span>
-                  {!r.activo && <span className={styles.caseNavItemPaused}>⏸</span>}
-                </button>
-              ))}
-              {sidebarSearch && sidebarFiltered.length === 0 && (
-                <p className={styles.sidebarEmpty}>Sin resultados</p>
+              {sidebarOpen && (
+                <>
+                  Mis casos{" "}
+                  <span className={styles.sidebarCount}>{sortedRadicados.length}</span>
+                </>
               )}
-            </nav>
+              <button
+                onClick={handleToggleSidebar}
+                className={styles.sidebarToggle}
+                title={sidebarOpen ? "Colapsar" : "Expandir panel de casos"}
+                aria-label={sidebarOpen ? "Colapsar panel de casos" : "Expandir panel de casos"}
+              >
+                {sidebarOpen ? "‹" : "›"}
+              </button>
+            </div>
+            {sidebarOpen && (
+              <>
+                <div className={styles.sidebarSearchWrap}>
+                  <input
+                    type="search"
+                    placeholder="Buscar caso..."
+                    value={sidebarSearch}
+                    onChange={(e) => setSidebarSearch(e.target.value)}
+                    className={styles.sidebarSearch}
+                    aria-label="Filtrar casos en sidebar"
+                  />
+                </div>
+                {sidebarSearch && (
+                  <div className={styles.sidebarFilterInfo}>
+                    {sidebarFiltered.length} de {sortedRadicados.length}
+                  </div>
+                )}
+                <nav className={styles.sidebarList}>
+                  {sidebarFiltered.map((r) => (
+                    <button
+                      key={r.radicado}
+                      ref={r.radicado === radicadoId ? currentItemRef : undefined}
+                      className={`${styles.caseNavItem}${r.radicado === radicadoId ? ` ${styles.caseNavItemCurrent}` : ""}`}
+                      onClick={() => navigate(`/radicado/${r.radicado}`)}
+                      title={r.radicadoFormato}
+                    >
+                      <span className={styles.caseNavItemText}>
+                        <span className={styles.caseNavItemAlias}>
+                          {r.alias || r.radicadoFormato}
+                        </span>
+                        {r.alias && (
+                          <span className={styles.caseNavItemNum}>{r.radicadoFormato}</span>
+                        )}
+                      </span>
+                      {!r.activo && <span className={styles.caseNavItemPaused}>⏸</span>}
+                    </button>
+                  ))}
+                  {sidebarSearch && sidebarFiltered.length === 0 && (
+                    <p className={styles.sidebarEmpty}>Sin resultados</p>
+                  )}
+                </nav>
+              </>
+            )}
           </aside>
         )}
       </div>
