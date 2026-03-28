@@ -157,6 +157,8 @@ def check_radicado(
     guardar_actuaciones(actuaciones_table, nuevas)
 
     max_orden = max(a.orden for a in nuevas)
+    max_act = max(nuevas, key=lambda a: a.orden)
+    fecha_ultima = max_act.fecha
     now = datetime.now(timezone.utc).isoformat()
 
     # Para cada usuario, crear alertas solo para las actuaciones que son nuevas para ellos
@@ -178,7 +180,7 @@ def check_radicado(
                 "Radicado %s usuario %s: pendingInit=True, inicializando a orden=%d sin alertar",
                 radicado, user_id, max_orden,
             )
-            actualizar_ultimo_orden(radicados_table, user_id, radicado, max_orden)
+            actualizar_ultimo_orden(radicados_table, user_id, radicado, max_orden, fecha_ultima)
             limpiar_pending_init(radicados_table, user_id, radicado)
             continue
 
@@ -200,7 +202,7 @@ def check_radicado(
         user_alertas[user_id] = alertas_user
 
         # Actualizar último orden del usuario
-        actualizar_ultimo_orden(radicados_table, user_id, radicado, max_orden)
+        actualizar_ultimo_orden(radicados_table, user_id, radicado, max_orden, fecha_ultima)
 
     return user_alertas
 
@@ -242,6 +244,8 @@ def check_radicado_rj(
     guardar_actuaciones(actuaciones_table, nuevas)
 
     max_orden = max(a.orden for a in nuevas)
+    max_act = max(nuevas, key=lambda a: a.orden)
+    fecha_ultima = max_act.fecha
     now = datetime.now(timezone.utc).isoformat()
 
     user_alertas: dict[str, list[Alerta]] = {}
@@ -259,7 +263,7 @@ def check_radicado_rj(
                 "Radicado %s usuario %s: pendingInit=True, inicializando a orden=%d sin alertar",
                 radicado, user_id, max_orden,
             )
-            actualizar_ultimo_orden(radicados_table, user_id, radicado, max_orden)
+            actualizar_ultimo_orden(radicados_table, user_id, radicado, max_orden, fecha_ultima)
             limpiar_pending_init(radicados_table, user_id, radicado)
             continue
 
@@ -280,7 +284,7 @@ def check_radicado_rj(
             alertas_user.append(alerta)
 
         user_alertas[user_id] = alertas_user
-        actualizar_ultimo_orden(radicados_table, user_id, radicado, max_orden)
+        actualizar_ultimo_orden(radicados_table, user_id, radicado, max_orden, fecha_ultima)
 
     return user_alertas
 
@@ -318,6 +322,8 @@ def check_radicado_siugj(
     guardar_actuaciones(actuaciones_table, nuevas)
 
     max_orden = max(a.orden for a in nuevas)
+    max_act = max(nuevas, key=lambda a: a.orden)
+    fecha_ultima = max_act.fecha
     now = datetime.now(timezone.utc).isoformat()
 
     user_alertas: dict[str, list[Alerta]] = {}
@@ -335,7 +341,7 @@ def check_radicado_siugj(
                 "Radicado %s usuario %s: pendingInit=True, inicializando a orden=%d sin alertar",
                 radicado, user_id, max_orden,
             )
-            actualizar_ultimo_orden(radicados_table, user_id, radicado, max_orden)
+            actualizar_ultimo_orden(radicados_table, user_id, radicado, max_orden, fecha_ultima)
             limpiar_pending_init(radicados_table, user_id, radicado)
             continue
 
@@ -356,7 +362,7 @@ def check_radicado_siugj(
             alertas_user.append(alerta)
 
         user_alertas[user_id] = alertas_user
-        actualizar_ultimo_orden(radicados_table, user_id, radicado, max_orden)
+        actualizar_ultimo_orden(radicados_table, user_id, radicado, max_orden, fecha_ultima)
 
     return user_alertas
 

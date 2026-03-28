@@ -123,6 +123,7 @@ class Radicado:
     fuente: str = "samai"  # "samai" | "rama_judicial"
     id_proceso: int | None = None  # idProceso del CPNU (solo para fuente="rama_judicial")
     pending_init: bool = False  # True cuando max_orden no se pudo determinar al registrar
+    fecha_ultima_actuacion: str = ""  # fecha ISO de la última actuación conocida
 
     def to_dynamo(self) -> dict:
         """Convierte a dict para DynamoDB."""
@@ -143,6 +144,8 @@ class Radicado:
             item["idProceso"] = self.id_proceso
         if self.pending_init:
             item["pendingInit"] = True
+        if self.fecha_ultima_actuacion:
+            item["fechaUltimaActuacion"] = self.fecha_ultima_actuacion
         return item
 
     @classmethod
@@ -161,6 +164,7 @@ class Radicado:
             fuente=item.get("fuente", "samai"),
             id_proceso=int(id_proceso_raw) if id_proceso_raw is not None else None,
             pending_init=item.get("pendingInit", False),
+            fecha_ultima_actuacion=item.get("fechaUltimaActuacion", ""),
         )
 
 

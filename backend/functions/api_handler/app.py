@@ -306,6 +306,7 @@ def _get_radicados(event: dict) -> dict:
             "activo": r.activo,
             "fuente": r.fuente,
             "idProceso": r.id_proceso,
+            "fechaUltimaActuacion": r.fecha_ultima_actuacion,
         }
         for r in radicados
     ])

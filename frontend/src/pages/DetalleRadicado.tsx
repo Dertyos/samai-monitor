@@ -83,13 +83,19 @@ export default function DetalleRadicado() {
   // Mismo orden que el dashboard (persiste en localStorage via handleSetSortBy)
   const sortedRadicados = useMemo(() => {
     if (!radicadosQuery.data) return [];
-    const sortPref = (localStorage.getItem("sortBy") as "recent" | "alias" | "activo" | "numero_asc" | "numero_desc") ?? "recent";
+    const sortPref = (localStorage.getItem("sortBy") as "recent" | "alias" | "activo" | "numero") ?? "recent";
+    const sortDir = (localStorage.getItem("sortDir") as "asc" | "desc") ?? "desc";
     return [...radicadosQuery.data].sort((a: RadicadoDTO, b: RadicadoDTO) => {
-      if (sortPref === "alias") return a.alias.localeCompare(b.alias);
-      if (sortPref === "activo") return (b.activo ? 1 : 0) - (a.activo ? 1 : 0);
-      if (sortPref === "numero_asc") return a.radicado.localeCompare(b.radicado);
-      if (sortPref === "numero_desc") return b.radicado.localeCompare(a.radicado);
-      return 0;
+      let cmp = 0;
+      if (sortPref === "alias") cmp = a.alias.localeCompare(b.alias);
+      else if (sortPref === "activo") cmp = (b.activo ? 1 : 0) - (a.activo ? 1 : 0);
+      else if (sortPref === "numero") cmp = a.radicado.localeCompare(b.radicado);
+      else if (sortPref === "recent") {
+        const fa = a.fechaUltimaActuacion ?? "";
+        const fb = b.fechaUltimaActuacion ?? "";
+        cmp = fa.localeCompare(fb);
+      }
+      return sortDir === "asc" ? cmp : -cmp;
     });
   }, [radicadosQuery.data]);
 

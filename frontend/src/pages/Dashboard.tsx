@@ -35,12 +35,20 @@ export default function Dashboard() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<RadicadoDTO | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortBy, setSortBy] = useState<"recent" | "alias" | "activo" | "numero_asc" | "numero_desc">(
-    () => (localStorage.getItem("sortBy") as "recent" | "alias" | "activo" | "numero_asc" | "numero_desc") ?? "recent"
+  const [sortBy, setSortBy] = useState<"recent" | "alias" | "activo" | "numero">(
+    () => (localStorage.getItem("sortBy") as "recent" | "alias" | "activo" | "numero") ?? "recent"
   );
-  const handleSetSortBy = (sort: "recent" | "alias" | "activo" | "numero_asc" | "numero_desc") => {
+  const [sortDir, setSortDir] = useState<"asc" | "desc">(
+    () => (localStorage.getItem("sortDir") as "asc" | "desc") ?? "desc"
+  );
+  const handleSetSortBy = (sort: "recent" | "alias" | "activo" | "numero") => {
     localStorage.setItem("sortBy", sort);
     setSortBy(sort);
+  };
+  const handleToggleSortDir = () => {
+    const next = sortDir === "asc" ? "desc" : "asc";
+    localStorage.setItem("sortDir", next);
+    setSortDir(next);
   };
   const [showHistorial, setShowHistorial] = useState(false);
   const isMobile = window.innerWidth <= 640;
@@ -81,11 +89,16 @@ export default function Dashboard() {
         );
       })
       .sort((a: RadicadoDTO, b: RadicadoDTO) => {
-        if (sortBy === "alias") return a.alias.localeCompare(b.alias);
-        if (sortBy === "activo") return (b.activo ? 1 : 0) - (a.activo ? 1 : 0);
-        if (sortBy === "numero_asc") return a.radicado.localeCompare(b.radicado);
-        if (sortBy === "numero_desc") return b.radicado.localeCompare(a.radicado);
-        return 0;
+        let cmp = 0;
+        if (sortBy === "alias") cmp = a.alias.localeCompare(b.alias);
+        else if (sortBy === "activo") cmp = (b.activo ? 1 : 0) - (a.activo ? 1 : 0);
+        else if (sortBy === "numero") cmp = a.radicado.localeCompare(b.radicado);
+        else if (sortBy === "recent") {
+          const fa = a.fechaUltimaActuacion ?? "";
+          const fb = b.fechaUltimaActuacion ?? "";
+          cmp = fa.localeCompare(fb);
+        }
+        return sortDir === "asc" ? cmp : -cmp;
       });
   }, [radicadosQuery.data, searchQuery, sortBy]);
 
@@ -272,31 +285,22 @@ export default function Dashboard() {
               />
               <div className={styles.sortGroup}>
                 <select
-                  value={sortBy === "numero_asc" || sortBy === "numero_desc" ? "numero" : sortBy}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (v === "numero") {
-                      handleSetSortBy("numero_asc");
-                    } else {
-                      handleSetSortBy(v as "recent" | "alias" | "activo");
-                    }
-                  }}
+                  value={sortBy}
+                  onChange={(e) => handleSetSortBy(e.target.value as "recent" | "alias" | "activo" | "numero")}
                   className={styles.sortSelect}
                 >
                   <option value="recent">Mas recientes</option>
-                  <option value="alias">Por alias (A-Z)</option>
+                  <option value="alias">Por alias</option>
                   <option value="activo">Activos primero</option>
                   <option value="numero">Por número</option>
                 </select>
-                {(sortBy === "numero_asc" || sortBy === "numero_desc") && (
-                  <button
-                    onClick={() => handleSetSortBy(sortBy === "numero_asc" ? "numero_desc" : "numero_asc")}
-                    className={styles.sortDirBtn}
-                    title={sortBy === "numero_asc" ? "Cambiar a mayor→menor" : "Cambiar a menor→mayor"}
-                  >
-                    {sortBy === "numero_asc" ? "↑" : "↓"}
-                  </button>
-                )}
+                <button
+                  onClick={handleToggleSortDir}
+                  className={styles.sortDirBtn}
+                  title={sortDir === "asc" ? "Cambiar a descendente" : "Cambiar a ascendente"}
+                >
+                  {sortDir === "asc" ? "↑" : "↓"}
+                </button>
               </div>
             </div>
           )}

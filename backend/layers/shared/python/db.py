@@ -121,14 +121,21 @@ def obtener_radicados_unicos(table: Any) -> list[dict]:
 
 
 def actualizar_ultimo_orden(
-    table: Any, user_id: str, radicado: str, orden: int
+    table: Any, user_id: str, radicado: str, orden: int, fecha_ultima: str = ""
 ) -> None:
-    """Actualiza el último Orden conocido de un radicado."""
-    table.update_item(
-        Key={"userId": user_id, "radicado": radicado},
-        UpdateExpression="SET ultimoOrden = :o",
-        ExpressionAttributeValues={":o": orden},
-    )
+    """Actualiza el último Orden conocido y la fecha de última actuación de un radicado."""
+    if fecha_ultima:
+        table.update_item(
+            Key={"userId": user_id, "radicado": radicado},
+            UpdateExpression="SET ultimoOrden = :o, fechaUltimaActuacion = :f",
+            ExpressionAttributeValues={":o": orden, ":f": fecha_ultima},
+        )
+    else:
+        table.update_item(
+            Key={"userId": user_id, "radicado": radicado},
+            UpdateExpression="SET ultimoOrden = :o",
+            ExpressionAttributeValues={":o": orden},
+        )
 
 
 def limpiar_pending_init(table: Any, user_id: str, radicado: str) -> None:
