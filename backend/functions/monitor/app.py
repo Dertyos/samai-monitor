@@ -25,6 +25,7 @@ from db import (
     guardar_actuaciones,
     guardar_alerta,
     actualizar_ultimo_orden,
+    limpiar_pending_init,
     obtener_alertas_usuario,
 )
 
@@ -163,10 +164,22 @@ def check_radicado(
     for item in followers:
         user_id = item["userId"]
         user_ultimo_orden = int(item.get("ultimoOrden", 0))
+        pending_init = item.get("pendingInit", False)
 
         # Filtrar: solo las que son nuevas para este usuario
         nuevas_para_user = [a for a in nuevas if a.orden > user_ultimo_orden]
         if not nuevas_para_user:
+            continue
+
+        # pendingInit=True: la API falló al registrar el proceso, no conocíamos el estado real.
+        # Solo inicializar ultimoOrden sin generar alertas para evitar spam histórico.
+        if pending_init:
+            logger.info(
+                "Radicado %s usuario %s: pendingInit=True, inicializando a orden=%d sin alertar",
+                radicado, user_id, max_orden,
+            )
+            actualizar_ultimo_orden(radicados_table, user_id, radicado, max_orden)
+            limpiar_pending_init(radicados_table, user_id, radicado)
             continue
 
         alertas_user: list[Alerta] = []
@@ -235,9 +248,19 @@ def check_radicado_rj(
     for item in followers:
         user_id = item["userId"]
         user_ultimo_orden = int(item.get("ultimoOrden", 0))
+        pending_init = item.get("pendingInit", False)
 
         nuevas_para_user = [a for a in nuevas if a.orden > user_ultimo_orden]
         if not nuevas_para_user:
+            continue
+
+        if pending_init:
+            logger.info(
+                "Radicado %s usuario %s: pendingInit=True, inicializando a orden=%d sin alertar",
+                radicado, user_id, max_orden,
+            )
+            actualizar_ultimo_orden(radicados_table, user_id, radicado, max_orden)
+            limpiar_pending_init(radicados_table, user_id, radicado)
             continue
 
         alertas_user: list[Alerta] = []
@@ -301,9 +324,19 @@ def check_radicado_siugj(
     for item in followers:
         user_id = item["userId"]
         user_ultimo_orden = int(item.get("ultimoOrden", 0))
+        pending_init = item.get("pendingInit", False)
 
         nuevas_para_user = [a for a in nuevas if a.orden > user_ultimo_orden]
         if not nuevas_para_user:
+            continue
+
+        if pending_init:
+            logger.info(
+                "Radicado %s usuario %s: pendingInit=True, inicializando a orden=%d sin alertar",
+                radicado, user_id, max_orden,
+            )
+            actualizar_ultimo_orden(radicados_table, user_id, radicado, max_orden)
+            limpiar_pending_init(radicados_table, user_id, radicado)
             continue
 
         alertas_user: list[Alerta] = []

@@ -131,6 +131,14 @@ def actualizar_ultimo_orden(
     )
 
 
+def limpiar_pending_init(table: Any, user_id: str, radicado: str) -> None:
+    """Elimina el flag pendingInit de un radicado (inicialización completada)."""
+    table.update_item(
+        Key={"userId": user_id, "radicado": radicado},
+        UpdateExpression="REMOVE pendingInit",
+    )
+
+
 # --- Actuaciones ---
 
 

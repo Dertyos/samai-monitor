@@ -177,11 +177,13 @@ def _post_radicado(event: dict) -> dict:
             return _response(400, {"error": "Campo 'id_proceso' requerido para fuente rama_judicial"})
         id_proceso = int(id_proceso)
 
+        pending_init = False
         try:
             max_orden = rj_client.get_max_cons_actuacion(id_proceso)
         except RamaJudicialApiError:
             logger.warning("No se pudo obtener max_cons de CPNU para %s, usando 0", norm)
             max_orden = 0
+            pending_init = True  # No se pudo confirmar el estado actual
 
         rad = Radicado(
             user_id=user_id,
@@ -194,13 +196,16 @@ def _post_radicado(event: dict) -> dict:
             created_at=datetime.now(timezone.utc).isoformat(),
             fuente="rama_judicial",
             id_proceso=id_proceso,
+            pending_init=pending_init,
         )
     elif fuente == "siugj":
+        pending_init = False
         try:
             max_orden = siugj_client.get_max_id(norm)
         except SiugjApiError:
             logger.warning("No se pudo obtener max_id de SIUGJ para %s, usando 0", norm)
             max_orden = 0
+            pending_init = True  # No se pudo confirmar el estado actual
 
         rad = Radicado(
             user_id=user_id,
@@ -212,15 +217,18 @@ def _post_radicado(event: dict) -> dict:
             activo=True,
             created_at=datetime.now(timezone.utc).isoformat(),
             fuente="siugj",
+            pending_init=pending_init,
         )
     else:
         corp = extraer_corporacion(norm)
+        api_error = False  # True si alguna llamada lanzó excepción (vs respuesta vacía)
 
         try:
             max_orden = samai_client.get_max_orden(corp, norm)
         except SamaiApiError:
             logger.warning("No se pudo obtener max_orden de SAMAI para %s, usando 0", norm)
             max_orden = 0
+            api_error = True
 
         # 2da+ instancia: SAMAI puede usar una corporacion diferente (dígitos [0:5]+[7:9]).
         # Si no se encontraron actuaciones y el radicado no es 1ra instancia, intentar
@@ -237,8 +245,9 @@ def _post_radicado(event: dict) -> dict:
                         )
                         corp = corp_alt
                         max_orden = max_orden_alt
+                        api_error = False  # Confirmado
                 except SamaiApiError:
-                    pass
+                    api_error = True
 
         # Fallback Tribunales SAMAI: si los primeros 7 dígitos no dan resultados, el proceso
         # puede estar en un Tribunal Administrativo con distinto código de corporación.
@@ -250,8 +259,13 @@ def _post_radicado(event: dict) -> dict:
                 try:
                     max_orden = samai_client.get_max_orden(corp_tribunal, norm)
                     corp = corp_tribunal
+                    api_error = False  # Confirmado
                 except SamaiApiError:
-                    pass
+                    api_error = True
+
+        # pending_init=True cuando la API falló y no pudimos determinar el estado real.
+        # El monitor inicializará ultimoOrden sin generar alertas en la primera ejecución.
+        pending_init = api_error and max_orden == 0
 
         rad = Radicado(
             user_id=user_id,
@@ -262,6 +276,7 @@ def _post_radicado(event: dict) -> dict:
             ultimo_orden=max_orden,
             activo=True,
             created_at=datetime.now(timezone.utc).isoformat(),
+            pending_init=pending_init,
         )
 
     guardar_radicado(_radicados_table, rad)
