@@ -64,8 +64,8 @@
   width: 230px;
   flex-shrink: 0;
   position: sticky;
-  top: 60px;             /* debajo del header sticky */
-  max-height: calc(100vh - 76px);
+  top: 60px;
+  height: calc(100vh - 72px);
   overflow-y: auto;
   background: var(--card-bg);
   border: 1px solid var(--border);
