@@ -83,10 +83,12 @@ export default function DetalleRadicado() {
   // Mismo orden que el dashboard (persiste en localStorage via handleSetSortBy)
   const sortedRadicados = useMemo(() => {
     if (!radicadosQuery.data) return [];
-    const sortPref = (localStorage.getItem("sortBy") as "recent" | "alias" | "activo") ?? "recent";
+    const sortPref = (localStorage.getItem("sortBy") as "recent" | "alias" | "activo" | "numero_asc" | "numero_desc") ?? "recent";
     return [...radicadosQuery.data].sort((a: RadicadoDTO, b: RadicadoDTO) => {
       if (sortPref === "alias") return a.alias.localeCompare(b.alias);
       if (sortPref === "activo") return (b.activo ? 1 : 0) - (a.activo ? 1 : 0);
+      if (sortPref === "numero_asc") return a.radicado.localeCompare(b.radicado);
+      if (sortPref === "numero_desc") return b.radicado.localeCompare(a.radicado);
       return 0;
     });
   }, [radicadosQuery.data]);

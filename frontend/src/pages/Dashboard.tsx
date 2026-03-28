@@ -35,10 +35,10 @@ export default function Dashboard() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<RadicadoDTO | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortBy, setSortBy] = useState<"recent" | "alias" | "activo">(
-    () => (localStorage.getItem("sortBy") as "recent" | "alias" | "activo") ?? "recent"
+  const [sortBy, setSortBy] = useState<"recent" | "alias" | "activo" | "numero_asc" | "numero_desc">(
+    () => (localStorage.getItem("sortBy") as "recent" | "alias" | "activo" | "numero_asc" | "numero_desc") ?? "recent"
   );
-  const handleSetSortBy = (sort: "recent" | "alias" | "activo") => {
+  const handleSetSortBy = (sort: "recent" | "alias" | "activo" | "numero_asc" | "numero_desc") => {
     localStorage.setItem("sortBy", sort);
     setSortBy(sort);
   };
@@ -83,6 +83,8 @@ export default function Dashboard() {
       .sort((a: RadicadoDTO, b: RadicadoDTO) => {
         if (sortBy === "alias") return a.alias.localeCompare(b.alias);
         if (sortBy === "activo") return (b.activo ? 1 : 0) - (a.activo ? 1 : 0);
+        if (sortBy === "numero_asc") return a.radicado.localeCompare(b.radicado);
+        if (sortBy === "numero_desc") return b.radicado.localeCompare(a.radicado);
         return 0;
       });
   }, [radicadosQuery.data, searchQuery, sortBy]);
@@ -270,12 +272,14 @@ export default function Dashboard() {
               />
               <select
                 value={sortBy}
-                onChange={(e) => handleSetSortBy(e.target.value as "recent" | "alias" | "activo")}
+                onChange={(e) => handleSetSortBy(e.target.value as "recent" | "alias" | "activo" | "numero_asc" | "numero_desc")}
                 className={styles.sortSelect}
               >
                 <option value="recent">Mas recientes</option>
                 <option value="alias">Por alias (A-Z)</option>
                 <option value="activo">Activos primero</option>
+                <option value="numero_asc">Número ↑ (menor→mayor)</option>
+                <option value="numero_desc">Número ↓ (mayor→menor)</option>
               </select>
             </div>
           )}
