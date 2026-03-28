@@ -100,7 +100,7 @@ export default function Dashboard() {
         }
         return sortDir === "asc" ? cmp : -cmp;
       });
-  }, [radicadosQuery.data, searchQuery, sortBy]);
+  }, [radicadosQuery.data, searchQuery, sortBy, sortDir]);
 
   const addMutation = useMutation({
     mutationFn: ({ radicado, alias, fuente, idProceso }: { radicado: string; alias: string; fuente: string; idProceso?: number }) =>
