@@ -455,12 +455,17 @@ def _get_detalle(event: dict) -> dict:
             logger.warning("SAMAI no disponible para detalle de %s: %s", radicado_id, e)
             return _response(503, {"error": "El servidor de SAMAI no está disponible en este momento. Intenta de nuevo en unos minutos."})
 
-        # Auto-heal: si la corporacion almacenada no retorna datos, buscar la correcta.
+        # Auto-heal: si la corporacion almacenada no retorna datos útiles, buscar la correcta.
         # Ocurre cuando SAMAI estaba caído al registrar el radicado y se guardó la
         # corporacion por defecto (primeros 7 dígitos), que puede no corresponder al
         # tribunal/corporacion real del proceso.
+        # Condición: falsy ([], {}, None) O dict con "Seccion" vacío (proceso no existe en esa corp).
+        _datos_check = datos_raw.get("proceso", datos_raw) if isinstance(datos_raw, dict) else {}
+        _sin_datos = not datos_raw or not (
+            isinstance(_datos_check, dict) and _datos_check.get("Seccion", "").strip()
+        )
         corp_usada = rad.corporacion
-        if not datos_raw:
+        if _sin_datos:
             logger.info(
                 "Corporacion %s no retorna datos para %s — buscando corporacion correcta",
                 rad.corporacion, radicado_id,
