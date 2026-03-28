@@ -28,6 +28,7 @@ export interface RadicadoDTO {
   fuente?: string;       // "samai" | "rama_judicial"
   idProceso?: number | null;
   fechaUltimaActuacion?: string;
+  createdAt?: string;
 }
 
 export interface RJProcesoDTO {

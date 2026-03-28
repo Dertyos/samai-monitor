@@ -94,8 +94,8 @@ export default function Dashboard() {
         else if (sortBy === "activo") cmp = (b.activo ? 1 : 0) - (a.activo ? 1 : 0);
         else if (sortBy === "numero") cmp = a.radicado.localeCompare(b.radicado);
         else if (sortBy === "recent") {
-          const fa = a.fechaUltimaActuacion ?? "";
-          const fb = b.fechaUltimaActuacion ?? "";
+          const fa = a.fechaUltimaActuacion || a.createdAt || "";
+          const fb = b.fechaUltimaActuacion || b.createdAt || "";
           cmp = fa.localeCompare(fb);
         }
         return sortDir === "asc" ? cmp : -cmp;

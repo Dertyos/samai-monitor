@@ -91,8 +91,8 @@ export default function DetalleRadicado() {
       else if (sortPref === "activo") cmp = (b.activo ? 1 : 0) - (a.activo ? 1 : 0);
       else if (sortPref === "numero") cmp = a.radicado.localeCompare(b.radicado);
       else if (sortPref === "recent") {
-        const fa = a.fechaUltimaActuacion ?? "";
-        const fb = b.fechaUltimaActuacion ?? "";
+        const fa = a.fechaUltimaActuacion || a.createdAt || "";
+        const fb = b.fechaUltimaActuacion || b.createdAt || "";
         cmp = fa.localeCompare(fb);
       }
       return sortDir === "asc" ? cmp : -cmp;
