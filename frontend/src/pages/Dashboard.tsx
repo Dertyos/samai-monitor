@@ -270,17 +270,34 @@ export default function Dashboard() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className={styles.searchInput}
               />
-              <select
-                value={sortBy}
-                onChange={(e) => handleSetSortBy(e.target.value as "recent" | "alias" | "activo" | "numero_asc" | "numero_desc")}
-                className={styles.sortSelect}
-              >
-                <option value="recent">Mas recientes</option>
-                <option value="alias">Por alias (A-Z)</option>
-                <option value="activo">Activos primero</option>
-                <option value="numero_asc">Número ↑ (menor→mayor)</option>
-                <option value="numero_desc">Número ↓ (mayor→menor)</option>
-              </select>
+              <div className={styles.sortGroup}>
+                <select
+                  value={sortBy === "numero_asc" || sortBy === "numero_desc" ? "numero" : sortBy}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === "numero") {
+                      handleSetSortBy("numero_asc");
+                    } else {
+                      handleSetSortBy(v as "recent" | "alias" | "activo");
+                    }
+                  }}
+                  className={styles.sortSelect}
+                >
+                  <option value="recent">Mas recientes</option>
+                  <option value="alias">Por alias (A-Z)</option>
+                  <option value="activo">Activos primero</option>
+                  <option value="numero">Por número</option>
+                </select>
+                {(sortBy === "numero_asc" || sortBy === "numero_desc") && (
+                  <button
+                    onClick={() => handleSetSortBy(sortBy === "numero_asc" ? "numero_desc" : "numero_asc")}
+                    className={styles.sortDirBtn}
+                    title={sortBy === "numero_asc" ? "Cambiar a mayor→menor" : "Cambiar a menor→mayor"}
+                  >
+                    {sortBy === "numero_asc" ? "↑" : "↓"}
+                  </button>
+                )}
+              </div>
             </div>
           )}
 

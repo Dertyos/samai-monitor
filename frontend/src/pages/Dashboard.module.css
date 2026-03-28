@@ -156,6 +156,12 @@
   flex: 1;
 }
 
+.sortGroup {
+  display: flex;
+  gap: 0.25rem;
+  align-items: stretch;
+}
+
 .sortSelect {
   min-width: 150px;
   padding: 0.5rem;
@@ -164,6 +170,24 @@
   background: var(--bg-elevated);
   color: var(--text);
   font-size: 0.85rem;
+}
+
+.sortDirBtn {
+  padding: 0.375rem 0.6rem;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-sm);
+  background: var(--primary-light);
+  color: var(--primary);
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  line-height: 1;
+  transition: background 0.15s, color 0.15s;
+}
+
+.sortDirBtn:hover {
+  background: var(--primary);
+  color: #fff;
 }
 
 .radicadosGrid {
