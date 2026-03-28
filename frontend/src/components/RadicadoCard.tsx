@@ -174,9 +174,6 @@ export default function RadicadoCard({
         </span>
           {aliasNode}
         </div>
-        <span className={`${styles.meta} ${styles.listMeta}`}>
-          #{radicado.ultimoOrden}
-        </span>
         {badgesNode}
         <div className={styles.actions}>
           <button onClick={onSelect} className="btn-secondary">
@@ -202,9 +199,6 @@ export default function RadicadoCard({
         {aliasNode}
       </div>
       <div className={styles.body}>
-        <span className={styles.meta}>
-          Ultima actuacion: #{radicado.ultimoOrden}
-        </span>
         {badgesNode}
       </div>
       <div className={styles.actions}>
