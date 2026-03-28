@@ -76,6 +76,11 @@ export default function Dashboard() {
     refetchInterval: 60 * 1000, // poll cada 60s para detectar alertas nuevas
   });
 
+  const hasMixedActivo = useMemo(() => {
+    if (!radicadosQuery.data) return false;
+    return radicadosQuery.data.some((r) => r.activo) && radicadosQuery.data.some((r) => !r.activo);
+  }, [radicadosQuery.data]);
+
   const filteredRadicados = useMemo(() => {
     if (!radicadosQuery.data) return [];
     return radicadosQuery.data
@@ -291,18 +296,16 @@ export default function Dashboard() {
                 >
                   <option value="recent">Mas recientes</option>
                   <option value="alias">Por alias</option>
-                  <option value="activo">Activos primero</option>
+                  {hasMixedActivo && <option value="activo">Activos primero</option>}
                   <option value="numero">Por número</option>
                 </select>
-                {sortBy !== "activo" && (
-                  <button
-                    onClick={handleToggleSortDir}
-                    className={styles.sortDirBtn}
-                    title={sortDir === "asc" ? "Cambiar a descendente" : "Cambiar a ascendente"}
-                  >
-                    {sortDir === "asc" ? "↑" : "↓"}
-                  </button>
-                )}
+                <button
+                  onClick={handleToggleSortDir}
+                  className={styles.sortDirBtn}
+                  title={sortDir === "asc" ? "Cambiar a descendente" : "Cambiar a ascendente"}
+                >
+                  {sortDir === "asc" ? "↑" : "↓"}
+                </button>
               </div>
             </div>
           )}
