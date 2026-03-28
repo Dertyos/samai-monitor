@@ -590,6 +590,47 @@ La corrección es **permanente**: los siguientes accesos ya usan la corporación
 - Plan Pro: radicados ilimitados + notificaciones frecuentes
 - Admin dashboard para ver métricas de usuarios
 
+---
+
+## 2026-03-28 — Bug Fix: Alertas históricas al agregar proceso nuevo
+
+### Problema
+Al agregar un proceso nuevo, si `get_max_orden` falla (timeout, API down) devuelve 0 y se
+guarda `ultimoOrden=0`. En la siguiente ejecución del monitor, TODAS las actuaciones
+históricas (orden > 0) se trataban como "nuevas" → spam de alertas con actuaciones viejas.
+
+Ejemplo real: proceso `25000-23-42-000-2024-00350-00` notificó actuaciones de 2025-09 y
+2026-02 como si fueran nuevas al ser agregado.
+
+### Causa raíz
+El API handler hacía `max_orden = 0` silenciosamente al recibir `SamaiApiError`, sin
+distinguir entre "genuinamente 0 actuaciones" (proceso nuevo sin historia) vs
+"no se pudo consultar la API". Con `ultimoOrden=0` guardado, el monitor enviaba alertas
+para todo lo que tuviera `orden > 0`, es decir, toda la historia del proceso.
+
+### Fix: campo `pendingInit`
+- **`models.py`**: Campo `pending_init: bool = False` en `Radicado`. Se persiste como
+  `pendingInit` en DynamoDB solo cuando `True`.
+- **`api_handler/app.py`**: Cuando la API lanza excepción Y el `max_orden` queda en 0
+  después de todos los fallbacks, se guarda `pendingInit=True`. Para rama_judicial y siugj
+  también se setea en el respectivo `ApiError`.
+- **`monitor/app.py`**: En las 3 funciones `check_radicado*`, si `pendingInit=True`:
+  actualizar `ultimoOrden` al máximo actual y limpiar el flag SIN crear alertas.
+- **`db.py`**: Nueva función `limpiar_pending_init()` que hace `REMOVE pendingInit` en
+  DynamoDB.
+
+### Nota sobre registros existentes
+Los procesos ya registrados con `ultimoOrden=0` que YA generaron alertas: el monitor ya
+actualizó su `ultimoOrden` al correr. No generarán más alertas incorrectas.
+
+### Archivos modificados
+- `backend/layers/shared/python/models.py`
+- `backend/layers/shared/python/db.py`
+- `backend/functions/api_handler/app.py`
+- `backend/functions/monitor/app.py`
+
+---
+
 ### Fase 13: Seguridad y Compliance
 - Rate limiting en API Gateway
 - WAF rules para proteger endpoints
