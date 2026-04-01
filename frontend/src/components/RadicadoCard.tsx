@@ -31,18 +31,6 @@ interface Props {
  * Reutilizable: recibe RadicadoDTO y callbacks para acciones.
  * Acciones secundarias en menu dropdown (...) para ahorro de espacio.
  */
-/**
- * Calcula un color de texto legible (blanco o negro) según el fondo.
- */
-function textColorForBg(hex: string): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  // Luminancia relativa simplificada
-  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return lum > 0.55 ? "#000000" : "#ffffff";
-}
-
 export default function RadicadoCard({
   radicado,
   isSelected,
@@ -135,14 +123,10 @@ export default function RadicadoCard({
       {etiquetasResueltas.map((etq) => (
         <span
           key={etq.etiquetaId}
-          className={styles.etiquetaPill}
-          style={{
-            backgroundColor: etq.color,
-            color: textColorForBg(etq.color),
-          }}
-        >
-          {etq.nombre}
-        </span>
+          className={styles.etiquetaDot}
+          style={{ backgroundColor: etq.color }}
+          title={etq.nombre}
+        />
       ))}
     </div>
   ) : null;

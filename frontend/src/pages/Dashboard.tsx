@@ -46,7 +46,7 @@ export default function Dashboard() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEtiquetaManager, setShowEtiquetaManager] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<RadicadoDTO | null>(null);
-  const [filterEtiqueta, setFilterEtiqueta] = useState<string>("");
+  const [filterEtiqueta, setFilterEtiqueta] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<"recent" | "alias" | "activo" | "numero">(
     () => (localStorage.getItem("sortBy") as "recent" | "alias" | "activo" | "numero") ?? "recent"
@@ -122,7 +122,7 @@ export default function Dashboard() {
     return applyFilters(radicadosQuery.data)
       .filter((r: RadicadoDTO) => {
         // Filtro por etiqueta
-        if (filterEtiqueta && !(r.etiquetas || []).includes(filterEtiqueta)) return false;
+        if (filterEtiqueta.length > 0 && !filterEtiqueta.some((id) => (r.etiquetas || []).includes(id))) return false;
         if (!searchQuery) return true;
         const q = searchQuery.toLowerCase();
         return (

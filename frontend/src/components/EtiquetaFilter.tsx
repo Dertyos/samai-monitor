@@ -4,8 +4,8 @@ import styles from "./EtiquetaFilter.module.css";
 
 interface Props {
   etiquetas: EtiquetaDTO[];
-  value: string;
-  onChange: (etiquetaId: string) => void;
+  value: string[];
+  onChange: (ids: string[]) => void;
 }
 
 export default function EtiquetaFilter({ etiquetas, value, onChange }: Props) {
@@ -23,19 +23,29 @@ export default function EtiquetaFilter({ etiquetas, value, onChange }: Props) {
     return () => document.removeEventListener("mousedown", handle);
   }, [open]);
 
-  const selected = etiquetas.find((e) => e.etiquetaId === value);
+  const selectedEtiquetas = etiquetas.filter((e) => value.includes(e.etiquetaId));
+
+  const handleToggle = (id: string) => {
+    if (value.includes(id)) {
+      onChange(value.filter((v) => v !== id));
+    } else {
+      onChange([...value, id]);
+    }
+  };
 
   return (
     <div className={`${styles.wrapper} ${open ? styles.wrapperOpen : ""}`} ref={ref}>
       <button
-        className={`${styles.trigger} ${value ? styles.triggerActive : ""}`}
+        className={`${styles.trigger} ${value.length > 0 ? styles.triggerActive : ""}`}
         onClick={() => setOpen(!open)}
         type="button"
       >
-        {selected ? (
+        {selectedEtiquetas.length > 0 ? (
           <>
-            <span className={styles.triggerDot} style={{ backgroundColor: selected.color }} />
-            {selected.nombre}
+            {selectedEtiquetas.map((etq) => (
+              <span key={etq.etiquetaId} className={styles.triggerDot} style={{ backgroundColor: etq.color }} />
+            ))}
+            {selectedEtiquetas.length === 1 ? selectedEtiquetas[0].nombre : `${selectedEtiquetas.length} etiquetas`}
           </>
         ) : (
           "Todas las etiquetas"
@@ -45,22 +55,32 @@ export default function EtiquetaFilter({ etiquetas, value, onChange }: Props) {
 
       {open && (
         <div className={styles.dropdown}>
-          <button
-            className={`${styles.option} ${!value ? styles.optionSelected : ""}`}
-            onClick={() => { onChange(""); setOpen(false); }}
-          >
-            Todas las etiquetas
-          </button>
-          {etiquetas.map((etq) => (
+          {value.length > 0 && (
             <button
-              key={etq.etiquetaId}
-              className={`${styles.option} ${value === etq.etiquetaId ? styles.optionSelected : ""}`}
-              onClick={() => { onChange(etq.etiquetaId); setOpen(false); }}
+              className={styles.option}
+              onClick={() => { onChange([]); setOpen(false); }}
             >
-              <span className={styles.optionDot} style={{ backgroundColor: etq.color }} />
-              {etq.nombre}
+              Limpiar filtro
             </button>
-          ))}
+          )}
+          {etiquetas.map((etq) => {
+            const isSelected = value.includes(etq.etiquetaId);
+            return (
+              <button
+                key={etq.etiquetaId}
+                className={`${styles.option} ${isSelected ? styles.optionSelected : ""}`}
+                onClick={() => handleToggle(etq.etiquetaId)}
+              >
+                <span className={styles.optionDot} style={{ backgroundColor: etq.color }} />
+                {etq.nombre}
+                {isSelected && (
+                  <svg style={{ width: 14, marginLeft: "auto", flexShrink: 0, color: "var(--primary)" }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                )}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
