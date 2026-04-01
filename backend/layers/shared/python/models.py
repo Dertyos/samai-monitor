@@ -124,6 +124,13 @@ class Radicado:
     id_proceso: int | None = None  # idProceso del CPNU (solo para fuente="rama_judicial")
     pending_init: bool = False  # True cuando max_orden no se pudo determinar al registrar
     fecha_ultima_actuacion: str = ""  # fecha ISO de la última actuación conocida
+    # Metadata enriquecida para filtros
+    despacho: str = ""  # nombre del juzgado/tribunal
+    ciudad: str = ""  # ciudad (normalizada)
+    especialidad: str = ""  # especialidad judicial (ej: "Contencioso Administrativo")
+    instancia: str = ""  # instancia (ej: "PRIMERA INSTANCIA")
+    vigente: str = ""  # SI/NO — si el caso está activo en el sistema judicial
+    fecha_inicio_proceso: str = ""  # fecha ISO de creación del caso en el juzgado
 
     def to_dynamo(self) -> dict:
         """Convierte a dict para DynamoDB."""
@@ -146,6 +153,18 @@ class Radicado:
             item["pendingInit"] = True
         if self.fecha_ultima_actuacion:
             item["fechaUltimaActuacion"] = self.fecha_ultima_actuacion
+        if self.despacho:
+            item["despacho"] = self.despacho
+        if self.ciudad:
+            item["ciudad"] = self.ciudad
+        if self.especialidad:
+            item["especialidad"] = self.especialidad
+        if self.instancia:
+            item["instancia"] = self.instancia
+        if self.vigente:
+            item["vigente"] = self.vigente
+        if self.fecha_inicio_proceso:
+            item["fechaInicioProceso"] = self.fecha_inicio_proceso
         return item
 
     @classmethod
@@ -165,6 +184,12 @@ class Radicado:
             id_proceso=int(id_proceso_raw) if id_proceso_raw is not None else None,
             pending_init=item.get("pendingInit", False),
             fecha_ultima_actuacion=item.get("fechaUltimaActuacion", ""),
+            despacho=item.get("despacho", ""),
+            ciudad=item.get("ciudad", ""),
+            especialidad=item.get("especialidad", ""),
+            instancia=item.get("instancia", ""),
+            vigente=item.get("vigente", ""),
+            fecha_inicio_proceso=item.get("fechaInicioProceso", ""),
         )
 
 

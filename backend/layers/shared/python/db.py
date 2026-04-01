@@ -84,6 +84,39 @@ def toggle_activo(table: Any, user_id: str, radicado: str) -> bool | None:
     return new_val
 
 
+def actualizar_metadata(
+    table: Any,
+    user_id: str,
+    radicado: str,
+    metadata: dict[str, str],
+) -> None:
+    """Actualiza campos de metadata de un radicado (despacho, ciudad, etc.).
+
+    Solo escribe los campos presentes y no vacíos en el dict metadata.
+    """
+    # Filtrar campos vacíos
+    campos = {k: v for k, v in metadata.items() if v}
+    if not campos:
+        return
+
+    set_parts: list[str] = []
+    values: dict[str, str] = {}
+    names: dict[str, str] = {}
+    for i, (key, val) in enumerate(campos.items()):
+        alias = f"#k{i}"
+        placeholder = f":v{i}"
+        set_parts.append(f"{alias} = {placeholder}")
+        names[alias] = key
+        values[placeholder] = val
+
+    table.update_item(
+        Key={"userId": user_id, "radicado": radicado},
+        UpdateExpression="SET " + ", ".join(set_parts),
+        ExpressionAttributeNames=names,
+        ExpressionAttributeValues=values,
+    )
+
+
 def obtener_radicados_unicos(table: Any) -> list[dict]:
     """Obtiene todos los radicados únicos (deduplicados) para el monitor.
 

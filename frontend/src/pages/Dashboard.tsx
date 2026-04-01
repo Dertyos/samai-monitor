@@ -10,16 +10,19 @@ import {
   getAlertas,
   markAllAlertasRead,
   type RadicadoDTO,
+  type AddRadicadoMeta,
 } from "../lib/api";
 import AddRadicadoModal from "../components/AddRadicadoModal";
 import ConfirmModal from "../components/ConfirmModal";
 import RadicadoCard from "../components/RadicadoCard";
 import AlertasList from "../components/AlertasList";
 import AppLogo from "../components/AppLogo";
+import FilterBar from "../components/FilterBar";
 import { RadicadoCardSkeleton, StatsBarSkeleton } from "../components/Skeleton";
 import { useAuth } from "../hooks/useAuth";
 import { useTheme } from "../hooks/useTheme";
 import { useToast } from "../hooks/useToast";
+import { useFilters, useFilterOptions } from "../hooks/useFilters";
 import styles from "./Dashboard.module.css";
 
 /**
@@ -62,12 +65,15 @@ export default function Dashboard() {
   const queryClient = useQueryClient();
   const { theme, toggle: toggleTheme } = useTheme();
   const toast = useToast();
+  const { filters, setFilter, toggleArrayFilter, clearAll: clearFilters, activeCount: filterCount, hasFilters, applyFilters } = useFilters();
 
   const radicadosQuery = useQuery({
     queryKey: ["radicados"],
     queryFn: getRadicados,
     staleTime: 2 * 60 * 1000, // 2 min
   });
+
+  const filterOptions = useFilterOptions(radicadosQuery.data || []);
 
   const alertasQuery = useQuery({
     queryKey: ["alertas"],
@@ -88,14 +94,17 @@ export default function Dashboard() {
 
   const filteredRadicados = useMemo(() => {
     if (!radicadosQuery.data) return [];
-    return radicadosQuery.data
+    // Apply structured filters first, then text search, then sort
+    return applyFilters(radicadosQuery.data)
       .filter((r: RadicadoDTO) => {
         if (!searchQuery) return true;
         const q = searchQuery.toLowerCase();
         return (
           r.radicado.includes(q) ||
           r.radicadoFormato.toLowerCase().includes(q) ||
-          r.alias.toLowerCase().includes(q)
+          r.alias.toLowerCase().includes(q) ||
+          (r.despacho || "").toLowerCase().includes(q) ||
+          (r.ciudad || "").toLowerCase().includes(q)
         );
       })
       .sort((a: RadicadoDTO, b: RadicadoDTO) => {
@@ -110,11 +119,11 @@ export default function Dashboard() {
         }
         return sortDir === "asc" ? cmp : -cmp;
       });
-  }, [radicadosQuery.data, searchQuery, sortBy, sortDir]);
+  }, [radicadosQuery.data, searchQuery, sortBy, sortDir, applyFilters]);
 
   const addMutation = useMutation({
-    mutationFn: ({ radicado, alias, fuente, idProceso }: { radicado: string; alias: string; fuente: string; idProceso?: number }) =>
-      addRadicado(radicado, alias, fuente, idProceso),
+    mutationFn: ({ radicado, alias, fuente, idProceso, meta }: { radicado: string; alias: string; fuente: string; idProceso?: number; meta?: AddRadicadoMeta }) =>
+      addRadicado(radicado, alias, fuente, idProceso, meta),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["radicados"] });
       setShowAddModal(false);
@@ -285,34 +294,44 @@ export default function Dashboard() {
           </div>
 
           {radicadosQuery.data && radicadosQuery.data.length > 0 && (
-            <div className={styles.filterBar}>
-              <input
-                type="text"
-                placeholder="Buscar por numero o alias..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className={styles.searchInput}
-              />
-              <div className={styles.sortGroup}>
-                <select
-                  value={sortBy}
-                  onChange={(e) => handleSetSortBy(e.target.value as "recent" | "alias" | "activo" | "numero")}
-                  className={styles.sortSelect}
-                >
-                  <option value="recent">Mas recientes</option>
-                  {hasAlias && <option value="alias">Por alias</option>}
-                  {hasMixedActivo && <option value="activo">Activos primero</option>}
-                  <option value="numero">Por número</option>
-                </select>
-                <button
-                  onClick={handleToggleSortDir}
-                  className={styles.sortDirBtn}
-                  title={sortDir === "asc" ? "Cambiar a descendente" : "Cambiar a ascendente"}
-                >
-                  {sortDir === "asc" ? "↑" : "↓"}
-                </button>
+            <>
+              <div className={styles.searchSortBar}>
+                <input
+                  type="text"
+                  placeholder="Buscar por numero, alias, despacho..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className={styles.searchInput}
+                />
+                <div className={styles.sortGroup}>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => handleSetSortBy(e.target.value as "recent" | "alias" | "activo" | "numero")}
+                    className={styles.sortSelect}
+                  >
+                    <option value="recent">Mas recientes</option>
+                    {hasAlias && <option value="alias">Por alias</option>}
+                    {hasMixedActivo && <option value="activo">Activos primero</option>}
+                    <option value="numero">Por número</option>
+                  </select>
+                  <button
+                    onClick={handleToggleSortDir}
+                    className={styles.sortDirBtn}
+                    title={sortDir === "asc" ? "Cambiar a descendente" : "Cambiar a ascendente"}
+                  >
+                    {sortDir === "asc" ? "↑" : "↓"}
+                  </button>
+                </div>
               </div>
-            </div>
+              <FilterBar
+                filters={filters}
+                options={filterOptions}
+                activeCount={filterCount}
+                onToggle={toggleArrayFilter}
+                onSetFilter={setFilter}
+                onClearAll={clearFilters}
+              />
+            </>
           )}
 
           {radicadosQuery.isLoading && (
@@ -357,7 +376,7 @@ export default function Dashboard() {
                 + Agregar primer radicado
               </button>
             </div>
-          ) : searchQuery && filteredRadicados.length === 0 && (radicadosQuery.data?.length ?? 0) > 0 ? (
+          ) : (searchQuery || hasFilters) && filteredRadicados.length === 0 && (radicadosQuery.data?.length ?? 0) > 0 ? (
             <div className="empty-state">
               <div className="empty-state-icon">
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -366,36 +385,54 @@ export default function Dashboard() {
                   <line x1="8" y1="11" x2="14" y2="11"/>
                 </svg>
               </div>
-              <p className="empty-state-text">Sin resultados para "{searchQuery}"</p>
-              <p className="empty-state-hint">Intenta con otro termino de busqueda</p>
+              <p className="empty-state-text">
+                {searchQuery ? `Sin resultados para "${searchQuery}"` : "Sin resultados con los filtros aplicados"}
+              </p>
+              <p className="empty-state-hint">
+                {hasFilters
+                  ? <button type="button" onClick={clearFilters} style={{ background: "none", border: "none", color: "var(--primary)", cursor: "pointer", textDecoration: "underline", fontSize: "inherit" }}>Limpiar filtros</button>
+                  : "Intenta con otro termino de busqueda"
+                }
+              </p>
             </div>
           ) : (
-            <div className={viewMode === "grid" ? styles.radicadosGrid : styles.radicadosList}>
-              {filteredRadicados.map((r: RadicadoDTO) => (
-                <RadicadoCard
-                  key={r.radicado}
-                  radicado={r}
-                  isSelected={false}
-                  listMode={viewMode === "list"}
-                  onSelect={() => navigate(`/radicado/${r.radicado}`)}
-                  onDelete={() => setDeleteTarget(r)}
-                  onEditAlias={(alias) => editAliasMutation.mutate({ radicado: r.radicado, alias })}
-                  onToggleActivo={() => toggleMutation.mutate(r.radicado)}
-                  isDeleting={
-                    deleteMutation.isPending &&
-                    deleteMutation.variables === r.radicado
-                  }
-                  isEditing={
-                    editAliasMutation.isPending &&
-                    editAliasMutation.variables?.radicado === r.radicado
-                  }
-                  isToggling={
-                    toggleMutation.isPending &&
-                    toggleMutation.variables === r.radicado
-                  }
-                />
-              ))}
-            </div>
+            <>
+              {hasFilters && filteredRadicados.length > 0 && filteredRadicados.length < (radicadosQuery.data?.length ?? 0) && (
+                <p className={styles.filterResultsCount}>
+                  Mostrando {filteredRadicados.length} de {radicadosQuery.data?.length} casos
+                </p>
+              )}
+              <div
+                key={JSON.stringify(filters)}
+                className={viewMode === "grid" ? styles.radicadosGrid : styles.radicadosList}
+              >
+                {filteredRadicados.map((r: RadicadoDTO) => (
+                  <div key={r.radicado} className={styles.cardWrapper}>
+                    <RadicadoCard
+                      radicado={r}
+                      isSelected={false}
+                      listMode={viewMode === "list"}
+                      onSelect={() => navigate(`/radicado/${r.radicado}`)}
+                      onDelete={() => setDeleteTarget(r)}
+                      onEditAlias={(alias) => editAliasMutation.mutate({ radicado: r.radicado, alias })}
+                      onToggleActivo={() => toggleMutation.mutate(r.radicado)}
+                      isDeleting={
+                        deleteMutation.isPending &&
+                        deleteMutation.variables === r.radicado
+                      }
+                      isEditing={
+                        editAliasMutation.isPending &&
+                        editAliasMutation.variables?.radicado === r.radicado
+                      }
+                      isToggling={
+                        toggleMutation.isPending &&
+                        toggleMutation.variables === r.radicado
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </section>
 
@@ -465,7 +502,7 @@ export default function Dashboard() {
 
       {showAddModal && (
         <AddRadicadoModal
-          onAdd={(radicado, alias, fuente, idProceso) => addMutation.mutate({ radicado, alias, fuente, idProceso })}
+          onAdd={(radicado, alias, fuente, idProceso, meta) => addMutation.mutate({ radicado, alias, fuente, idProceso, meta })}
           onClose={() => setShowAddModal(false)}
           error={
             addMutation.error instanceof Error
