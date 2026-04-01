@@ -14,6 +14,7 @@ Globals:
         RADICADOS_TABLE: !Ref RadicadosTable
         ACTUACIONES_TABLE: !Ref ActuacionesTable
         ALERTAS_TABLE: !Ref AlertasTable
+        ETIQUETAS_TABLE: !Ref EtiquetasTable
     Layers:
       - !Ref SharedLayer
 
@@ -67,6 +68,8 @@ Resources:
             TableName: !Ref ActuacionesTable
         - DynamoDBCrudPolicy:
             TableName: !Ref AlertasTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref EtiquetasTable
       Events:
         PostRadicados:
           Type: HttpApi
@@ -140,6 +143,36 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /buscar-rj/{numProceso}
             Method: GET
+        GetEtiquetas:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /etiquetas
+            Method: GET
+        PostEtiqueta:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /etiquetas
+            Method: POST
+        PatchEtiqueta:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /etiquetas/{id}
+            Method: PATCH
+        DeleteEtiqueta:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /etiquetas/{id}
+            Method: DELETE
+        PatchRadicadoEtiquetas:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /radicados/{id}/etiquetas
+            Method: PATCH
 
   MonitorFunction:
     Type: AWS::Serverless::Function
@@ -432,6 +465,22 @@ Resources:
       TimeToLiveSpecification:
         AttributeName: ttl
         Enabled: true
+
+  EtiquetasTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: samai-etiquetas
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+        - AttributeName: etiquetaId
+          KeyType: RANGE
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: etiquetaId
+          AttributeType: S
 
   # ============================================
   # FRONTEND — S3 + CloudFront

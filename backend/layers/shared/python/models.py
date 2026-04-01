@@ -1,8 +1,9 @@
 """Modelos de datos del sistema Alertas Judiciales by Dertyos."""
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 @dataclass
@@ -124,6 +125,7 @@ class Radicado:
     id_proceso: int | None = None  # idProceso del CPNU (solo para fuente="rama_judicial")
     pending_init: bool = False  # True cuando max_orden no se pudo determinar al registrar
     fecha_ultima_actuacion: str = ""  # fecha ISO de la última actuación conocida
+    etiquetas: list[str] = field(default_factory=list)  # IDs de etiquetas asignadas
 
     def to_dynamo(self) -> dict:
         """Convierte a dict para DynamoDB."""
@@ -146,6 +148,8 @@ class Radicado:
             item["pendingInit"] = True
         if self.fecha_ultima_actuacion:
             item["fechaUltimaActuacion"] = self.fecha_ultima_actuacion
+        if self.etiquetas:
+            item["etiquetas"] = self.etiquetas
         return item
 
     @classmethod
@@ -165,6 +169,7 @@ class Radicado:
             id_proceso=int(id_proceso_raw) if id_proceso_raw is not None else None,
             pending_init=item.get("pendingInit", False),
             fecha_ultima_actuacion=item.get("fechaUltimaActuacion", ""),
+            etiquetas=item.get("etiquetas", []),
         )
 
 
@@ -223,4 +228,41 @@ class Alerta:
             leido=item.get("leido", False),
             read_at=item.get("readAt", ""),
             fuente=item.get("fuente", "samai"),
+        )
+
+
+@dataclass
+class Etiqueta:
+    """Una etiqueta personalizada creada por un usuario."""
+
+    user_id: str
+    etiqueta_id: str
+    nombre: str
+    color: str  # hex, e.g. "#dc3545"
+    created_at: str = ""
+
+    @staticmethod
+    def generar_id() -> str:
+        """Genera un ID único para una etiqueta."""
+        return uuid.uuid4().hex[:12]
+
+    def to_dynamo(self) -> dict:
+        """Convierte a dict para DynamoDB."""
+        return {
+            "userId": self.user_id,
+            "etiquetaId": self.etiqueta_id,
+            "nombre": self.nombre,
+            "color": self.color,
+            "createdAt": self.created_at,
+        }
+
+    @classmethod
+    def from_dynamo(cls, item: dict) -> Etiqueta:
+        """Crea Etiqueta desde item DynamoDB."""
+        return cls(
+            user_id=item["userId"],
+            etiqueta_id=item["etiquetaId"],
+            nombre=item.get("nombre", ""),
+            color=item.get("color", "#6b7280"),
+            created_at=item.get("createdAt", ""),
         )

@@ -13,7 +13,7 @@ from typing import Any
 
 import boto3
 
-from models import Radicado
+from models import Radicado, Etiqueta
 from radicado_utils import (
     normalizar_radicado,
     formatear_radicado,
@@ -36,6 +36,12 @@ from db import (
     actualizar_alias,
     toggle_activo,
     actualizar_corporacion,
+    guardar_etiqueta,
+    obtener_etiquetas_usuario,
+    actualizar_etiqueta,
+    eliminar_etiqueta,
+    actualizar_etiquetas_radicado,
+    quitar_etiqueta_de_radicados,
 )
 
 logger = logging.getLogger(__name__)
@@ -45,6 +51,7 @@ logger.setLevel(logging.INFO)
 _dynamodb = boto3.resource("dynamodb")
 _radicados_table = _dynamodb.Table(os.environ.get("RADICADOS_TABLE", "samai-radicados"))
 _alertas_table = _dynamodb.Table(os.environ.get("ALERTAS_TABLE", "samai-alertas"))
+_etiquetas_table = _dynamodb.Table(os.environ.get("ETIQUETAS_TABLE", "samai-etiquetas"))
 samai_client = SamaiClient()
 rj_client = RamaJudicialClient()
 siugj_client = SiugjClient()
@@ -108,6 +115,10 @@ def handler(event: dict, context: Any) -> dict:
         if method == "PATCH" and path.endswith("/toggle"):
             return _patch_toggle(event)
 
+        # PATCH /radicados/{id}/etiquetas
+        if method == "PATCH" and path.endswith("/etiquetas"):
+            return _patch_radicado_etiquetas(event)
+
         # PATCH /radicados/{id}
         if method == "PATCH" and path.startswith("/radicados/") and "/detalle" not in path and "/historial" not in path:
             return _patch_radicado(event)
@@ -143,6 +154,22 @@ def handler(event: dict, context: Any) -> dict:
         # GET /buscar-rj/{numProceso}
         if method == "GET" and path.startswith("/buscar-rj/"):
             return _get_buscar_rj(event)
+
+        # GET /etiquetas
+        if method == "GET" and path == "/etiquetas":
+            return _get_etiquetas(event)
+
+        # POST /etiquetas
+        if method == "POST" and path == "/etiquetas":
+            return _post_etiqueta(event)
+
+        # PATCH /etiquetas/{id}
+        if method == "PATCH" and path.startswith("/etiquetas/"):
+            return _patch_etiqueta(event)
+
+        # DELETE /etiquetas/{id}
+        if method == "DELETE" and path.startswith("/etiquetas/"):
+            return _delete_etiqueta(event)
 
         return _response(404, {"error": "Ruta no encontrada"})
 
@@ -308,6 +335,7 @@ def _get_radicados(event: dict) -> dict:
             "idProceso": r.id_proceso,
             "fechaUltimaActuacion": r.fecha_ultima_actuacion,
             "createdAt": r.created_at,
+            "etiquetas": r.etiquetas,
         }
         for r in radicados
     ])
@@ -645,3 +673,98 @@ def _get_buscar_rj(event: dict) -> dict:
         ])
 
     return _response(200, [])
+
+
+# --- Etiquetas ---
+
+
+def _get_etiquetas(event: dict) -> dict:
+    """GET /etiquetas — listar etiquetas del usuario."""
+    user_id = _get_user_id(event)
+    etiquetas = obtener_etiquetas_usuario(_etiquetas_table, user_id)
+    return _response(200, [
+        {
+            "etiquetaId": e.etiqueta_id,
+            "nombre": e.nombre,
+            "color": e.color,
+            "createdAt": e.created_at,
+        }
+        for e in etiquetas
+    ])
+
+
+def _post_etiqueta(event: dict) -> dict:
+    """POST /etiquetas — crear etiqueta."""
+    user_id = _get_user_id(event)
+    body = _get_body(event)
+
+    nombre = body.get("nombre", "").strip()
+    if not nombre:
+        return _response(400, {"error": "Campo 'nombre' requerido"})
+
+    color = body.get("color", "#6b7280").strip()
+
+    etiqueta = Etiqueta(
+        user_id=user_id,
+        etiqueta_id=Etiqueta.generar_id(),
+        nombre=nombre,
+        color=color,
+        created_at=datetime.now(timezone.utc).isoformat(),
+    )
+    guardar_etiqueta(_etiquetas_table, etiqueta)
+    logger.info("Etiqueta creada: %s (%s) para usuario %s", nombre, etiqueta.etiqueta_id, user_id)
+
+    return _response(201, {
+        "etiquetaId": etiqueta.etiqueta_id,
+        "nombre": etiqueta.nombre,
+        "color": etiqueta.color,
+        "createdAt": etiqueta.created_at,
+    })
+
+
+def _patch_etiqueta(event: dict) -> dict:
+    """PATCH /etiquetas/{id} — editar nombre/color."""
+    user_id = _get_user_id(event)
+    etiqueta_id = _get_path_param(event, "id")
+    body = _get_body(event)
+
+    nombre = body.get("nombre", "").strip()
+    color = body.get("color", "").strip()
+    if not nombre or not color:
+        return _response(400, {"error": "Campos 'nombre' y 'color' requeridos"})
+
+    if actualizar_etiqueta(_etiquetas_table, user_id, etiqueta_id, nombre, color):
+        logger.info("Etiqueta actualizada: %s para usuario %s", etiqueta_id, user_id)
+        return _response(200, {"etiquetaId": etiqueta_id, "nombre": nombre, "color": color})
+    return _response(404, {"error": "Etiqueta no encontrada"})
+
+
+def _delete_etiqueta(event: dict) -> dict:
+    """DELETE /etiquetas/{id} — eliminar etiqueta + limpiar de radicados."""
+    user_id = _get_user_id(event)
+    etiqueta_id = _get_path_param(event, "id")
+
+    if eliminar_etiqueta(_etiquetas_table, user_id, etiqueta_id):
+        count = quitar_etiqueta_de_radicados(_radicados_table, user_id, etiqueta_id)
+        logger.info(
+            "Etiqueta eliminada: %s para usuario %s (limpiada de %d radicados)",
+            etiqueta_id, user_id, count,
+        )
+        return _response(204)
+    return _response(404, {"error": "Etiqueta no encontrada"})
+
+
+def _patch_radicado_etiquetas(event: dict) -> dict:
+    """PATCH /radicados/{id}/etiquetas — asignar etiquetas a un radicado."""
+    user_id = _get_user_id(event)
+    radicado_id = _get_path_param(event, "id")
+    body = _get_body(event)
+
+    etiquetas = body.get("etiquetas", [])
+    if not isinstance(etiquetas, list):
+        return _response(400, {"error": "Campo 'etiquetas' debe ser una lista"})
+
+    if actualizar_etiquetas_radicado(_radicados_table, user_id, radicado_id, etiquetas):
+        logger.info("Etiquetas actualizadas para radicado %s: %s", radicado_id, etiquetas)
+        return _response(200, {"etiquetas": etiquetas})
+    return _response(404, {"error": "Radicado no encontrado"})

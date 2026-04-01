@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import pytest
-from models import Radicado, Actuacion, Alerta
+from models import Radicado, Actuacion, Alerta, Etiqueta
 from db import (
     guardar_radicado,
     obtener_radicados_usuario,
@@ -14,6 +14,13 @@ from db import (
     obtener_ultimo_orden_local,
     guardar_alerta,
     obtener_alertas_usuario,
+    guardar_etiqueta,
+    obtener_etiquetas_usuario,
+    obtener_etiqueta,
+    actualizar_etiqueta,
+    eliminar_etiqueta,
+    actualizar_etiquetas_radicado,
+    quitar_etiqueta_de_radicados,
 )
 
 
@@ -198,3 +205,120 @@ class TestAlertas:
         assert len(result) == 3
         # Deben venir ordenadas por sk (más reciente primero o más antiguo primero)
         # La implementación decide, pero debe ser consistente
+
+
+# --- Etiquetas ---
+
+
+def _make_etiqueta(
+    etiqueta_id: str = "abc123",
+    nombre: str = "Urgente",
+    color: str = "#dc3545",
+) -> Etiqueta:
+    return Etiqueta(
+        user_id=USER_ID,
+        etiqueta_id=etiqueta_id,
+        nombre=nombre,
+        color=color,
+        created_at="2026-04-01T10:00:00",
+    )
+
+
+class TestGuardarEtiqueta:
+    def test_guardar_y_obtener(self, etiquetas_table):
+        etq = _make_etiqueta()
+        guardar_etiqueta(etiquetas_table, etq)
+
+        result = obtener_etiquetas_usuario(etiquetas_table, USER_ID)
+        assert len(result) == 1
+        assert result[0].nombre == "Urgente"
+        assert result[0].color == "#dc3545"
+
+    def test_obtener_especifica(self, etiquetas_table):
+        guardar_etiqueta(etiquetas_table, _make_etiqueta())
+        result = obtener_etiqueta(etiquetas_table, USER_ID, "abc123")
+        assert result is not None
+        assert result.nombre == "Urgente"
+
+    def test_obtener_inexistente(self, etiquetas_table):
+        result = obtener_etiqueta(etiquetas_table, USER_ID, "noexiste")
+        assert result is None
+
+
+class TestActualizarEtiqueta:
+    def test_actualizar_existente(self, etiquetas_table):
+        guardar_etiqueta(etiquetas_table, _make_etiqueta())
+        ok = actualizar_etiqueta(etiquetas_table, USER_ID, "abc123", "Muy urgente", "#ff0000")
+        assert ok is True
+
+        result = obtener_etiqueta(etiquetas_table, USER_ID, "abc123")
+        assert result is not None
+        assert result.nombre == "Muy urgente"
+        assert result.color == "#ff0000"
+
+    def test_actualizar_inexistente(self, etiquetas_table):
+        ok = actualizar_etiqueta(etiquetas_table, USER_ID, "noexiste", "X", "#000")
+        assert ok is False
+
+
+class TestEliminarEtiqueta:
+    def test_eliminar_existente(self, etiquetas_table):
+        guardar_etiqueta(etiquetas_table, _make_etiqueta())
+        ok = eliminar_etiqueta(etiquetas_table, USER_ID, "abc123")
+        assert ok is True
+
+        result = obtener_etiquetas_usuario(etiquetas_table, USER_ID)
+        assert len(result) == 0
+
+    def test_eliminar_inexistente(self, etiquetas_table):
+        ok = eliminar_etiqueta(etiquetas_table, USER_ID, "noexiste")
+        assert ok is False
+
+
+class TestEtiquetasRadicado:
+    def test_asignar_etiquetas(self, radicados_table):
+        guardar_radicado(radicados_table, _make_radicado())
+        ok = actualizar_etiquetas_radicado(radicados_table, USER_ID, RADICADO, ["e1", "e2"])
+        assert ok is True
+
+        rad = obtener_radicado(radicados_table, USER_ID, RADICADO)
+        assert rad is not None
+        assert rad.etiquetas == ["e1", "e2"]
+
+    def test_quitar_todas_las_etiquetas(self, radicados_table):
+        rad = _make_radicado()
+        rad.etiquetas = ["e1", "e2"]
+        guardar_radicado(radicados_table, rad)
+
+        ok = actualizar_etiquetas_radicado(radicados_table, USER_ID, RADICADO, [])
+        assert ok is True
+
+        rad = obtener_radicado(radicados_table, USER_ID, RADICADO)
+        assert rad is not None
+        assert rad.etiquetas == []
+
+    def test_asignar_a_inexistente(self, radicados_table):
+        ok = actualizar_etiquetas_radicado(radicados_table, USER_ID, "00000000000000000000000", ["e1"])
+        assert ok is False
+
+    def test_quitar_etiqueta_de_radicados(self, radicados_table):
+        rad1 = _make_radicado()
+        rad1.etiquetas = ["e1", "e2"]
+        rad2 = _make_radicado(radicado="73001233300020230047100")
+        rad2.corporacion = CORP
+        rad2.radicado_formato = "73001-23-33-000-2023-00471-00"
+        rad2.etiquetas = ["e1"]
+
+        guardar_radicado(radicados_table, rad1)
+        guardar_radicado(radicados_table, rad2)
+
+        count = quitar_etiqueta_de_radicados(radicados_table, USER_ID, "e1")
+        assert count == 2
+
+        r1 = obtener_radicado(radicados_table, USER_ID, RADICADO)
+        assert r1 is not None
+        assert r1.etiquetas == ["e2"]
+
+        r2 = obtener_radicado(radicados_table, USER_ID, "73001233300020230047100")
+        assert r2 is not None
+        assert r2.etiquetas == []

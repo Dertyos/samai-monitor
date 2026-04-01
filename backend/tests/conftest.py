@@ -120,7 +120,27 @@ def dynamodb_resource(aws_credentials):
             BillingMode="PAY_PER_REQUEST",
         )
 
+        # Etiquetas table
+        dynamodb.create_table(
+            TableName="samai-etiquetas",
+            KeySchema=[
+                {"AttributeName": "userId", "KeyType": "HASH"},
+                {"AttributeName": "etiquetaId", "KeyType": "RANGE"},
+            ],
+            AttributeDefinitions=[
+                {"AttributeName": "userId", "AttributeType": "S"},
+                {"AttributeName": "etiquetaId", "AttributeType": "S"},
+            ],
+            BillingMode="PAY_PER_REQUEST",
+        )
+
         yield dynamodb
+
+
+@pytest.fixture
+def etiquetas_table(dynamodb_resource):
+    """Mocked Etiquetas DynamoDB table."""
+    return dynamodb_resource.Table("samai-etiquetas")
 
 
 @pytest.fixture

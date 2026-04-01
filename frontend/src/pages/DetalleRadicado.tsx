@@ -1,11 +1,20 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getRadicados, getDetalle, getDocumentoUrl, type ActuacionDTO, type RadicadoDTO } from "../lib/api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getRadicados, getDetalle, getDocumentoUrl, getEtiquetas, updateRadicadoEtiquetas, type ActuacionDTO, type RadicadoDTO, type EtiquetaDTO } from "../lib/api";
 import { formatDate, formatRadicado, decodeHtml } from "../lib/utils";
 import { useToast } from "../hooks/useToast";
 import { useTheme } from "../hooks/useTheme";
 import AppLogo from "../components/AppLogo";
+import EtiquetaSelector from "../components/EtiquetaSelector";
+
+function textColorForBg(hex: string): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return lum > 0.55 ? "#000000" : "#ffffff";
+}
 
 function exportToCsv(actuaciones: ActuacionDTO[], radicado: string): void {
   const header = "Orden,Actuacion,Fecha,Estado,Decision,Anotacion";
@@ -79,6 +88,42 @@ export default function DetalleRadicado() {
     queryFn: getRadicados,
     staleTime: 2 * 60 * 1000,
   });
+
+  const etiquetasQuery = useQuery({
+    queryKey: ["etiquetas"],
+    queryFn: getEtiquetas,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const currentRadicado = radicadosQuery.data?.find((r) => r.radicado === radicadoId);
+
+  const etiquetasResueltas = useMemo(() => {
+    if (!currentRadicado?.etiquetas || !etiquetasQuery.data) return [];
+    const map = new Map(etiquetasQuery.data.map((e) => [e.etiquetaId, e]));
+    return currentRadicado.etiquetas
+      .map((id) => map.get(id))
+      .filter((e): e is EtiquetaDTO => e !== undefined);
+  }, [currentRadicado, etiquetasQuery.data]);
+
+  const toggleEtiquetaMutation = useMutation({
+    mutationFn: ({ radicado, etiquetas }: { radicado: string; etiquetas: string[] }) =>
+      updateRadicadoEtiquetas(radicado, etiquetas),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["radicados"] });
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Error al actualizar etiquetas");
+    },
+  });
+
+  const handleToggleEtiqueta = (etiquetaId: string, selected: boolean) => {
+    if (!currentRadicado) return;
+    const current = currentRadicado.etiquetas || [];
+    const next = selected
+      ? [...current, etiquetaId]
+      : current.filter((id) => id !== etiquetaId);
+    toggleEtiquetaMutation.mutate({ radicado: currentRadicado.radicado, etiquetas: next });
+  };
 
   // Mismo orden que el dashboard (persiste en localStorage via handleSetSortBy)
   const sortedRadicados = useMemo(() => {
@@ -184,6 +229,30 @@ export default function DetalleRadicado() {
             >
               {copied ? "¡Copiado!" : radicadoFormato}
             </h2>
+            {(etiquetasResueltas.length > 0 || (etiquetasQuery.data?.length ?? 0) > 0) && (
+              <div style={{ display: "flex", alignItems: "center", gap: "0.375rem", flexWrap: "wrap" }}>
+                {etiquetasResueltas.map((etq) => (
+                  <span
+                    key={etq.etiquetaId}
+                    style={{
+                      fontSize: "0.7rem",
+                      padding: "0.125rem 0.5rem",
+                      borderRadius: "10px",
+                      fontWeight: 600,
+                      backgroundColor: etq.color,
+                      color: textColorForBg(etq.color),
+                    }}
+                  >
+                    {etq.nombre}
+                  </span>
+                ))}
+                <EtiquetaSelector
+                  etiquetas={etiquetasQuery.data || []}
+                  selectedIds={currentRadicado?.etiquetas || []}
+                  onToggle={handleToggleEtiqueta}
+                />
+              </div>
+            )}
             <div className={styles.headerActions}>
               {query.data && (
                 <button

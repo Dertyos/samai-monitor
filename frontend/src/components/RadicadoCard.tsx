@@ -1,6 +1,13 @@
 import { useState, useRef, useEffect } from "react";
-import type { RadicadoDTO } from "../lib/api";
+import type { RadicadoDTO, EtiquetaDTO } from "../lib/api";
+import EtiquetaSelector from "./EtiquetaSelector";
 import styles from "./RadicadoCard.module.css";
+
+interface EtiquetaResuelta {
+  etiquetaId: string;
+  nombre: string;
+  color: string;
+}
 
 interface Props {
   radicado: RadicadoDTO;
@@ -10,6 +17,9 @@ interface Props {
   onDelete: () => void;
   onEditAlias: (newAlias: string) => void;
   onToggleActivo: () => void;
+  onToggleEtiqueta?: (etiquetaId: string, selected: boolean) => void;
+  etiquetasResueltas?: EtiquetaResuelta[];
+  todasEtiquetas?: EtiquetaDTO[];
   isDeleting: boolean;
   isEditing: boolean;
   isToggling: boolean;
@@ -21,6 +31,18 @@ interface Props {
  * Reutilizable: recibe RadicadoDTO y callbacks para acciones.
  * Acciones secundarias en menu dropdown (...) para ahorro de espacio.
  */
+/**
+ * Calcula un color de texto legible (blanco o negro) según el fondo.
+ */
+function textColorForBg(hex: string): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  // Luminancia relativa simplificada
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return lum > 0.55 ? "#000000" : "#ffffff";
+}
+
 export default function RadicadoCard({
   radicado,
   isSelected,
@@ -29,6 +51,9 @@ export default function RadicadoCard({
   onDelete,
   onEditAlias,
   onToggleActivo,
+  onToggleEtiqueta,
+  etiquetasResueltas = [],
+  todasEtiquetas = [],
   isDeleting,
   isEditing,
   isToggling,
@@ -105,6 +130,23 @@ export default function RadicadoCard({
     });
   };
 
+  const etiquetasNode = etiquetasResueltas.length > 0 ? (
+    <div className={styles.etiquetas}>
+      {etiquetasResueltas.map((etq) => (
+        <span
+          key={etq.etiquetaId}
+          className={styles.etiquetaPill}
+          style={{
+            backgroundColor: etq.color,
+            color: textColorForBg(etq.color),
+          }}
+        >
+          {etq.nombre}
+        </span>
+      ))}
+    </div>
+  ) : null;
+
   const badgesNode = (
     <div className={styles.badges}>
       <span
@@ -116,6 +158,13 @@ export default function RadicadoCard({
       <span className={radicado.activo ? styles.statusActive : styles.statusInactive}>
         {radicado.activo ? "Activo" : "Pausado"}
       </span>
+      {onToggleEtiqueta && todasEtiquetas.length > 0 && (
+        <EtiquetaSelector
+          etiquetas={todasEtiquetas}
+          selectedIds={radicado.etiquetas || []}
+          onToggle={onToggleEtiqueta}
+        />
+      )}
     </div>
   );
 
@@ -173,6 +222,7 @@ export default function RadicadoCard({
           {copied ? "¡Copiado!" : radicado.radicadoFormato}
         </span>
           {aliasNode}
+          {etiquetasNode}
         </div>
         {badgesNode}
         <div className={styles.actions}>
@@ -199,6 +249,7 @@ export default function RadicadoCard({
         {aliasNode}
       </div>
       <div className={styles.body}>
+        {etiquetasNode}
         {badgesNode}
       </div>
       <div className={styles.actions}>

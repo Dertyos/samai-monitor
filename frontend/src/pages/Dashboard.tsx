@@ -9,10 +9,17 @@ import {
   toggleRadicadoActivo,
   getAlertas,
   markAllAlertasRead,
+  getEtiquetas,
+  createEtiqueta,
+  updateEtiqueta,
+  deleteEtiqueta,
+  updateRadicadoEtiquetas,
   type RadicadoDTO,
+  type EtiquetaDTO,
 } from "../lib/api";
 import AddRadicadoModal from "../components/AddRadicadoModal";
 import ConfirmModal from "../components/ConfirmModal";
+import EtiquetaManager from "../components/EtiquetaManager";
 import RadicadoCard from "../components/RadicadoCard";
 import AlertasList from "../components/AlertasList";
 import AppLogo from "../components/AppLogo";
@@ -33,7 +40,9 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { email, signOut } = useAuth();
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showEtiquetaManager, setShowEtiquetaManager] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<RadicadoDTO | null>(null);
+  const [filterEtiqueta, setFilterEtiqueta] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<"recent" | "alias" | "activo" | "numero">(
     () => (localStorage.getItem("sortBy") as "recent" | "alias" | "activo" | "numero") ?? "recent"
@@ -76,6 +85,20 @@ export default function Dashboard() {
     refetchInterval: 60 * 1000, // poll cada 60s para detectar alertas nuevas
   });
 
+  const etiquetasQuery = useQuery({
+    queryKey: ["etiquetas"],
+    queryFn: getEtiquetas,
+    staleTime: 5 * 60 * 1000, // 5 min
+  });
+
+  const etiquetasMap = useMemo(() => {
+    const map = new Map<string, EtiquetaDTO>();
+    for (const e of etiquetasQuery.data || []) {
+      map.set(e.etiquetaId, e);
+    }
+    return map;
+  }, [etiquetasQuery.data]);
+
   const hasMixedActivo = useMemo(() => {
     if (!radicadosQuery.data) return false;
     return radicadosQuery.data.some((r) => r.activo) && radicadosQuery.data.some((r) => !r.activo);
@@ -90,6 +113,8 @@ export default function Dashboard() {
     if (!radicadosQuery.data) return [];
     return radicadosQuery.data
       .filter((r: RadicadoDTO) => {
+        // Filtro por etiqueta
+        if (filterEtiqueta && !(r.etiquetas || []).includes(filterEtiqueta)) return false;
         if (!searchQuery) return true;
         const q = searchQuery.toLowerCase();
         return (
@@ -110,7 +135,7 @@ export default function Dashboard() {
         }
         return sortDir === "asc" ? cmp : -cmp;
       });
-  }, [radicadosQuery.data, searchQuery, sortBy, sortDir]);
+  }, [radicadosQuery.data, searchQuery, sortBy, sortDir, filterEtiqueta]);
 
   const addMutation = useMutation({
     mutationFn: ({ radicado, alias, fuente, idProceso }: { radicado: string; alias: string; fuente: string; idProceso?: number }) =>
@@ -171,6 +196,61 @@ export default function Dashboard() {
       toast.error(err.message || "Error al eliminar radicado");
     },
   });
+
+  const createEtiquetaMutation = useMutation({
+    mutationFn: ({ nombre, color }: { nombre: string; color: string }) =>
+      createEtiqueta(nombre, color),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["etiquetas"] });
+      toast.success("Etiqueta creada");
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Error al crear etiqueta");
+    },
+  });
+
+  const updateEtiquetaMutation = useMutation({
+    mutationFn: ({ etiquetaId, nombre, color }: { etiquetaId: string; nombre: string; color: string }) =>
+      updateEtiqueta(etiquetaId, nombre, color),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["etiquetas"] });
+      toast.success("Etiqueta actualizada");
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Error al actualizar etiqueta");
+    },
+  });
+
+  const deleteEtiquetaMutation = useMutation({
+    mutationFn: deleteEtiqueta,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["etiquetas"] });
+      queryClient.invalidateQueries({ queryKey: ["radicados"] });
+      toast.success("Etiqueta eliminada");
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Error al eliminar etiqueta");
+    },
+  });
+
+  const toggleEtiquetaRadicadoMutation = useMutation({
+    mutationFn: ({ radicado, etiquetas }: { radicado: string; etiquetas: string[] }) =>
+      updateRadicadoEtiquetas(radicado, etiquetas),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["radicados"] });
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Error al actualizar etiquetas");
+    },
+  });
+
+  const handleToggleEtiqueta = (radicado: RadicadoDTO, etiquetaId: string, selected: boolean) => {
+    const current = radicado.etiquetas || [];
+    const next = selected
+      ? [...current, etiquetaId]
+      : current.filter((id) => id !== etiquetaId);
+    toggleEtiquetaRadicadoMutation.mutate({ radicado: radicado.radicado, etiquetas: next });
+  };
 
   const handleSignOut = () => {
     signOut();
@@ -278,6 +358,9 @@ export default function Dashboard() {
                   </svg>
                 </button>
               </div>
+              <button onClick={() => setShowEtiquetaManager(true)} className="btn-secondary">
+                Etiquetas
+              </button>
               <button onClick={() => setShowAddModal(true)} className="primary">
                 + Agregar
               </button>
@@ -293,6 +376,20 @@ export default function Dashboard() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className={styles.searchInput}
               />
+              {(etiquetasQuery.data?.length ?? 0) > 0 && (
+                <select
+                  value={filterEtiqueta}
+                  onChange={(e) => setFilterEtiqueta(e.target.value)}
+                  className={styles.sortSelect}
+                >
+                  <option value="">Todas las etiquetas</option>
+                  {(etiquetasQuery.data || []).map((etq) => (
+                    <option key={etq.etiquetaId} value={etq.etiquetaId}>
+                      {etq.nombre}
+                    </option>
+                  ))}
+                </select>
+              )}
               <div className={styles.sortGroup}>
                 <select
                   value={sortBy}
@@ -381,6 +478,12 @@ export default function Dashboard() {
                   onDelete={() => setDeleteTarget(r)}
                   onEditAlias={(alias) => editAliasMutation.mutate({ radicado: r.radicado, alias })}
                   onToggleActivo={() => toggleMutation.mutate(r.radicado)}
+                  onToggleEtiqueta={(etiquetaId, selected) => handleToggleEtiqueta(r, etiquetaId, selected)}
+                  etiquetasResueltas={(r.etiquetas || [])
+                    .map((id) => etiquetasMap.get(id))
+                    .filter((e): e is EtiquetaDTO => e !== undefined)
+                  }
+                  todasEtiquetas={etiquetasQuery.data || []}
                   isDeleting={
                     deleteMutation.isPending &&
                     deleteMutation.variables === r.radicado
@@ -473,6 +576,19 @@ export default function Dashboard() {
               : null
           }
           loading={addMutation.isPending}
+        />
+      )}
+
+      {showEtiquetaManager && (
+        <EtiquetaManager
+          etiquetas={etiquetasQuery.data || []}
+          onClose={() => setShowEtiquetaManager(false)}
+          onCreate={(nombre, color) => createEtiquetaMutation.mutate({ nombre, color })}
+          onUpdate={(etiquetaId, nombre, color) => updateEtiquetaMutation.mutate({ etiquetaId, nombre, color })}
+          onDelete={(etiquetaId) => deleteEtiquetaMutation.mutate(etiquetaId)}
+          isCreating={createEtiquetaMutation.isPending}
+          isUpdating={updateEtiquetaMutation.isPending}
+          isDeleting={deleteEtiquetaMutation.isPending}
         />
       )}
 

@@ -29,6 +29,14 @@ export interface RadicadoDTO {
   idProceso?: number | null;
   fechaUltimaActuacion?: string;
   createdAt?: string;
+  etiquetas?: string[];  // IDs de etiquetas asignadas
+}
+
+export interface EtiquetaDTO {
+  etiquetaId: string;
+  nombre: string;
+  color: string;
+  createdAt?: string;
 }
 
 export interface RJProcesoDTO {
@@ -164,5 +172,50 @@ export async function buscarProceso(numProceso: string): Promise<unknown[]> {
 export async function buscarRamaJudicial(numProceso: string): Promise<RJProcesoDTO[]> {
   const digits = numProceso.replace(/\D/g, "");
   const res = await authFetch(`/buscar-rj/${digits}`);
+  return res.json();
+}
+
+// --- Etiquetas ---
+
+export async function getEtiquetas(): Promise<EtiquetaDTO[]> {
+  const res = await authFetch("/etiquetas");
+  return res.json();
+}
+
+export async function createEtiqueta(
+  nombre: string,
+  color: string,
+): Promise<EtiquetaDTO> {
+  const res = await authFetch("/etiquetas", {
+    method: "POST",
+    body: JSON.stringify({ nombre, color }),
+  });
+  return res.json();
+}
+
+export async function updateEtiqueta(
+  etiquetaId: string,
+  nombre: string,
+  color: string,
+): Promise<EtiquetaDTO> {
+  const res = await authFetch(`/etiquetas/${etiquetaId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ nombre, color }),
+  });
+  return res.json();
+}
+
+export async function deleteEtiqueta(etiquetaId: string): Promise<void> {
+  await authFetch(`/etiquetas/${etiquetaId}`, { method: "DELETE" });
+}
+
+export async function updateRadicadoEtiquetas(
+  radicado: string,
+  etiquetas: string[],
+): Promise<{ etiquetas: string[] }> {
+  const res = await authFetch(`/radicados/${radicado}/etiquetas`, {
+    method: "PATCH",
+    body: JSON.stringify({ etiquetas }),
+  });
   return res.json();
 }

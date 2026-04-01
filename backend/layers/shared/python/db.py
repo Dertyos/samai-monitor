@@ -10,7 +10,7 @@ from typing import Any
 
 from boto3.dynamodb.conditions import Key
 
-from models import Radicado, Actuacion, Alerta
+from models import Radicado, Actuacion, Alerta, Etiqueta
 
 logger = logging.getLogger(__name__)
 
@@ -263,3 +263,88 @@ def obtener_alertas_usuario(
         Limit=limit,
     )
     return [Alerta.from_dynamo(item) for item in resp.get("Items", [])]
+
+
+# --- Etiquetas ---
+
+
+def guardar_etiqueta(table: Any, etiqueta: Etiqueta) -> None:
+    """Guarda una etiqueta en DynamoDB."""
+    table.put_item(Item=etiqueta.to_dynamo())
+
+
+def obtener_etiquetas_usuario(table: Any, user_id: str) -> list[Etiqueta]:
+    """Obtiene todas las etiquetas de un usuario."""
+    resp = table.query(KeyConditionExpression=Key("userId").eq(user_id))
+    return [Etiqueta.from_dynamo(item) for item in resp.get("Items", [])]
+
+
+def obtener_etiqueta(table: Any, user_id: str, etiqueta_id: str) -> Etiqueta | None:
+    """Obtiene una etiqueta específica de un usuario."""
+    resp = table.get_item(Key={"userId": user_id, "etiquetaId": etiqueta_id})
+    item = resp.get("Item")
+    if item is None:
+        return None
+    return Etiqueta.from_dynamo(item)
+
+
+def actualizar_etiqueta(
+    table: Any, user_id: str, etiqueta_id: str, nombre: str, color: str
+) -> bool:
+    """Actualiza nombre y color de una etiqueta. Retorna True si existía."""
+    try:
+        table.update_item(
+            Key={"userId": user_id, "etiquetaId": etiqueta_id},
+            UpdateExpression="SET nombre = :n, color = :c",
+            ExpressionAttributeValues={":n": nombre, ":c": color},
+            ConditionExpression="attribute_exists(userId)",
+        )
+        return True
+    except table.meta.client.exceptions.ConditionalCheckFailedException:
+        return False
+
+
+def eliminar_etiqueta(table: Any, user_id: str, etiqueta_id: str) -> bool:
+    """Elimina una etiqueta. Retorna True si existía."""
+    existing = obtener_etiqueta(table, user_id, etiqueta_id)
+    if existing is None:
+        return False
+    table.delete_item(Key={"userId": user_id, "etiquetaId": etiqueta_id})
+    return True
+
+
+def actualizar_etiquetas_radicado(
+    table: Any, user_id: str, radicado: str, etiquetas: list[str]
+) -> bool:
+    """Actualiza las etiquetas asignadas a un radicado. Retorna True si existía."""
+    try:
+        if etiquetas:
+            table.update_item(
+                Key={"userId": user_id, "radicado": radicado},
+                UpdateExpression="SET etiquetas = :e",
+                ExpressionAttributeValues={":e": etiquetas},
+                ConditionExpression="attribute_exists(userId)",
+            )
+        else:
+            table.update_item(
+                Key={"userId": user_id, "radicado": radicado},
+                UpdateExpression="REMOVE etiquetas",
+                ConditionExpression="attribute_exists(userId)",
+            )
+        return True
+    except table.meta.client.exceptions.ConditionalCheckFailedException:
+        return False
+
+
+def quitar_etiqueta_de_radicados(
+    table: Any, user_id: str, etiqueta_id: str
+) -> int:
+    """Quita una etiqueta de todos los radicados del usuario. Retorna cantidad afectada."""
+    radicados = obtener_radicados_usuario(table, user_id)
+    count = 0
+    for rad in radicados:
+        if etiqueta_id in rad.etiquetas:
+            nuevas = [e for e in rad.etiquetas if e != etiqueta_id]
+            actualizar_etiquetas_radicado(table, user_id, rad.radicado, nuevas)
+            count += 1
+    return count
