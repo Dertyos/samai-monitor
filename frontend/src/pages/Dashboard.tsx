@@ -21,6 +21,7 @@ import {
 import AddRadicadoModal from "../components/AddRadicadoModal";
 import ConfirmModal from "../components/ConfirmModal";
 import EtiquetaManager from "../components/EtiquetaManager";
+import EtiquetaFilter from "../components/EtiquetaFilter";
 import RadicadoCard from "../components/RadicadoCard";
 import AlertasList from "../components/AlertasList";
 import AppLogo from "../components/AppLogo";
@@ -387,18 +388,11 @@ export default function Dashboard() {
                   className={styles.searchInput}
                 />
                 {(etiquetasQuery.data?.length ?? 0) > 0 && (
-                  <select
+                  <EtiquetaFilter
+                    etiquetas={etiquetasQuery.data || []}
                     value={filterEtiqueta}
-                    onChange={(e) => setFilterEtiqueta(e.target.value)}
-                    className={styles.sortSelect}
-                  >
-                    <option value="">Todas las etiquetas</option>
-                    {(etiquetasQuery.data || []).map((etq) => (
-                      <option key={etq.etiquetaId} value={etq.etiquetaId}>
-                        {etq.nombre}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setFilterEtiqueta}
+                  />
                 )}
                 <div className={styles.sortGroup}>
                   <select
