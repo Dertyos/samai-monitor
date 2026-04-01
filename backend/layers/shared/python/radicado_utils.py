@@ -62,6 +62,56 @@ def validar_radicado(radicado: str) -> bool:
         return False
 
 
+def parse_ciudad(city_name: str) -> str:
+    """Extrae la ciudad de un string tipo 'IBAGUE (TOLIMA)' o 'BOGOTA D.C.'.
+
+    Retorna solo la parte de ciudad, en title case.
+    Si no hay paréntesis, retorna el string limpio completo.
+    """
+    if not city_name:
+        return ""
+    # "IBAGUE (TOLIMA)" -> "IBAGUE"
+    match = re.match(r"^([^(]+)", city_name)
+    ciudad = match.group(1).strip() if match else city_name.strip()
+    return ciudad.title()
+
+
+# Mapa de códigos de especialidad judicial colombiana (dígitos 5-6 del radicado)
+_ESPECIALIDADES: dict[str, str] = {
+    "01": "Civil",
+    "02": "Familia",
+    "03": "Agrario",
+    "04": "Penal",
+    "05": "Laboral",
+    "06": "Penal Adolescentes",
+    "07": "Promiscuo",
+    "08": "Ejecucion de Penas",
+    "09": "Penal Militar",
+    "10": "Civil-Familia",
+    "11": "Civil Municipal",
+    "12": "Pequenas Causas",
+    "20": "Constitucional",
+    "23": "Contencioso Administrativo",
+    "31": "Penal Municipal",
+    "33": "Administrativo",
+    "40": "Constitucional",
+    "41": "Disciplinario",
+    "44": "Jurisdiccion Especial de Paz",
+    "50": "Restitucion de Tierras",
+}
+
+
+def extraer_especialidad(radicado: str) -> str:
+    """Extrae la especialidad judicial del radicado (dígitos 5-6).
+
+    Retorna el nombre legible (ej: 'Contencioso Administrativo') o
+    'Especialidad {código}' si el código no está mapeado.
+    """
+    norm = normalizar_radicado(radicado)
+    codigo = norm[5:7]
+    return _ESPECIALIDADES.get(codigo, f"Especialidad {codigo}")
+
+
 def extraer_corporacion(radicado: str) -> str:
     """Extrae código de corporación (7 dígitos) del radicado.
 

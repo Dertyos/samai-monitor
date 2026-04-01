@@ -18,7 +18,9 @@ from radicado_utils import (
     normalizar_radicado,
     formatear_radicado,
     extraer_corporacion,
+    extraer_especialidad,
     validar_radicado,
+    parse_ciudad,
     RadicadoInvalido,
 )
 from samai_client import SamaiClient, SamaiApiError
@@ -36,6 +38,7 @@ from db import (
     actualizar_alias,
     toggle_activo,
     actualizar_corporacion,
+    actualizar_metadata,
     guardar_etiqueta,
     obtener_etiquetas_usuario,
     actualizar_etiqueta,
@@ -224,6 +227,9 @@ def _post_radicado(event: dict) -> dict:
             fuente="rama_judicial",
             id_proceso=id_proceso,
             pending_init=pending_init,
+            despacho=body.get("despacho", ""),
+            ciudad=body.get("ciudad", ""),
+            especialidad=extraer_especialidad(norm),
         )
     elif fuente == "siugj":
         pending_init = False
@@ -245,6 +251,8 @@ def _post_radicado(event: dict) -> dict:
             created_at=datetime.now(timezone.utc).isoformat(),
             fuente="siugj",
             pending_init=pending_init,
+            despacho=body.get("despacho", ""),
+            especialidad=extraer_especialidad(norm),
         )
     else:
         corp = extraer_corporacion(norm)
@@ -294,6 +302,25 @@ def _post_radicado(event: dict) -> dict:
         # El monitor inicializará ultimoOrden sin generar alertas en la primera ejecución.
         pending_init = api_error and max_orden == 0
 
+        # Capturar metadata del proceso para filtros
+        despacho = body.get("despacho", "")  # puede venir del resultado de búsqueda
+        ciudad = ""
+        instancia = ""
+        vigente = ""
+        fecha_inicio = ""
+        try:
+            datos = samai_client.get_datos_proceso(corp, norm)
+            datos_proc = datos.get("proceso", datos) if isinstance(datos, dict) else {}
+            if isinstance(datos_proc, dict):
+                if not despacho:
+                    despacho = datos_proc.get("Seccion", "")
+                ciudad = parse_ciudad(datos_proc.get("cityName", ""))
+                instancia = datos_proc.get("claseProceso", "")
+                vigente = datos_proc.get("Vigente", "")
+                fecha_inicio = datos_proc.get("FECHAPROC", "")
+        except SamaiApiError:
+            logger.warning("No se pudo obtener metadata SAMAI para %s", norm)
+
         rad = Radicado(
             user_id=user_id,
             radicado=norm,
@@ -304,6 +331,12 @@ def _post_radicado(event: dict) -> dict:
             activo=True,
             created_at=datetime.now(timezone.utc).isoformat(),
             pending_init=pending_init,
+            despacho=despacho,
+            ciudad=ciudad,
+            especialidad=extraer_especialidad(norm),
+            instancia=instancia,
+            vigente=vigente,
+            fecha_inicio_proceso=fecha_inicio,
         )
 
     guardar_radicado(_radicados_table, rad)
@@ -316,6 +349,10 @@ def _post_radicado(event: dict) -> dict:
         "alias": rad.alias,
         "fuente": rad.fuente,
         "idProceso": rad.id_proceso,
+        "despacho": rad.despacho,
+        "ciudad": rad.ciudad,
+        "especialidad": rad.especialidad,
+        "instancia": rad.instancia,
     })
 
 
@@ -336,6 +373,12 @@ def _get_radicados(event: dict) -> dict:
             "fechaUltimaActuacion": r.fecha_ultima_actuacion,
             "createdAt": r.created_at,
             "etiquetas": r.etiquetas,
+            "despacho": r.despacho,
+            "ciudad": r.ciudad,
+            "especialidad": r.especialidad,
+            "instancia": r.instancia,
+            "vigente": r.vigente,
+            "fechaInicioProceso": r.fecha_inicio_proceso,
         }
         for r in radicados
     ])
@@ -463,6 +506,19 @@ def _get_detalle(event: dict) -> dict:
         sujetos = rj_client.get_sujetos(rad.id_proceso)
         actuaciones = rj_client.get_todas_actuaciones(rad.id_proceso)
 
+        # Lazy enrichment para rama_judicial
+        if not rad.despacho:
+            meta = {
+                "despacho": detalle.get("despacho", ""),
+                "especialidad": extraer_especialidad(rad.radicado),
+                "instancia": detalle.get("claseProceso", ""),
+            }
+            try:
+                actualizar_metadata(_radicados_table, user_id, radicado_id, meta)
+                logger.info("Lazy enrichment (RJ): metadata actualizada para %s", radicado_id)
+            except Exception:
+                logger.warning("No se pudo actualizar metadata RJ para %s", radicado_id)
+
         return _response(200, {
             "proceso": {
                 "despacho": detalle.get("despacho", ""),
@@ -540,6 +596,22 @@ def _get_detalle(event: dict) -> dict:
             actuaciones = samai_client.get_actuaciones(corp_usada, rad.radicado)
         except SamaiApiError:
             actuaciones = []
+
+        # Lazy enrichment: si el radicado no tiene metadata, guardarla como side-effect
+        if not rad.despacho and isinstance(datos, dict):
+            meta = {
+                "despacho": datos.get("Seccion", ""),
+                "ciudad": parse_ciudad(datos.get("cityName", "")),
+                "especialidad": extraer_especialidad(rad.radicado),
+                "instancia": datos.get("claseProceso", ""),
+                "vigente": datos.get("Vigente", ""),
+                "fechaInicioProceso": datos.get("FECHAPROC", ""),
+            }
+            try:
+                actualizar_metadata(_radicados_table, user_id, radicado_id, meta)
+                logger.info("Lazy enrichment: metadata actualizada para %s", radicado_id)
+            except Exception:
+                logger.warning("No se pudo actualizar metadata para %s", radicado_id)
 
         return _response(200, {
             "proceso": {

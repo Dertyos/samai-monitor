@@ -25,11 +25,18 @@ export interface RadicadoDTO {
   alias: string;
   ultimoOrden: number;
   activo: boolean;
-  fuente?: string;       // "samai" | "rama_judicial"
+  fuente?: string;       // "samai" | "rama_judicial" | "siugj"
   idProceso?: number | null;
   fechaUltimaActuacion?: string;
   createdAt?: string;
   etiquetas?: string[];  // IDs de etiquetas asignadas
+  // Metadata enriquecida para filtros
+  despacho?: string;
+  ciudad?: string;
+  especialidad?: string;
+  instancia?: string;
+  vigente?: string;
+  fechaInicioProceso?: string;
 }
 
 export interface EtiquetaDTO {
@@ -97,14 +104,22 @@ export async function getRadicados(): Promise<RadicadoDTO[]> {
   return res.json();
 }
 
+export interface AddRadicadoMeta {
+  despacho?: string;
+  ciudad?: string;
+}
+
 export async function addRadicado(
   radicado: string,
   alias: string,
   fuente: string = "samai",
   idProceso?: number,
+  meta?: AddRadicadoMeta,
 ): Promise<RadicadoDTO> {
   const body: Record<string, unknown> = { radicado, alias, fuente };
   if (idProceso !== undefined) body.id_proceso = idProceso;
+  if (meta?.despacho) body.despacho = meta.despacho;
+  if (meta?.ciudad) body.ciudad = meta.ciudad;
   const res = await authFetch("/radicados", {
     method: "POST",
     body: JSON.stringify(body),

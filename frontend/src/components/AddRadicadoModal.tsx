@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
-import { buscarProceso, buscarRamaJudicial, type RJProcesoDTO } from "../lib/api";
+import { buscarProceso, buscarRamaJudicial, type RJProcesoDTO, type AddRadicadoMeta } from "../lib/api";
 import styles from "./AddRadicadoModal.module.css";
 
 interface Props {
-  onAdd: (radicado: string, alias: string, fuente: string, idProceso?: number) => void;
+  onAdd: (radicado: string, alias: string, fuente: string, idProceso?: number, meta?: AddRadicadoMeta) => void;
   onClose: () => void;
   error: string | null;
   loading: boolean;
@@ -125,15 +125,25 @@ export default function AddRadicadoModal({ onAdd, onClose, error, loading }: Pro
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (fuente === "rama_judicial" && selectedRj) {
+      const meta: AddRadicadoMeta = {
+        despacho: selectedRj.despacho,
+      };
       if (selectedRj.sistema === "siugj") {
         // SIUGJ: no idProceso — the radicado itself is the identifier
-        onAdd(digits, alias.trim(), "siugj");
+        onAdd(digits, alias.trim(), "siugj", undefined, meta);
       } else {
         // CPNU: pass idProceso for fast future lookups
-        onAdd(digits, alias.trim(), "rama_judicial", selectedRj.idProceso ?? undefined);
+        onAdd(digits, alias.trim(), "rama_judicial", selectedRj.idProceso ?? undefined, meta);
       }
     } else {
-      onAdd(digits, alias.trim(), "samai");
+      // SAMAI: despacho from search result if available
+      const samaiMeta: AddRadicadoMeta = {};
+      if (samaiResults.length > 0) {
+        // The user selected a SAMAI result — grab its despacho
+        const matchingResult = samaiResults.find(r => r.llaveProceso.replace(/\D/g, "") === digits);
+        if (matchingResult) samaiMeta.despacho = matchingResult.despacho;
+      }
+      onAdd(digits, alias.trim(), "samai", undefined, samaiMeta.despacho ? samaiMeta : undefined);
     }
   };
 
