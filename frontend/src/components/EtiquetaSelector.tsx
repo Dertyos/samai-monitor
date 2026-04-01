@@ -26,7 +26,7 @@ export default function EtiquetaSelector({ etiquetas, selectedIds, onToggle }: P
   if (etiquetas.length === 0) return null;
 
   return (
-    <div className={styles.wrapper} ref={ref}>
+    <div className={`${styles.wrapper} ${open ? styles.wrapperOpen : ""}`} ref={ref}>
       <button
         className={styles.trigger}
         onClick={(e) => { e.stopPropagation(); setOpen(!open); }}

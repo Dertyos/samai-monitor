@@ -8,14 +8,6 @@ import { useTheme } from "../hooks/useTheme";
 import AppLogo from "../components/AppLogo";
 import EtiquetaSelector from "../components/EtiquetaSelector";
 
-function textColorForBg(hex: string): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return lum > 0.55 ? "#000000" : "#ffffff";
-}
-
 function exportToCsv(actuaciones: ActuacionDTO[], radicado: string): void {
   const header = "Orden,Actuacion,Fecha,Estado,Decision,Anotacion";
   const escape = (s: string) => `"${decodeHtml(s).replace(/"/g, '""')}"`;
@@ -234,17 +226,16 @@ export default function DetalleRadicado() {
                 {etiquetasResueltas.map((etq) => (
                   <span
                     key={etq.etiquetaId}
+                    title={etq.nombre}
                     style={{
-                      fontSize: "0.7rem",
-                      padding: "0.125rem 0.5rem",
-                      borderRadius: "10px",
-                      fontWeight: 600,
+                      width: 12,
+                      height: 12,
+                      borderRadius: "50%",
                       backgroundColor: etq.color,
-                      color: textColorForBg(etq.color),
+                      display: "inline-block",
+                      cursor: "default",
                     }}
-                  >
-                    {etq.nombre}
-                  </span>
+                  />
                 ))}
                 <EtiquetaSelector
                   etiquetas={etiquetasQuery.data || []}

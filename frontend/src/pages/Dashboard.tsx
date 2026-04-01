@@ -21,6 +21,7 @@ import {
 import AddRadicadoModal from "../components/AddRadicadoModal";
 import ConfirmModal from "../components/ConfirmModal";
 import EtiquetaManager from "../components/EtiquetaManager";
+import EtiquetaFilter from "../components/EtiquetaFilter";
 import RadicadoCard from "../components/RadicadoCard";
 import AlertasList from "../components/AlertasList";
 import AppLogo from "../components/AppLogo";
@@ -45,7 +46,7 @@ export default function Dashboard() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEtiquetaManager, setShowEtiquetaManager] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<RadicadoDTO | null>(null);
-  const [filterEtiqueta, setFilterEtiqueta] = useState<string>("");
+  const [filterEtiqueta, setFilterEtiqueta] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<"recent" | "alias" | "activo" | "numero">(
     () => (localStorage.getItem("sortBy") as "recent" | "alias" | "activo" | "numero") ?? "recent"
@@ -121,7 +122,7 @@ export default function Dashboard() {
     return applyFilters(radicadosQuery.data)
       .filter((r: RadicadoDTO) => {
         // Filtro por etiqueta
-        if (filterEtiqueta && !(r.etiquetas || []).includes(filterEtiqueta)) return false;
+        if (filterEtiqueta.length > 0 && !filterEtiqueta.some((id) => (r.etiquetas || []).includes(id))) return false;
         if (!searchQuery) return true;
         const q = searchQuery.toLowerCase();
         return (
@@ -387,18 +388,11 @@ export default function Dashboard() {
                   className={styles.searchInput}
                 />
                 {(etiquetasQuery.data?.length ?? 0) > 0 && (
-                  <select
+                  <EtiquetaFilter
+                    etiquetas={etiquetasQuery.data || []}
                     value={filterEtiqueta}
-                    onChange={(e) => setFilterEtiqueta(e.target.value)}
-                    className={styles.sortSelect}
-                  >
-                    <option value="">Todas las etiquetas</option>
-                    {(etiquetasQuery.data || []).map((etq) => (
-                      <option key={etq.etiquetaId} value={etq.etiquetaId}>
-                        {etq.nombre}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setFilterEtiqueta}
+                  />
                 )}
                 <div className={styles.sortGroup}>
                   <select
