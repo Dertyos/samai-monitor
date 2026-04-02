@@ -154,6 +154,8 @@
 
 .searchInput {
   flex: 1;
+  height: 38px;
+  box-sizing: border-box;
 }
 
 .sortGroup {
@@ -164,7 +166,7 @@
 
 .sortSelect {
   min-width: 150px;
-  height: 36px;
+  height: 38px;
   padding: 0 0.5rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -174,7 +176,8 @@
 }
 
 .sortDirBtn {
-  padding: 0.375rem 0.6rem;
+  height: 38px;
+  padding: 0 0.6rem;
   border: 1px solid var(--primary);
   border-radius: var(--radius-sm);
   background: var(--primary-light);
