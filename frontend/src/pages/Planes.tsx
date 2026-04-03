@@ -29,6 +29,7 @@ const FEATURE_LABELS: Record<string, string> = {
   etiquetas: "Etiquetas personalizadas",
   exportacion_csv: "Exportacion CSV",
   busqueda_samai: "Busqueda SAMAI",
+  soporte_email: "Soporte por email",
 };
 
 function PlanCard({
@@ -104,10 +105,10 @@ export default function Planes() {
   // Planes estáticos para usuarios no autenticados
   const staticPlans: BillingPlanDTO[] = [
     { id: "plan-gratuito", name: "Gratuito", amount: 0, currency: "cop", interval: "month", trialDays: 0, features: { max_processes: 5, alertas_email: true, historial: true, etiquetas: true, exportacion_csv: true, busqueda_samai: true } },
-    { id: "plan-pro", name: "Pro", amount: 19900, currency: "cop", interval: "month", trialDays: 0, features: { max_processes: 25, alertas_email: true, alertas_push: true, frecuencia_personalizable: true, historial: true, etiquetas: true, exportacion_csv: true, busqueda_samai: true } },
-    { id: "plan-pro-plus", name: "Pro +", amount: 59900, currency: "cop", interval: "month", trialDays: 0, features: { max_processes: 70, alertas_email: true, alertas_push: true, frecuencia_personalizable: true, historial: true, etiquetas: true, exportacion_csv: true, busqueda_samai: true } },
-    { id: "plan-firma", name: "Firma", amount: 79900, currency: "cop", interval: "month", trialDays: 0, features: { max_processes: 150, max_users: 5, alertas_email: true, alertas_push: true, reportes_avanzados: true, soporte_prioritario: true, historial: true, etiquetas: true, exportacion_csv: true, busqueda_samai: true } },
-    { id: "plan-enterprise", name: "Enterprise", amount: 249900, currency: "cop", interval: "month", trialDays: 14, features: { max_processes: 1000, max_users: 20, alertas_email: true, alertas_push: true, alertas_whatsapp: true, api_access: true, integraciones: true, account_manager: true, reportes_avanzados: true, soporte_prioritario: true, historial: true, etiquetas: true, exportacion_csv: true, busqueda_samai: true } },
+    { id: "plan-pro", name: "Pro", amount: 19900, currency: "cop", interval: "month", trialDays: 0, features: { max_processes: 25, alertas_email: true, historial: true, etiquetas: true, exportacion_csv: true, busqueda_samai: true, soporte_email: true } },
+    { id: "plan-pro-plus", name: "Pro +", amount: 59900, currency: "cop", interval: "month", trialDays: 0, features: { max_processes: 70, alertas_email: true, historial: true, etiquetas: true, exportacion_csv: true, busqueda_samai: true, soporte_email: true } },
+    { id: "plan-firma", name: "Firma", amount: 79900, currency: "cop", interval: "month", trialDays: 0, features: { max_processes: 150, alertas_email: true, historial: true, etiquetas: true, exportacion_csv: true, busqueda_samai: true, soporte_email: true } },
+    { id: "plan-enterprise", name: "Enterprise", amount: 249900, currency: "cop", interval: "month", trialDays: 0, features: { max_processes: 1000, alertas_email: true, historial: true, etiquetas: true, exportacion_csv: true, busqueda_samai: true, soporte_email: true } },
   ];
 
   const plans = (plansQuery.data ?? staticPlans).sort((a, b) => {

@@ -46,12 +46,11 @@ PLANS = [
         "features": {
             "max_processes": 25,
             "alertas_email": True,
-            "alertas_push": True,
-            "frecuencia_personalizable": True,
             "historial": True,
             "etiquetas": True,
             "exportacion_csv": True,
             "busqueda_samai": True,
+            "soporte_email": True,
         },
     },
     {
@@ -66,12 +65,11 @@ PLANS = [
         "features": {
             "max_processes": 70,
             "alertas_email": True,
-            "alertas_push": True,
-            "frecuencia_personalizable": True,
             "historial": True,
             "etiquetas": True,
             "exportacion_csv": True,
             "busqueda_samai": True,
+            "soporte_email": True,
         },
     },
     {
@@ -85,17 +83,12 @@ PLANS = [
         "active": True,
         "features": {
             "max_processes": 150,
-            "max_users": 5,
             "alertas_email": True,
-            "alertas_push": True,
-            "alertas_whatsapp": False,  # futuro
-            "frecuencia_personalizable": True,
-            "reportes_avanzados": True,
-            "soporte_prioritario": True,
             "historial": True,
             "etiquetas": True,
             "exportacion_csv": True,
             "busqueda_samai": True,
+            "soporte_email": True,
         },
     },
     {
@@ -109,20 +102,12 @@ PLANS = [
         "active": True,
         "features": {
             "max_processes": 1000,
-            "max_users": 20,
             "alertas_email": True,
-            "alertas_push": True,
-            "alertas_whatsapp": True,
-            "api_access": True,
-            "integraciones": True,
-            "account_manager": True,
-            "frecuencia_personalizable": True,
-            "reportes_avanzados": True,
-            "soporte_prioritario": True,
             "historial": True,
             "etiquetas": True,
             "exportacion_csv": True,
             "busqueda_samai": True,
+            "soporte_email": True,
         },
     },
 ]
