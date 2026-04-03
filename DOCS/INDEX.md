@@ -71,6 +71,7 @@
 | `OPS_RUNBOOK.md` | Runbook de operaciones: AWS, CI/CD, SES, deploy, troubleshooting |
 | `NUEVAS_PLATAFORMAS.md` | Investigación técnica: SIUGJ, Siglo XXI (CPNU), SPOA — APIs, CAPTCHAs, dificultad, plan de integración |
 | `DESIGN_CRITIQUE.md` | Auditoría de diseño y accesibilidad (26 mar 2026) — hallazgos WCAG, jerarquía visual, plan P0/P1/P2 |
+| `ESTRATEGIA_SUSCRIPCIONES.md` | Estrategia de suscripciones, pricing, go-to-market, análisis competitivo (3 abr 2026) |
 
 ## Investigación previa (referencia)
 | Archivo | Ubicación |
