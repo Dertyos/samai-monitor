@@ -41,7 +41,7 @@ PLANS = [
         "currency": "cop",
         "interval": "month",
         "intervalCount": 1,
-        "trialDays": 7,
+        "trialDays": 0,
         "active": True,
         "features": {
             "max_processes": 25,
@@ -61,7 +61,7 @@ PLANS = [
         "currency": "cop",
         "interval": "month",
         "intervalCount": 1,
-        "trialDays": 7,
+        "trialDays": 0,
         "active": True,
         "features": {
             "max_processes": 70,
@@ -81,7 +81,7 @@ PLANS = [
         "currency": "cop",
         "interval": "month",
         "intervalCount": 1,
-        "trialDays": 7,
+        "trialDays": 0,
         "active": True,
         "features": {
             "max_processes": 150,
@@ -105,7 +105,7 @@ PLANS = [
         "currency": "cop",
         "interval": "month",
         "intervalCount": 1,
-        "trialDays": 14,
+        "trialDays": 0,
         "active": True,
         "features": {
             "max_processes": 1000,

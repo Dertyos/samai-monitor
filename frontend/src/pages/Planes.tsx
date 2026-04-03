@@ -54,9 +54,6 @@ function PlanCard({
         <span className={s.amount}>{formatCOP(plan.amount)}</span>
         {plan.amount > 0 && <span className={s.interval}>/mes</span>}
       </div>
-      {plan.trialDays > 0 && (
-        <p className={s.trial}>{plan.trialDays} dias de prueba gratis</p>
-      )}
       <ul className={s.features}>
         {Object.entries(features).map(([key, val]) => {
           if (val === false) return null;
@@ -107,9 +104,9 @@ export default function Planes() {
   // Planes estáticos para usuarios no autenticados
   const staticPlans: BillingPlanDTO[] = [
     { id: "plan-gratuito", name: "Gratuito", amount: 0, currency: "cop", interval: "month", trialDays: 0, features: { max_processes: 5, alertas_email: true, historial: true, etiquetas: true, exportacion_csv: true, busqueda_samai: true } },
-    { id: "plan-pro", name: "Pro", amount: 19900, currency: "cop", interval: "month", trialDays: 7, features: { max_processes: 25, alertas_email: true, alertas_push: true, frecuencia_personalizable: true, historial: true, etiquetas: true, exportacion_csv: true, busqueda_samai: true } },
-    { id: "plan-pro-plus", name: "Pro +", amount: 59900, currency: "cop", interval: "month", trialDays: 7, features: { max_processes: 70, alertas_email: true, alertas_push: true, frecuencia_personalizable: true, historial: true, etiquetas: true, exportacion_csv: true, busqueda_samai: true } },
-    { id: "plan-firma", name: "Firma", amount: 79900, currency: "cop", interval: "month", trialDays: 7, features: { max_processes: 150, max_users: 5, alertas_email: true, alertas_push: true, reportes_avanzados: true, soporte_prioritario: true, historial: true, etiquetas: true, exportacion_csv: true, busqueda_samai: true } },
+    { id: "plan-pro", name: "Pro", amount: 19900, currency: "cop", interval: "month", trialDays: 0, features: { max_processes: 25, alertas_email: true, alertas_push: true, frecuencia_personalizable: true, historial: true, etiquetas: true, exportacion_csv: true, busqueda_samai: true } },
+    { id: "plan-pro-plus", name: "Pro +", amount: 59900, currency: "cop", interval: "month", trialDays: 0, features: { max_processes: 70, alertas_email: true, alertas_push: true, frecuencia_personalizable: true, historial: true, etiquetas: true, exportacion_csv: true, busqueda_samai: true } },
+    { id: "plan-firma", name: "Firma", amount: 79900, currency: "cop", interval: "month", trialDays: 0, features: { max_processes: 150, max_users: 5, alertas_email: true, alertas_push: true, reportes_avanzados: true, soporte_prioritario: true, historial: true, etiquetas: true, exportacion_csv: true, busqueda_samai: true } },
     { id: "plan-enterprise", name: "Enterprise", amount: 249900, currency: "cop", interval: "month", trialDays: 14, features: { max_processes: 1000, max_users: 20, alertas_email: true, alertas_push: true, alertas_whatsapp: true, api_access: true, integraciones: true, account_manager: true, reportes_avanzados: true, soporte_prioritario: true, historial: true, etiquetas: true, exportacion_csv: true, busqueda_samai: true } },
   ];
 
