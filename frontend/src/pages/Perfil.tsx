@@ -72,10 +72,30 @@ export default function Perfil() {
 
       {/* Seccion 1: Info de cuenta */}
       <section className={styles.section}>
-        <h3>Informacion de Cuenta</h3>
+        <h3>Información de Cuenta</h3>
         <div className={styles.infoRow}>
           <span className={styles.infoLabel}>Email</span>
           <span className={styles.infoValue}>{email}</span>
+        </div>
+      </section>
+
+      {/* Seccion: Suscripcion */}
+      <section className={styles.section}>
+        <h3>Suscripción</h3>
+        <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: "1rem" }}>
+          Administra tu plan actual y facturación.
+        </p>
+        <div className={styles.infoRow} style={{ marginBottom: "0.5rem" }}>
+          <span className={styles.infoLabel}>Plan actual</span>
+          <span className={styles.infoValue}><strong>Gratuito</strong></span>
+        </div>
+        <div className={styles.actions}>
+          <button className="primary" onClick={() => toast.success("Los planes premium estarán disponibles pronto")}>
+            Mejorar plan
+          </button>
+          <button className="btn-secondary" onClick={() => toast.info("No hay historial de facturación")}>
+            Ver facturas
+          </button>
         </div>
       </section>
 

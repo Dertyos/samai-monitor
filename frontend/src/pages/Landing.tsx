@@ -83,9 +83,9 @@ const FEATURES = [
     span: "normal",
   },
   {
-    icon: "\u{1F4C4}",
-    title: "Descarga providencias",
-    desc: "Descarga PDFs de autos y sentencias directamente desde el historial.",
+    icon: "\u{1F517}",
+    title: "Acceso directo",
+    desc: "Facilitamos el acceso a las plataformas de SAMAI y Rama Judicial para revisar los casos fácilmente.",
     span: "normal",
   },
   {

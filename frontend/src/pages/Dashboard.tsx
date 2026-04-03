@@ -42,7 +42,7 @@ import styles from "./Dashboard.module.css";
  */
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { email, signOut } = useAuth();
+  const { signOut } = useAuth();
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEtiquetaManager, setShowEtiquetaManager] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<RadicadoDTO | null>(null);
@@ -297,8 +297,8 @@ export default function Dashboard() {
           </h1>
         </div>
         <div className={styles.headerRight}>
-          <Link to="/perfil" className={styles.email} title="Mi cuenta">
-            {email}
+          <Link to="/perfil" className="btn-secondary" style={{ textDecoration: 'none' }} title="Mi cuenta">
+            Mi Perfil
           </Link>
           <button
             onClick={toggleTheme}
