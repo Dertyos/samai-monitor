@@ -240,7 +240,7 @@ export default function Billing() {
         <ConfirmModal
           title="Cancelar suscripcion"
           message="Tu plan seguira activo hasta el final del periodo de facturacion. Despues de eso, volveras al plan gratuito (5 procesos). Tus procesos existentes no se eliminaran."
-          confirmText="Si, cancelar"
+          confirmLabel="Si, cancelar"
           onConfirm={() => cancelMutation.mutate()}
           onCancel={() => setShowCancel(false)}
         />
