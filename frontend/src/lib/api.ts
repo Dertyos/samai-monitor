@@ -418,6 +418,10 @@ export async function removeTeamMember(teamId: string, userId: string): Promise<
   await authFetch(`/teams/${teamId}/members/${userId}`, { method: "DELETE" });
 }
 
+export async function revokeInvitation(inviteId: string): Promise<void> {
+  await authFetch(`/invitations/${inviteId}`, { method: "DELETE" });
+}
+
 export async function confirmTeam(teamId: string): Promise<{ status: string; membersReactivated: number }> {
   const res = await authFetch(`/teams/${teamId}/confirm`, { method: "POST" });
   return res.json();

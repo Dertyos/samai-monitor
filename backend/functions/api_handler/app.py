@@ -316,6 +316,10 @@ def handler(event: dict, context: Any) -> dict:
         if method == "POST" and path.startswith("/invitations/") and path.endswith("/accept"):
             return _post_accept_invitation(event)
 
+        # DELETE /invitations/{inviteId}
+        if method == "DELETE" and path.startswith("/invitations/"):
+            return _delete_invitation(event)
+
         return _response(404, {"error": "Ruta no encontrada"})
 
     except Exception:
@@ -1533,3 +1537,34 @@ def _post_accept_invitation(event: dict) -> dict:
         "teamId": invitation.team_id,
         "teamName": team.name if team else "",
     })
+
+
+def _delete_invitation(event: dict) -> dict:
+    """DELETE /invitations/{inviteId} — revocar una invitación pendiente (solo el owner)."""
+    user_id = _get_user_id(event)
+    http = event["requestContext"]["http"]
+    path = http["path"]
+    stage = event.get("requestContext", {}).get("stage", "")
+    raw_path = event.get("rawPath", path)
+    if stage and raw_path.startswith(f"/{stage}"):
+        raw_path = raw_path[len(f"/{stage}"):]
+
+    parts = raw_path.strip("/").split("/")
+    if len(parts) < 2:
+        return _response(400, {"error": "inviteId requerido"})
+    invite_id = parts[1]
+
+    # Buscar la invitación por ID (scan directo)
+    resp = _invitations_table.get_item(Key={"inviteId": invite_id})
+    item = resp.get("Item")
+    if not item:
+        return _response(404, {"error": "Invitacion no encontrada"})
+
+    # Solo el owner del equipo puede revocar
+    team_id = item.get("teamId", "")
+    if not _is_team_owner(team_id, user_id):
+        return _response(403, {"error": "Solo el dueño del equipo puede revocar invitaciones"})
+
+    eliminar_invitacion(_invitations_table, invite_id)
+    logger.info("Invitacion %s revocada por user %s", invite_id, user_id)
+    return _response(200, {"deleted": True})

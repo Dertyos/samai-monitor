@@ -286,6 +286,12 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /invitations/{token}/accept
             Method: POST
+        DeleteInvitation:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /invitations/{inviteId}
+            Method: DELETE
 
   MonitorFunction:
     Type: AWS::Serverless::Function

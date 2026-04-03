@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../hooks/useToast";
-import { deleteCuenta, getBillingStatus, getTeams, createTeam, addTeamMember, removeTeamMember, type TeamDTO } from "../lib/api";
+import { deleteCuenta, getBillingStatus, getTeams, createTeam, addTeamMember, removeTeamMember, revokeInvitation, type TeamDTO } from "../lib/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import ConfirmModal from "../components/ConfirmModal";
 import styles from "./Perfil.module.css";
@@ -75,6 +75,15 @@ export default function Perfil() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["teams"] });
       toast.success("Miembro removido");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const revokeInviteMutation = useMutation({
+    mutationFn: (inviteId: string) => revokeInvitation(inviteId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["teams"] });
+      toast.success("Invitacion cancelada");
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -251,15 +260,26 @@ export default function Perfil() {
                           {inv.email}
                           <span style={{ marginLeft: "0.5rem", fontSize: "0.75rem" }}>(pendiente)</span>
                         </span>
-                        <button
-                          type="button"
-                          className="primary"
-                          style={{ fontSize: "0.75rem", padding: "0.15rem 0.5rem" }}
-                          onClick={() => addMemberMutation.mutate({ teamId: myTeam.teamId, memberEmail: inv.email })}
-                          disabled={addMemberMutation.isPending}
-                        >
-                          Reenviar
-                        </button>
+                        <div style={{ display: "flex", gap: "0.25rem" }}>
+                          <button
+                            type="button"
+                            className="primary"
+                            style={{ fontSize: "0.75rem", padding: "0.15rem 0.5rem" }}
+                            onClick={() => addMemberMutation.mutate({ teamId: myTeam.teamId, memberEmail: inv.email })}
+                            disabled={addMemberMutation.isPending}
+                          >
+                            Reenviar
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-danger"
+                            style={{ fontSize: "0.75rem", padding: "0.15rem 0.5rem" }}
+                            onClick={() => revokeInviteMutation.mutate(inv.inviteId)}
+                            disabled={revokeInviteMutation.isPending}
+                          >
+                            Cancelar
+                          </button>
+                        </div>
                       </li>
                     ))}
                   </ul>
