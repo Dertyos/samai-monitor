@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useTheme } from "../hooks/useTheme";
+import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 import styles from "./Login.module.css";
 
 /**
@@ -110,11 +111,25 @@ export default function Login() {
   const showBackToLogin = mode === "forgot" || mode === "resetPassword" || mode === "verifyEmail";
 
   return (
-    <div className={styles.page}>
+    <div className={styles.splitLayout}>
       <button onClick={toggleTheme} className={`theme-toggle ${styles.themeToggle}`} title="Cambiar tema">
         {theme === "light" ? "\u{1F319}" : "\u{2600}\u{FE0F}"}
       </button>
-      <div className={styles.card}>
+
+      {/* Seccion Izquierda: Animacion visual (oculta en moviles) */}
+      <div className={styles.visualSection}>
+        <div className={styles.lottieWrapper}>
+          <DotLottieReact
+            src="https://lottie.host/362a69c0-207b-4efe-8411-6a0f4acc6a71/ZYcOWiINyi.lottie"
+            loop
+            autoplay
+          />
+        </div>
+      </div>
+
+      {/* Seccion Derecha: Formulario de Login/Registro */}
+      <div className={styles.formSection}>
+        <div className={styles.card}>
         <h1>Alertas Judiciales<br /><small>by Dertyos</small></h1>
         <p className={styles.subtitle}>Monitoreo de estados judiciales</p>
 
@@ -244,6 +259,7 @@ export default function Login() {
             </button>
           )}
         </form>
+        </div>
       </div>
     </div>
   );

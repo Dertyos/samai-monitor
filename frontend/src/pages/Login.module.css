@@ -1,27 +1,63 @@
 /* ============================================
-   LOGIN — Pagina de autenticacion
+   LOGIN — Pagina de autenticacion (Split Layout)
    ============================================ */
-.page {
+.splitLayout {
+  display: flex;
   min-height: 100vh;
+  width: 100%;
+  background: var(--bg);
+}
+
+.visualSection {
+  display: none; /* Oculto en moviles */
+  flex: 1;
+  background: linear-gradient(135deg, var(--bg) 0%, var(--primary-light) 100%);
+  border-right: 1px solid var(--border);
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.formSection {
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1rem;
+  padding: 2rem;
   position: relative;
+}
+
+@media (min-width: 900px) {
+  .visualSection {
+    display: flex;
+  }
+}
+
+/* El lottie player */
+.lottieWrapper {
+  width: 100%;
+  max-width: 500px;
+  height: 500px;
+  z-index: 2;
 }
 
 .themeToggle {
   position: absolute;
-  top: 1rem;
-  right: 1rem;
+  top: 1.5rem;
+  right: 2rem;
+  z-index: 10;
 }
 
 .card {
+  width: 100%;
+  max-width: 420px;
+  /* En lugar de una tarjeta con borde, dejamos que fluya limpio, 
+     o mantenemos la estetica card pero mas minimalista */
   background: var(--card-bg);
   border-radius: var(--radius-lg);
-  padding: 2rem;
-  width: 100%;
-  max-width: 400px;
+  padding: 2.5rem;
   box-shadow: var(--card-shadow-hover);
   border: 1px solid var(--border);
 }
@@ -33,7 +69,7 @@
 
 .subtitle {
   color: var(--text-secondary);
-  margin-bottom: 1.5rem;
+  margin-bottom: 2rem;
 }
 
 .tabs {
@@ -44,7 +80,7 @@
 
 .tabs button {
   flex: 1;
-  padding: 0.5rem;
+  padding: 0.6rem;
   border: 2px solid var(--border);
   background: transparent;
   border-radius: var(--radius-sm);
@@ -63,11 +99,12 @@
   background: none;
   border: none;
   color: var(--primary);
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   padding: 0;
   cursor: pointer;
   text-align: right;
   margin-top: -0.25rem;
+  width: auto;
 }
 
 .forgotLink:hover {
