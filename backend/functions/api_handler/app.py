@@ -45,12 +45,15 @@ from db import (
     eliminar_etiqueta,
     actualizar_etiquetas_radicado,
     quitar_etiqueta_de_radicados,
+    eliminar_cuenta_usuario,
 )
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 # Dependencias — instanciadas una vez por cold start
+_cognito = boto3.client("cognito-idp")
+_user_pool_id = os.environ.get("USER_POOL_ID", "")
 _dynamodb = boto3.resource("dynamodb")
 _radicados_table = _dynamodb.Table(os.environ.get("RADICADOS_TABLE", "samai-radicados"))
 _alertas_table = _dynamodb.Table(os.environ.get("ALERTAS_TABLE", "samai-alertas"))
@@ -173,6 +176,10 @@ def handler(event: dict, context: Any) -> dict:
         # DELETE /etiquetas/{id}
         if method == "DELETE" and path.startswith("/etiquetas/"):
             return _delete_etiqueta(event)
+
+        # DELETE /cuenta
+        if method == "DELETE" and path == "/cuenta":
+            return _delete_cuenta(event)
 
         return _response(404, {"error": "Ruta no encontrada"})
 
@@ -840,3 +847,27 @@ def _patch_radicado_etiquetas(event: dict) -> dict:
         logger.info("Etiquetas actualizadas para radicado %s: %s", radicado_id, etiquetas)
         return _response(200, {"etiquetas": etiquetas})
     return _response(404, {"error": "Radicado no encontrado"})
+
+
+def _delete_cuenta(event: dict) -> dict:
+    """DELETE /cuenta — eliminar cuenta y todos los datos del usuario."""
+    user_id = _get_user_id(event)
+
+    # 1. Eliminar datos de DynamoDB
+    counts = eliminar_cuenta_usuario(
+        _radicados_table, _alertas_table, _etiquetas_table, user_id,
+    )
+    logger.info("Datos eliminados para %s: %s", user_id, counts)
+
+    # 2. Eliminar usuario de Cognito
+    try:
+        _cognito.admin_delete_user(
+            UserPoolId=_user_pool_id,
+            Username=user_id,
+        )
+        logger.info("Usuario Cognito eliminado: %s", user_id)
+    except Exception:
+        logger.exception("Error eliminando usuario Cognito %s", user_id)
+        return _response(500, {"error": "Error eliminando cuenta. Contacte soporte."})
+
+    return _response(200, {"deleted": counts})

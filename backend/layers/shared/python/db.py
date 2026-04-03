@@ -381,3 +381,40 @@ def quitar_etiqueta_de_radicados(
             actualizar_etiquetas_radicado(table, user_id, rad.radicado, nuevas)
             count += 1
     return count
+
+
+def eliminar_cuenta_usuario(
+    radicados_table: Any,
+    alertas_table: Any,
+    etiquetas_table: Any,
+    user_id: str,
+) -> dict[str, int]:
+    """Elimina todos los datos del usuario de todas las tablas.
+
+    Retorna conteo de items eliminados por tabla.
+    """
+    counts: dict[str, int] = {"radicados": 0, "alertas": 0, "etiquetas": 0}
+
+    # Eliminar radicados
+    radicados = obtener_radicados_usuario(radicados_table, user_id)
+    for rad in radicados:
+        radicados_table.delete_item(Key={"userId": user_id, "radicado": rad.radicado})
+        counts["radicados"] += 1
+
+    # Eliminar alertas
+    resp = alertas_table.query(
+        KeyConditionExpression="userId = :uid",
+        ExpressionAttributeValues={":uid": user_id},
+        ProjectionExpression="userId, sk",
+    )
+    for item in resp.get("Items", []):
+        alertas_table.delete_item(Key={"userId": item["userId"], "sk": item["sk"]})
+        counts["alertas"] += 1
+
+    # Eliminar etiquetas
+    etiquetas = obtener_etiquetas_usuario(etiquetas_table, user_id)
+    for etiq in etiquetas:
+        etiquetas_table.delete_item(Key={"userId": user_id, "etiquetaId": etiq.etiqueta_id})
+        counts["etiquetas"] += 1
+
+    return counts

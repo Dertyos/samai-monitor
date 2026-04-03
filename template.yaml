@@ -61,6 +61,9 @@ Resources:
       Description: API Gateway handler - CRUD radicados, alertas, búsqueda
       MemorySize: 256
       Timeout: 120
+      Environment:
+        Variables:
+          USER_POOL_ID: !Ref UserPool
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref RadicadosTable
@@ -70,6 +73,11 @@ Resources:
             TableName: !Ref AlertasTable
         - DynamoDBCrudPolicy:
             TableName: !Ref EtiquetasTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - cognito-idp:AdminDeleteUser
+              Resource: !GetAtt UserPool.Arn
       Events:
         PostRadicados:
           Type: HttpApi
@@ -173,6 +181,12 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /radicados/{id}/etiquetas
             Method: PATCH
+        DeleteCuenta:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /cuenta
+            Method: DELETE
 
   MonitorFunction:
     Type: AWS::Serverless::Function

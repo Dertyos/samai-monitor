@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../hooks/useToast";
+import { deleteCuenta } from "../lib/api";
+import ConfirmModal from "../components/ConfirmModal";
 import styles from "./Perfil.module.css";
 
 /**
@@ -25,6 +27,8 @@ export default function Perfil() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -138,14 +142,47 @@ export default function Perfil() {
 
       {/* Seccion 3: Zona peligrosa */}
       <section className={`${styles.section} ${styles.dangerZone}`}>
-        <h3>Sesion</h3>
+        <h3>Zona peligrosa</h3>
         <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: "0.75rem" }}>
           Cerrar sesion en este dispositivo.
         </p>
         <button onClick={handleSignOut} className="btn-danger">
           Cerrar sesion
         </button>
+
+        <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "1rem 0" }} />
+
+        <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: "0.75rem" }}>
+          Eliminar permanentemente tu cuenta y todos tus datos (radicados, alertas, etiquetas).
+          Esta accion no se puede deshacer.
+        </p>
+        <button onClick={() => setShowDeleteModal(true)} className="btn-danger">
+          Eliminar mi cuenta
+        </button>
       </section>
+
+      {showDeleteModal && (
+        <ConfirmModal
+          title="Eliminar cuenta"
+          message={`Se eliminara permanentemente la cuenta ${email} y todos sus datos. Esta accion no se puede deshacer.`}
+          confirmLabel="Eliminar cuenta"
+          variant="danger"
+          loading={deleting}
+          onCancel={() => setShowDeleteModal(false)}
+          onConfirm={async () => {
+            setDeleting(true);
+            try {
+              await deleteCuenta();
+              signOut();
+              navigate("/login", { replace: true });
+            } catch (err) {
+              toast.error(err instanceof Error ? err.message : "Error eliminando cuenta");
+              setDeleting(false);
+              setShowDeleteModal(false);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

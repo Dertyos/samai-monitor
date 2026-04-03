@@ -234,3 +234,7 @@ export async function updateRadicadoEtiquetas(
   });
   return res.json();
 }
+
+export async function deleteCuenta(): Promise<void> {
+  await authFetch("/cuenta", { method: "DELETE" });
+}
