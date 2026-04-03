@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import pytest
-from models import Radicado, Actuacion, Alerta, Etiqueta, Team, TeamMember
+from models import Radicado, Actuacion, Alerta, Etiqueta, Team, TeamMember, TeamInvitation
 from db import (
     guardar_radicado,
     obtener_radicados_usuario,
@@ -28,6 +28,15 @@ from db import (
     obtener_miembros_team,
     eliminar_miembro_team,
     contar_procesos_equipo,
+    confirmar_team,
+    marcar_team_pending_confirmation,
+    guardar_invitacion,
+    obtener_invitacion_por_token,
+    obtener_invitaciones_por_email,
+    obtener_invitaciones_equipo,
+    marcar_invitacion_aceptada,
+    eliminar_invitacion,
+    obtener_team_de_usuario,
 )
 
 
@@ -450,3 +459,126 @@ class TestContarProcesosEquipo:
 
         count = contar_procesos_equipo(team_members_table, radicados_table, TEAM_ID)
         assert count == 2
+
+
+# --- Team Confirmation ---
+
+
+class TestTeamConfirmation:
+    def test_pending_confirmation_roundtrip(self, teams_table):
+        team = _make_team()
+        crear_team(teams_table, team)
+
+        marcar_team_pending_confirmation(teams_table, TEAM_ID)
+        result = obtener_team(teams_table, TEAM_ID)
+        assert result is not None
+        assert result.pending_confirmation is True
+
+        confirmar_team(teams_table, TEAM_ID)
+        result = obtener_team(teams_table, TEAM_ID)
+        assert result is not None
+        assert result.pending_confirmation is False
+
+
+class TestObtenerTeamDeUsuario:
+    def test_usuario_en_equipo(self, teams_table, team_members_table):
+        crear_team(teams_table, _make_team())
+        agregar_miembro_team(team_members_table, _make_member(user_id=MEMBER_ID))
+
+        result = obtener_team_de_usuario(team_members_table, MEMBER_ID)
+        assert result == TEAM_ID
+
+    def test_usuario_sin_equipo(self, team_members_table):
+        result = obtener_team_de_usuario(team_members_table, "no-existe")
+        assert result is None
+
+
+# --- Invitations ---
+
+INVITE_TOKEN = "abc123def456"
+
+
+def _make_invitation(
+    team_id: str = TEAM_ID, email: str = "nuevo@test.com", token: str = INVITE_TOKEN
+) -> TeamInvitation:
+    import time
+    return TeamInvitation(
+        invite_id=TeamInvitation.generar_id(),
+        team_id=team_id,
+        email=email,
+        role="member",
+        invited_by=USER_ID,
+        status="pending",
+        token=token,
+        created_at="2026-04-03T10:00:00",
+        ttl=int(time.time()) + 7 * 86400,  # 7 dias en el futuro
+    )
+
+
+class TestInvitaciones:
+    def test_guardar_y_buscar_por_token(self, invitations_table):
+        inv = _make_invitation()
+        guardar_invitacion(invitations_table, inv)
+
+        result = obtener_invitacion_por_token(invitations_table, INVITE_TOKEN)
+        assert result is not None
+        assert result.email == "nuevo@test.com"
+        assert result.team_id == TEAM_ID
+        assert result.status == "pending"
+
+    def test_buscar_token_inexistente(self, invitations_table):
+        result = obtener_invitacion_por_token(invitations_table, "no-existe")
+        assert result is None
+
+    def test_buscar_por_email(self, invitations_table):
+        inv = _make_invitation()
+        guardar_invitacion(invitations_table, inv)
+
+        results = obtener_invitaciones_por_email(invitations_table, "nuevo@test.com")
+        assert len(results) == 1
+        assert results[0].token == INVITE_TOKEN
+
+    def test_buscar_por_email_filtra_aceptadas(self, invitations_table):
+        inv = _make_invitation()
+        guardar_invitacion(invitations_table, inv)
+        marcar_invitacion_aceptada(invitations_table, inv.invite_id)
+
+        results = obtener_invitaciones_por_email(invitations_table, "nuevo@test.com")
+        assert len(results) == 0
+
+    def test_listar_invitaciones_equipo(self, invitations_table):
+        inv1 = _make_invitation(email="a@test.com", token="token1")
+        inv2 = _make_invitation(email="b@test.com", token="token2")
+        guardar_invitacion(invitations_table, inv1)
+        guardar_invitacion(invitations_table, inv2)
+
+        results = obtener_invitaciones_equipo(invitations_table, TEAM_ID)
+        assert len(results) == 2
+
+    def test_marcar_aceptada(self, invitations_table):
+        inv = _make_invitation()
+        guardar_invitacion(invitations_table, inv)
+
+        marcar_invitacion_aceptada(invitations_table, inv.invite_id)
+
+        # Ya no aparece al buscar por token (solo busca pending)
+        result = obtener_invitacion_por_token(invitations_table, INVITE_TOKEN)
+        assert result is None
+
+    def test_eliminar_invitacion(self, invitations_table):
+        inv = _make_invitation()
+        guardar_invitacion(invitations_table, inv)
+
+        eliminar_invitacion(invitations_table, inv.invite_id)
+
+        results = obtener_invitaciones_equipo(invitations_table, TEAM_ID)
+        assert len(results) == 0
+
+    def test_invitacion_expirada_no_aparece_por_email(self, invitations_table):
+        """Invitacion con TTL en el pasado no aparece en busqueda por email."""
+        inv = _make_invitation()
+        inv.ttl = 1  # epoch 1 = 1970, ya expirada
+        guardar_invitacion(invitations_table, inv)
+
+        results = obtener_invitaciones_por_email(invitations_table, "nuevo@test.com")
+        assert len(results) == 0

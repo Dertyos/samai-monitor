@@ -555,3 +555,153 @@ class TestGetBuscar:
         assert resp["statusCode"] == 200
         data = json.loads(resp["body"])
         assert len(data) == 1
+
+
+# --- Teams ---
+
+
+class TestPostTeam:
+    def test_sin_plan_firma_403(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        event = _make_event(method="POST", path="/teams", body={"name": "Mi Firma"})
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 403
+        assert "PLAN_REQUIRED" in json.loads(resp["body"])["code"]
+
+    def test_con_plan_firma_201(self, dynamodb_resource):
+        from functions.api_handler.app import handler, _billing_subs_table, _billing_plans_table
+
+        _billing_subs_table.put_item(Item={
+            "userId": "user-123", "planId": "plan-firma", "status": "active",
+        })
+        _billing_plans_table.put_item(Item={
+            "planId": "plan-firma", "name": "Firma", "amount": 79900,
+            "features": {"max_processes": 150},
+        })
+
+        event = _make_event(method="POST", path="/teams", body={"name": "Mi Firma"})
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 201
+        data = json.loads(resp["body"])
+        assert data["name"] == "Mi Firma"
+        assert data["ownerUserId"] == "user-123"
+
+
+class TestGetTeams:
+    def test_sin_equipos(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        event = _make_event(method="GET", path="/teams")
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 200
+        assert json.loads(resp["body"]) == []
+
+
+class TestEnforcementEquipo:
+    def test_equipo_activo_permite(self, dynamodb_resource):
+        from functions.api_handler.app import handler, _billing_subs_table, _billing_plans_table, _teams_table, _team_members_table
+
+        _billing_subs_table.put_item(Item={
+            "userId": "user-123", "planId": "plan-firma", "status": "active",
+        })
+        _billing_plans_table.put_item(Item={
+            "planId": "plan-firma", "name": "Firma", "amount": 79900,
+            "features": {"max_processes": 150},
+        })
+        _teams_table.put_item(Item={
+            "teamId": "team-1", "name": "Firma", "ownerUserId": "user-123", "planId": "plan-firma",
+        })
+        _team_members_table.put_item(Item={
+            "teamId": "team-1", "userId": "user-123", "role": "owner",
+        })
+
+        event = _make_event(
+            method="POST", path="/radicados",
+            body={"radicado": "73001-23-33-000-2019-00343-00", "alias": "Test"},
+        )
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 201
+
+    def test_equipo_inactivo_cae_a_personal(self, dynamodb_resource):
+        from functions.api_handler.app import handler, _teams_table, _team_members_table, _radicados_table
+        from db import guardar_radicado
+        from models import Radicado
+
+        _teams_table.put_item(Item={
+            "teamId": "team-1", "name": "Firma", "ownerUserId": "owner-1", "planId": "plan-firma",
+        })
+        _team_members_table.put_item(Item={
+            "teamId": "team-1", "userId": "user-123", "role": "member",
+        })
+
+        for i in range(5):
+            guardar_radicado(_radicados_table, Radicado(
+                user_id="user-123", radicado=f"7300123330002019003430{i}",
+                corporacion="7300123", radicado_formato="", activo=True,
+                created_at=f"2026-03-{10+i:02d}T10:00:00",
+            ))
+
+        event = _make_event(
+            method="POST", path="/radicados",
+            body={"radicado": "73001-23-33-000-2023-00471-00", "alias": "Excede"},
+        )
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 403
+        assert "PLAN_LIMIT" in json.loads(resp["body"])["code"]
+
+
+class TestInvitationsEndpoints:
+    def test_get_invitation_valida(self, dynamodb_resource):
+        from functions.api_handler.app import handler, _invitations_table, _teams_table
+        import time
+
+        _teams_table.put_item(Item={
+            "teamId": "team-1", "name": "Firma Test", "ownerUserId": "user-123", "planId": "plan-firma",
+        })
+        _invitations_table.put_item(Item={
+            "inviteId": "inv-1", "teamId": "team-1", "email": "nuevo@test.com",
+            "role": "member", "invitedBy": "user-123", "status": "pending",
+            "token": "abc123token", "createdAt": "2026-04-03T10:00:00",
+            "ttl": int(time.time()) + 86400,
+        })
+
+        event = _make_event(method="GET", path="/invitations/abc123token")
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 200
+        data = json.loads(resp["body"])
+        assert data["teamName"] == "Firma Test"
+        assert data["email"] == "nuevo@test.com"
+
+    def test_get_invitation_inexistente_404(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        event = _make_event(method="GET", path="/invitations/no-existe")
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 404
+
+    def test_accept_invitation(self, dynamodb_resource):
+        from functions.api_handler.app import handler, _invitations_table, _teams_table, _team_members_table
+        import time
+
+        _teams_table.put_item(Item={
+            "teamId": "team-1", "name": "Firma Test", "ownerUserId": "owner-1", "planId": "plan-firma",
+        })
+        _invitations_table.put_item(Item={
+            "inviteId": "inv-1", "teamId": "team-1", "email": "user@test.com",
+            "role": "member", "invitedBy": "owner-1", "status": "pending",
+            "token": "accept-token", "createdAt": "2026-04-03T10:00:00",
+            "ttl": int(time.time()) + 86400,
+        })
+
+        event = _make_event(method="POST", path="/invitations/accept-token/accept")
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 200
+        data = json.loads(resp["body"])
+        assert data["status"] == "accepted"
+
+        from boto3.dynamodb.conditions import Key
+        members = _team_members_table.query(
+            KeyConditionExpression=Key("teamId").eq("team-1"),
+        ).get("Items", [])
+        assert any(m["userId"] == "user-123" for m in members)

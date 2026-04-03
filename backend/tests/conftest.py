@@ -211,6 +211,30 @@ def dynamodb_resource(aws_credentials):
             BillingMode="PAY_PER_REQUEST",
         )
 
+        # Billing Events table
+        dynamodb.create_table(
+            TableName="samai-billing-events",
+            KeySchema=[
+                {"AttributeName": "userId", "KeyType": "HASH"},
+                {"AttributeName": "sk", "KeyType": "RANGE"},
+            ],
+            AttributeDefinitions=[
+                {"AttributeName": "userId", "AttributeType": "S"},
+                {"AttributeName": "sk", "AttributeType": "S"},
+                {"AttributeName": "transactionId", "AttributeType": "S"},
+            ],
+            GlobalSecondaryIndexes=[
+                {
+                    "IndexName": "transaction-id-index",
+                    "KeySchema": [
+                        {"AttributeName": "transactionId", "KeyType": "HASH"},
+                    ],
+                    "Projection": {"ProjectionType": "ALL"},
+                },
+            ],
+            BillingMode="PAY_PER_REQUEST",
+        )
+
         # Billing Subscriptions table
         dynamodb.create_table(
             TableName="samai-billing-subscriptions",
