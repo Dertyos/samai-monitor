@@ -5,26 +5,21 @@ import { useAuth } from "../hooks/useAuth";
 import AppLogo from "../components/AppLogo";
 import s from "./Landing.module.css";
 
-/* ── Scroll reveal hook (IntersectionObserver) ── */
-function useReveal<T extends HTMLElement>() {
-  const ref = useRef<T>(null);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const io = new IntersectionObserver(
-      ([entry]) => {
+/* ── Scroll reveal — un solo IntersectionObserver compartido ── */
+const revealObserver = (() => {
+  if (typeof window === "undefined") return null;
+  return new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
         if (entry.isIntersecting) {
-          el.classList.add(s.visible);
-          io.unobserve(el);
+          (entry.target as HTMLElement).classList.add(s.visible);
+          revealObserver!.unobserve(entry.target);
         }
-      },
-      { threshold: 0.15 },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
-  return ref;
-}
+      }
+    },
+    { threshold: 0.15 },
+  );
+})();
 
 function RevealSection({
   children,
@@ -35,7 +30,13 @@ function RevealSection({
   className?: string;
   delay?: number;
 }) {
-  const ref = useReveal<HTMLDivElement>();
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !revealObserver) return;
+    revealObserver.observe(el);
+    return () => revealObserver.unobserve(el);
+  }, []);
   return (
     <div
       ref={ref}
@@ -78,7 +79,7 @@ const FEATURES = [
   {
     icon: "\u{1F50D}",
     title: "Busqueda inteligente",
-    desc: "Busca por radicado en SAMAI, Rama Judicial y SIUGJ desde un solo lugar.",
+    desc: "Busca por radicado en SAMAI y Rama Judicial desde un solo lugar.",
     span: "normal",
   },
   {
@@ -173,7 +174,7 @@ const PLANS = [
 const FAQS = [
   {
     q: "\u00bfEs seguro?",
-    a: "Si. Usamos la API publica oficial de SAMAI. Tu cuenta esta protegida con Amazon Cognito (el mismo sistema de AWS). Los datos judiciales son publicos por ley.",
+    a: "Si. Consultamos unicamente fuentes publicas oficiales. Tu cuenta esta protegida con autenticacion segura y cifrado de extremo a extremo. Los datos judiciales son publicos por ley.",
   },
   {
     q: "\u00bfNecesito tarjeta de credito para el plan gratis?",
@@ -189,7 +190,7 @@ const FAQS = [
   },
   {
     q: "\u00bfCubren Rama Judicial y otras plataformas?",
-    a: "El backend ya soporta CPNU (Rama Judicial) y SIUGJ. Estamos activando estas fuentes para los planes pagos.",
+    a: "Si. Ademas de SAMAI (contencioso-administrativo), ya soportamos consultas en la Rama Judicial. Seguimos integrando mas fuentes.",
   },
   {
     q: "\u00bfCuantas veces al dia se revisan los procesos?",
@@ -267,7 +268,7 @@ export default function Landing() {
           </h1>
 
           <p className={s.heroSubtitle}>
-            Monitoreo automatico de procesos en SAMAI.
+            Monitoreo automatico de procesos en SAMAI y Rama Judicial.
             Alertas diarias por email. Dashboard en tiempo real.
             <strong> Gratis para siempre.</strong>
           </p>
@@ -333,8 +334,8 @@ export default function Landing() {
           </div>
           <div className={s.proofDivider} />
           <div className={s.proofItem}>
-            <strong>3</strong>
-            <span>Plataformas judiciales integradas</span>
+            <strong>2+</strong>
+            <span>Fuentes judiciales cubiertas</span>
           </div>
           <div className={s.proofDivider} />
           <div className={s.proofItem}>
@@ -355,8 +356,8 @@ export default function Landing() {
         <div className={s.painGrid}>
           <RevealSection className={s.painCard} delay={0}>
             <span className={s.painIcon}>{"\u23F0"}</span>
-            <h3>Horas revisando SAMAI</h3>
-            <p>Entrar a SAMAI, buscar cada radicado, comparar actuaciones... todos los dias. Tiempo que podrias usar litigando.</p>
+            <h3>Horas revisando portales</h3>
+            <p>Entrar a SAMAI, Rama Judicial, buscar cada radicado, comparar actuaciones... todos los dias. Tiempo que podrias usar litigando.</p>
           </RevealSection>
           <RevealSection className={s.painCard} delay={100}>
             <span className={s.painIcon}>{"\u26A0\uFE0F"}</span>

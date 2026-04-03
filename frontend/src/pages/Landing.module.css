@@ -15,12 +15,14 @@
 .reveal {
   opacity: 0;
   transform: translateY(32px);
+  will-change: opacity, transform;
   transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
               transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .visible {
   opacity: 1;
   transform: translateY(0);
+  will-change: auto;
 }
 
 /* ============================================
@@ -32,7 +34,7 @@
   left: 0;
   right: 0;
   z-index: 100;
-  transition: background 0.3s, box-shadow 0.3s, backdrop-filter 0.3s;
+  transition: background 0.2s, box-shadow 0.2s;
 }
 .navScrolled {
   background: rgba(255, 255, 255, 0.72);
@@ -107,29 +109,29 @@
   overflow: hidden;
 }
 
-/* Mesh gradient glows */
+/* Mesh gradient glows — sin filter:blur, gradiente más difuso nativo */
 .heroGlow1 {
   position: absolute;
   top: -20%;
   left: -15%;
-  width: 60%;
-  height: 60%;
-  background: radial-gradient(circle, rgba(26, 115, 232, 0.12) 0%, transparent 70%);
-  filter: blur(60px);
+  width: 70%;
+  height: 70%;
+  background: radial-gradient(circle, rgba(26, 115, 232, 0.10) 0%, transparent 55%);
   pointer-events: none;
+  contain: strict;
 }
 [data-theme="dark"] .heroGlow1 {
-  background: radial-gradient(circle, rgba(77, 158, 246, 0.15) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(77, 158, 246, 0.12) 0%, transparent 55%);
 }
 .heroGlow2 {
   position: absolute;
   bottom: -10%;
   right: -10%;
-  width: 50%;
-  height: 50%;
-  background: radial-gradient(circle, rgba(16, 185, 129, 0.1) 0%, transparent 70%);
-  filter: blur(60px);
+  width: 60%;
+  height: 60%;
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.08) 0%, transparent 55%);
   pointer-events: none;
+  contain: strict;
 }
 
 /* Dot-grid with fade mask */
@@ -444,17 +446,31 @@
   margin: 0 auto;
 }
 .painCard {
+  position: relative;
   background: var(--card-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 2rem 1.5rem;
   text-align: left;
-  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+  transition: border-color 0.2s, transform 0.2s;
+  transform: translateZ(0);
+}
+.painCard::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  box-shadow: 0 0 0 2px var(--primary), 0 8px 30px rgba(26, 115, 232, 0.08);
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
 }
 .painCard:hover {
   border-color: var(--primary);
-  box-shadow: 0 0 0 1px var(--primary), 0 8px 30px rgba(26, 115, 232, 0.08);
-  transform: translateY(-4px);
+  transform: translateY(-4px) translateZ(0);
+}
+.painCard:hover::after {
+  opacity: 1;
 }
 .painIcon {
   font-size: 2rem;
@@ -492,17 +508,31 @@
 }
 
 .bentoCard {
+  position: relative;
   background: var(--card-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 2rem 1.5rem;
   text-align: left;
-  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+  transition: border-color 0.2s, transform 0.2s;
+  transform: translateZ(0);
+}
+.bentoCard::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  box-shadow: var(--card-shadow-hover);
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
 }
 .bentoCard:hover {
   border-color: var(--border-hover);
-  box-shadow: var(--card-shadow-hover);
-  transform: translateY(-3px);
+  transform: translateY(-3px) translateZ(0);
+}
+.bentoCard:hover::after {
+  opacity: 1;
 }
 .bentoWide {
   grid-column: span 2;
@@ -549,12 +579,25 @@
   padding: 2rem 1.5rem;
   text-align: left;
   position: relative;
-  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+  transition: border-color 0.2s, transform 0.2s;
+  transform: translateZ(0);
+}
+.pricingCard::after {
+  content: "";
+  position: absolute;
+  inset: -1.5px;
+  border-radius: inherit;
+  box-shadow: var(--card-shadow-hover);
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
 }
 .pricingCard:hover {
   border-color: var(--border-hover);
-  box-shadow: var(--card-shadow-hover);
-  transform: translateY(-3px);
+  transform: translateY(-3px) translateZ(0);
+}
+.pricingCard:hover::after {
+  opacity: 1;
 }
 .pricingHighlighted {
   border-color: var(--primary);
@@ -669,14 +712,17 @@
 }
 
 .faqAnswer {
-  max-height: 0;
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.faqAnswer > p {
   overflow: hidden;
-  transition: max-height 0.35s cubic-bezier(0.16, 1, 0.3, 1),
-              padding 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-  padding: 0;
 }
 .faqOpen .faqAnswer {
-  max-height: 200px;
+  grid-template-rows: 1fr;
+}
+.faqOpen .faqAnswer > p {
   padding-bottom: 1.25rem;
 }
 .faqAnswer p {
