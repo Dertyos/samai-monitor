@@ -111,14 +111,7 @@ deploy:
       --region ${AWS_DEFAULT_REGION}
       --resolve-s3
       --s3-prefix samai-monitor
-      --parameter-overrides
-        Stage=prod
-        AcmCertificateArn=arn:aws:acm:us-east-1:236578428550:certificate/75490866-eaae-4480-8962-d4abc0452a94
-        WompiPublicKey=${WOMPI_PUBLIC_KEY}
-        WompiPrivateKey=${WOMPI_PRIVATE_KEY}
-        WompiEventsKey=${WOMPI_EVENTS_KEY}
-        WompiIntegrityKey=${WOMPI_INTEGRITY_KEY}
-        WompiSandbox=true
+      --parameter-overrides Stage=prod AcmCertificateArn=arn:aws:acm:us-east-1:236578428550:certificate/75490866-eaae-4480-8962-d4abc0452a94 WompiPublicKey=${WOMPI_PUBLIC_KEY} WompiPrivateKey=${WOMPI_PRIVATE_KEY} WompiEventsKey=${WOMPI_EVENTS_KEY} WompiIntegrityKey=${WOMPI_INTEGRITY_KEY} WompiSandbox=true
 
     # --- Frontend: S3 sync ---
     - |
