@@ -126,9 +126,9 @@ const PLANS = [
   },
   {
     name: "Pro",
-    price: "$29.900",
+    price: "$19.900",
     period: "COP/mes",
-    processes: "30 procesos",
+    processes: "25 procesos",
     features: [
       "Todo lo del plan Gratis",
       "Push notifications",
@@ -138,6 +138,21 @@ const PLANS = [
     ],
     cta: "Empezar con Pro",
     highlighted: true,
+  },
+  {
+    name: "Pro +",
+    price: "$59.900",
+    period: "COP/mes",
+    processes: "70 procesos",
+    features: [
+      "Todo lo del plan Pro",
+      "Push notifications",
+      "Alertas configurables",
+      "Frecuencia personalizable",
+      "Soporte por email",
+    ],
+    cta: "Empezar con Pro +",
+    highlighted: false,
   },
   {
     name: "Firma",
