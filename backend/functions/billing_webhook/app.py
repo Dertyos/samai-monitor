@@ -144,11 +144,13 @@ def _validate_signature(body: dict[str, Any]) -> bool:
                 break
         values += str(value)
 
-    # timestamp puede ser int o string; Wompi lo envia como int
-    concat = f"{values}{timestamp}{_events_key}"
+    # Wompi puede o no enviar timestamp; solo incluirlo si existe
+    if timestamp:
+        concat = f"{values}{timestamp}{_events_key}"
+    else:
+        concat = f"{values}{_events_key}"
     computed = hashlib.sha256(concat.encode()).hexdigest()
-    logger.info("Signature debug: concat=%s checksum_expected=%s checksum_computed=%s",
-                concat, checksum, computed)
+    logger.info("Signature debug: concat=%s match=%s", concat, computed == checksum)
     return computed == checksum
 
 
