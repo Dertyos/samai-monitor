@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import pytest
-from models import Radicado, Actuacion, Alerta, Etiqueta
+from models import Radicado, Actuacion, Alerta, Etiqueta, Team, TeamMember
 from db import (
     guardar_radicado,
     obtener_radicados_usuario,
@@ -21,6 +21,13 @@ from db import (
     eliminar_etiqueta,
     actualizar_etiquetas_radicado,
     quitar_etiqueta_de_radicados,
+    crear_team,
+    obtener_team,
+    obtener_teams_usuario,
+    agregar_miembro_team,
+    obtener_miembros_team,
+    eliminar_miembro_team,
+    contar_procesos_equipo,
 )
 
 
@@ -322,3 +329,124 @@ class TestEtiquetasRadicado:
         r2 = obtener_radicado(radicados_table, USER_ID, "73001233300020230047100")
         assert r2 is not None
         assert r2.etiquetas == []
+
+
+# --- Teams ---
+
+TEAM_ID = "team-abc123"
+OWNER_ID = USER_ID
+MEMBER_ID = "user-456"
+RADICADO_2 = "73001233300020230047100"
+
+
+def _make_team(team_id: str = TEAM_ID, owner: str = OWNER_ID) -> Team:
+    return Team(
+        team_id=team_id,
+        name="Firma Aviles & Asoc.",
+        owner_user_id=owner,
+        plan_id="plan-firma",
+        created_at="2026-04-03T10:00:00",
+    )
+
+
+def _make_member(
+    team_id: str = TEAM_ID, user_id: str = MEMBER_ID, role: str = "member"
+) -> TeamMember:
+    return TeamMember(
+        team_id=team_id,
+        user_id=user_id,
+        role=role,
+        joined_at="2026-04-03T10:00:00",
+    )
+
+
+class TestCrearTeam:
+    def test_crear_y_obtener(self, teams_table):
+        team = _make_team()
+        crear_team(teams_table, team)
+
+        result = obtener_team(teams_table, TEAM_ID)
+        assert result is not None
+        assert result.team_id == TEAM_ID
+        assert result.name == "Firma Aviles & Asoc."
+        assert result.owner_user_id == OWNER_ID
+        assert result.plan_id == "plan-firma"
+
+    def test_obtener_inexistente(self, teams_table):
+        result = obtener_team(teams_table, "no-existe")
+        assert result is None
+
+
+class TestTeamMembers:
+    def test_agregar_y_listar_miembros(self, teams_table, team_members_table):
+        team = _make_team()
+        crear_team(teams_table, team)
+
+        owner_member = _make_member(user_id=OWNER_ID, role="owner")
+        agregar_miembro_team(team_members_table, owner_member)
+
+        member = _make_member(user_id=MEMBER_ID, role="member")
+        agregar_miembro_team(team_members_table, member)
+
+        members = obtener_miembros_team(team_members_table, TEAM_ID)
+        assert len(members) == 2
+        roles = {m.user_id: m.role for m in members}
+        assert roles[OWNER_ID] == "owner"
+        assert roles[MEMBER_ID] == "member"
+
+    def test_eliminar_miembro(self, team_members_table):
+        member = _make_member()
+        agregar_miembro_team(team_members_table, member)
+
+        eliminado = eliminar_miembro_team(team_members_table, TEAM_ID, MEMBER_ID)
+        assert eliminado is True
+
+        members = obtener_miembros_team(team_members_table, TEAM_ID)
+        assert len(members) == 0
+
+    def test_eliminar_miembro_inexistente(self, team_members_table):
+        eliminado = eliminar_miembro_team(team_members_table, TEAM_ID, "no-existe")
+        assert eliminado is False
+
+    def test_obtener_teams_usuario(self, teams_table, team_members_table):
+        team = _make_team()
+        crear_team(teams_table, team)
+
+        member = _make_member(user_id=MEMBER_ID, role="member")
+        agregar_miembro_team(team_members_table, member)
+
+        teams = obtener_teams_usuario(team_members_table, teams_table, MEMBER_ID)
+        assert len(teams) == 1
+        assert teams[0].team_id == TEAM_ID
+
+
+class TestContarProcesosEquipo:
+    """contar_procesos_equipo cuenta radicados de todos los miembros, dedup."""
+
+    def test_dedup_mismo_radicado(self, radicados_table, team_members_table, teams_table):
+        """2 miembros con el mismo radicado cuentan como 1 proceso."""
+        crear_team(teams_table, _make_team())
+        agregar_miembro_team(team_members_table, _make_member(user_id=USER_ID, role="owner"))
+        agregar_miembro_team(team_members_table, _make_member(user_id=MEMBER_ID))
+
+        guardar_radicado(radicados_table, _make_radicado(user_id=USER_ID))
+        guardar_radicado(radicados_table, _make_radicado(user_id=MEMBER_ID))
+
+        count = contar_procesos_equipo(team_members_table, radicados_table, TEAM_ID)
+        assert count == 1
+
+    def test_radicados_distintos(self, radicados_table, team_members_table, teams_table):
+        """2 radicados distintos cuentan como 2 procesos."""
+        crear_team(teams_table, _make_team())
+        agregar_miembro_team(team_members_table, _make_member(user_id=USER_ID, role="owner"))
+        agregar_miembro_team(team_members_table, _make_member(user_id=MEMBER_ID))
+
+        guardar_radicado(radicados_table, _make_radicado(user_id=USER_ID, radicado=RADICADO))
+
+        rad2 = _make_radicado(user_id=MEMBER_ID, radicado=RADICADO_2)
+        rad2.corporacion = CORP
+        rad2.radicado_formato = "73001-23-33-000-2023-00471-00"
+        guardar_radicado(radicados_table, rad2)
+
+        count = contar_procesos_equipo(team_members_table, radicados_table, TEAM_ID)
+        assert count == 2

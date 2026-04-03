@@ -312,8 +312,43 @@ export async function createSubscribeIntent(planId: string): Promise<SubscribeRe
   return res.json();
 }
 
-export async function cancelSubscription(): Promise<{ message: string }> {
+export async function cancelSubscription(): Promise<{ message: string; refunded: boolean }> {
   const res = await authFetch("/billing/subscription", { method: "DELETE" });
+  return res.json();
+}
+
+export interface UpgradeResponseDTO {
+  upgraded: boolean;
+  message?: string;
+  reference?: string;
+  amountInCents?: number;
+  proratedAmount?: number;
+  currency?: string;
+  integrityHash?: string;
+  publicKey?: string;
+  newPlanName?: string;
+  remainingDays?: number;
+}
+
+export async function upgradeSubscription(planId: string): Promise<UpgradeResponseDTO> {
+  const res = await authFetch("/billing/upgrade", {
+    method: "POST",
+    body: JSON.stringify({ planId }),
+  });
+  return res.json();
+}
+
+export interface DowngradeResponseDTO {
+  message: string;
+  pendingPlanId: string;
+  effectiveAt: string;
+}
+
+export async function downgradeSubscription(planId: string): Promise<DowngradeResponseDTO> {
+  const res = await authFetch("/billing/downgrade", {
+    method: "POST",
+    body: JSON.stringify({ planId }),
+  });
   return res.json();
 }
 
@@ -326,3 +361,64 @@ export async function getWompiConfig(): Promise<WompiConfigDTO> {
   const res = await authFetch("/billing/wompi-config");
   return res.json();
 }
+
+// --- Teams ---
+
+export interface PendingInvitationDTO {
+  email: string;
+  inviteId: string;
+  status: string;
+  createdAt: string;
+}
+
+export interface TeamDTO {
+  teamId: string;
+  name: string;
+  ownerUserId: string;
+  planId: string;
+  createdAt: string;
+  active: boolean;
+  pendingConfirmation: boolean;
+  processLimit: number;
+  processCount: number;
+  members: TeamMemberDTO[];
+  pendingInvitations: PendingInvitationDTO[];
+}
+
+export interface TeamMemberDTO {
+  teamId: string;
+  userId: string;
+  role: "owner" | "member";
+  joinedAt: string;
+}
+
+export async function getTeams(): Promise<TeamDTO[]> {
+  const res = await authFetch("/teams");
+  return res.json();
+}
+
+export async function createTeam(name: string): Promise<TeamDTO> {
+  const res = await authFetch("/teams", {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+  return res.json();
+}
+
+export async function addTeamMember(teamId: string, email: string): Promise<TeamMemberDTO & { added?: boolean; invited?: boolean; email?: string; message?: string }> {
+  const res = await authFetch(`/teams/${teamId}/members`, {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+  return res.json();
+}
+
+export async function removeTeamMember(teamId: string, userId: string): Promise<void> {
+  await authFetch(`/teams/${teamId}/members/${userId}`, { method: "DELETE" });
+}
+
+export async function confirmTeam(teamId: string): Promise<{ status: string; membersReactivated: number }> {
+  const res = await authFetch(`/teams/${teamId}/confirm`, { method: "POST" });
+  return res.json();
+}
+

@@ -2,8 +2,8 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../hooks/useToast";
-import { deleteCuenta, getBillingStatus } from "../lib/api";
-import { useQuery } from "@tanstack/react-query";
+import { deleteCuenta, getBillingStatus, getTeams, createTeam, addTeamMember, removeTeamMember, type TeamDTO } from "../lib/api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import ConfirmModal from "../components/ConfirmModal";
 import styles from "./Perfil.module.css";
 
@@ -19,9 +19,15 @@ import styles from "./Perfil.module.css";
  */
 export default function Perfil() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const billingQuery = useQuery({
     queryKey: ["billing-status"],
     queryFn: getBillingStatus,
+    staleTime: 5 * 60 * 1000,
+  });
+  const teamsQuery = useQuery({
+    queryKey: ["teams"],
+    queryFn: getTeams,
     staleTime: 5 * 60 * 1000,
   });
   const { email, signOut, changePassword } = useAuth();
@@ -35,6 +41,47 @@ export default function Perfil() {
   const [success, setSuccess] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // Team state
+  const [teamName, setTeamName] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+
+  const createTeamMutation = useMutation({
+    mutationFn: (name: string) => createTeam(name),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["teams"] });
+      setTeamName("");
+      toast.success("Equipo creado");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const addMemberMutation = useMutation({
+    mutationFn: ({ teamId, memberEmail }: { teamId: string; memberEmail: string }) => addTeamMember(teamId, memberEmail),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["teams"] });
+      setInviteEmail("");
+      if (data.invited) {
+        toast.success(`Invitacion enviada a ${data.email}. Expira en 7 dias.`);
+      } else {
+        toast.success("Miembro agregado");
+      }
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const removeMemberMutation = useMutation({
+    mutationFn: ({ teamId, uid }: { teamId: string; uid: string }) => removeTeamMember(teamId, uid),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["teams"] });
+      toast.success("Miembro removido");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const myTeam: TeamDTO | undefined = teamsQuery.data?.[0];
+  // Planes que permiten equipos: Firma y Enterprise
+  const hasTeamPlan = billingQuery.data?.plan === "plan-firma" || billingQuery.data?.plan === "plan-enterprise";
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,6 +165,149 @@ export default function Perfil() {
           </button>
         </div>
       </section>
+
+      {/* Seccion: Mi Equipo */}
+      {(hasTeamPlan || myTeam) && (
+        <section className={styles.section}>
+          <h3>Mi Equipo</h3>
+          <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: "1rem" }}>
+            Comparte tu plan Firma o Enterprise con hasta 5 usuarios. Los radicados compartidos cuentan una sola vez.
+          </p>
+
+          {!myTeam ? (
+            <form onSubmit={(e) => { e.preventDefault(); if (teamName.trim()) createTeamMutation.mutate(teamName.trim()); }}>
+              <label>
+                Nombre del equipo
+                <input
+                  type="text"
+                  placeholder="Ej: Firma Aviles & Asoc."
+                  value={teamName}
+                  onChange={(e) => setTeamName(e.target.value)}
+                  required
+                />
+              </label>
+              <div className={styles.actions}>
+                <button type="submit" className="primary" disabled={createTeamMutation.isPending || !teamName.trim()}>
+                  {createTeamMutation.isPending ? "Creando..." : "Crear equipo"}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <>
+              <div className={styles.infoRow} style={{ marginBottom: "0.5rem" }}>
+                <span className={styles.infoLabel}>Equipo</span>
+                <span className={styles.infoValue}><strong>{myTeam.name}</strong></span>
+              </div>
+              <div className={styles.infoRow} style={{ marginBottom: "0.5rem" }}>
+                <span className={styles.infoLabel}>Estado</span>
+                <span className={styles.infoValue}>
+                  {myTeam.active
+                    ? <span style={{ color: "var(--color-success, #22c55e)" }}>Activo</span>
+                    : <span style={{ color: "var(--color-danger, #ef4444)" }}>Inhabilitado (suscripcion vencida)</span>
+                  }
+                </span>
+              </div>
+              <div className={styles.infoRow} style={{ marginBottom: "1rem" }}>
+                <span className={styles.infoLabel}>Procesos</span>
+                <span className={styles.infoValue}>{myTeam.processCount}/{myTeam.processLimit}</span>
+              </div>
+
+              {/* Lista de miembros */}
+              {myTeam.members.length > 0 && (
+                <div style={{ marginBottom: "1rem" }}>
+                  <strong style={{ fontSize: "0.85rem" }}>Miembros ({myTeam.members.length}/5)</strong>
+                  <ul style={{ listStyle: "none", padding: 0, margin: "0.5rem 0" }}>
+                    {myTeam.members.map((m) => (
+                      <li key={m.userId} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.35rem 0", fontSize: "0.85rem" }}>
+                        <span>
+                          {m.userId}
+                          {m.role === "owner" && <span style={{ marginLeft: "0.5rem", color: "var(--text-secondary)", fontSize: "0.75rem" }}>(dueno)</span>}
+                        </span>
+                        {m.role !== "owner" && myTeam.active && (
+                          <button
+                            type="button"
+                            className="btn-danger"
+                            style={{ fontSize: "0.75rem", padding: "0.15rem 0.5rem" }}
+                            onClick={() => removeMemberMutation.mutate({ teamId: myTeam.teamId, uid: m.userId })}
+                            disabled={removeMemberMutation.isPending}
+                          >
+                            Quitar
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Invitaciones pendientes */}
+              {myTeam.pendingInvitations && myTeam.pendingInvitations.length > 0 && (
+                <div style={{ marginBottom: "1rem" }}>
+                  <strong style={{ fontSize: "0.85rem" }}>Invitaciones pendientes</strong>
+                  <ul style={{ listStyle: "none", padding: 0, margin: "0.5rem 0" }}>
+                    {myTeam.pendingInvitations.map((inv) => (
+                      <li key={inv.inviteId} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.35rem 0", fontSize: "0.85rem" }}>
+                        <span style={{ color: "var(--text-secondary)" }}>
+                          {inv.email}
+                          <span style={{ marginLeft: "0.5rem", fontSize: "0.75rem" }}>(pendiente)</span>
+                        </span>
+                        <button
+                          type="button"
+                          className="primary"
+                          style={{ fontSize: "0.75rem", padding: "0.15rem 0.5rem" }}
+                          onClick={() => addMemberMutation.mutate({ teamId: myTeam.teamId, memberEmail: inv.email })}
+                          disabled={addMemberMutation.isPending}
+                        >
+                          Reenviar
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Invite member form — only if team is active */}
+              {myTeam.active && (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (inviteEmail.trim()) addMemberMutation.mutate({ teamId: myTeam.teamId, memberEmail: inviteEmail.trim() });
+                  }}
+                  style={{ marginBottom: "1rem" }}
+                >
+                  <label>
+                    Invitar miembro por email
+                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                      <input
+                        type="email"
+                        placeholder="colega@firma.com"
+                        value={inviteEmail}
+                        onChange={(e) => setInviteEmail(e.target.value)}
+                        required
+                      />
+                      <button type="submit" className="primary" disabled={addMemberMutation.isPending || !inviteEmail.trim()}>
+                        {addMemberMutation.isPending ? "..." : "Invitar"}
+                      </button>
+                    </div>
+                  </label>
+                </form>
+              )}
+
+              {!myTeam.active && (
+                <div style={{ padding: "0.75rem", background: "var(--bg-warning, #fef3c7)", borderRadius: "0.5rem", fontSize: "0.85rem", marginBottom: "1rem" }}>
+                  El equipo esta inhabilitado porque la suscripcion del dueno vencio.
+                  Cada miembro conserva solo sus primeros 5 radicados (plan gratuito).
+                  <div className={styles.actions} style={{ marginTop: "0.5rem" }}>
+                    <button className="primary" onClick={() => navigate("/billing")}>
+                      Renovar suscripcion
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </section>
+      )}
 
       {/* Seccion 2: Cambiar contrasena */}
       <section className={styles.section}>

@@ -13,7 +13,7 @@ from typing import Any
 
 import boto3
 
-from models import Radicado, Etiqueta
+from models import Radicado, Etiqueta, Team, TeamMember, TeamInvitation
 from radicado_utils import (
     normalizar_radicado,
     formatear_radicado,
@@ -46,6 +46,21 @@ from db import (
     actualizar_etiquetas_radicado,
     quitar_etiqueta_de_radicados,
     eliminar_cuenta_usuario,
+    crear_team,
+    obtener_team,
+    obtener_teams_usuario,
+    agregar_miembro_team,
+    obtener_miembros_team,
+    eliminar_miembro_team,
+    obtener_team_de_usuario,
+    contar_procesos_equipo,
+    confirmar_team,
+    guardar_invitacion,
+    obtener_invitacion_por_token,
+    obtener_invitaciones_por_email,
+    obtener_invitaciones_equipo,
+    marcar_invitacion_aceptada,
+    eliminar_invitacion,
 )
 
 logger = logging.getLogger(__name__)
@@ -60,6 +75,36 @@ _alertas_table = _dynamodb.Table(os.environ.get("ALERTAS_TABLE", "samai-alertas"
 _etiquetas_table = _dynamodb.Table(os.environ.get("ETIQUETAS_TABLE", "samai-etiquetas"))
 _billing_subs_table = _dynamodb.Table(os.environ.get("BILLING_SUBSCRIPTIONS_TABLE", "samai-billing-subscriptions"))
 _billing_plans_table = _dynamodb.Table(os.environ.get("BILLING_PLANS_TABLE", "samai-billing-plans"))
+_teams_table = _dynamodb.Table(os.environ.get("TEAMS_TABLE", "samai-teams"))
+_team_members_table = _dynamodb.Table(os.environ.get("TEAM_MEMBERS_TABLE", "samai-team-members"))
+_lambda_client = boto3.client("lambda")
+_monitor_function = os.environ.get("MONITOR_FUNCTION_NAME", "samai-monitor")
+_invitations_table = _dynamodb.Table(os.environ.get("TEAM_INVITATIONS_TABLE", "samai-team-invitations"))
+_email_sender = os.environ.get("EMAIL_SENDER", "notificaciones-judiciales@dertyos.com")
+_frontend_url = os.environ.get("FRONTEND_URL", "https://alertas-judiciales.dertyos.com")
+
+# Resend — cargado lazy para no fallar si SSM no está disponible
+_resend_api_key: str | None = None
+
+
+def _get_resend():
+    """Carga Resend API key desde SSM (lazy, una vez)."""
+    global _resend_api_key
+    if _resend_api_key is None:
+        try:
+            import resend
+            ssm = boto3.client("ssm")
+            resp = ssm.get_parameter(
+                Name=os.environ.get("RESEND_API_KEY_SSM", "/samai-monitor/resend-api-key"),
+                WithDecryption=True,
+            )
+            _resend_api_key = resp["Parameter"]["Value"]
+            resend.api_key = _resend_api_key
+        except Exception:
+            logger.warning("No se pudo cargar Resend API key")
+            return None
+    import resend
+    return resend
 samai_client = SamaiClient()
 rj_client = RamaJudicialClient()
 siugj_client = SiugjClient()
@@ -242,6 +287,35 @@ def handler(event: dict, context: Any) -> dict:
         if method == "GET" and path == "/billing/status":
             return _get_billing_status(event)
 
+        # --- Teams ---
+        # POST /teams
+        if method == "POST" and path == "/teams":
+            return _post_team(event)
+
+        # GET /teams
+        if method == "GET" and path == "/teams":
+            return _get_teams(event)
+
+        # POST /teams/{teamId}/members
+        if method == "POST" and "/teams/" in path and path.endswith("/members"):
+            return _post_team_member(event)
+
+        # DELETE /teams/{teamId}/members/{uid}
+        if method == "DELETE" and "/teams/" in path and "/members/" in path:
+            return _delete_team_member(event)
+
+        # POST /teams/{teamId}/confirm
+        if method == "POST" and "/teams/" in path and path.endswith("/confirm"):
+            return _post_team_confirm(event)
+
+        # GET /invitations/{token}
+        if method == "GET" and path.startswith("/invitations/") and not path.endswith("/accept"):
+            return _get_invitation(event)
+
+        # POST /invitations/{token}/accept
+        if method == "POST" and path.startswith("/invitations/") and path.endswith("/accept"):
+            return _post_accept_invitation(event)
+
         return _response(404, {"error": "Ruta no encontrada"})
 
     except Exception:
@@ -270,19 +344,48 @@ def _post_radicado(event: dict) -> dict:
         return _response(409, {"error": "Radicado ya registrado"})
 
     # Enforcement de límite de plan
-    current_radicados = obtener_radicados_usuario(_radicados_table, user_id)
-    process_count = len(current_radicados)
-    plan = _get_user_plan(user_id)
-    process_limit = plan.get("processLimit", 5) if plan else 5
-    plan_name = plan.get("name", "Gratuito") if plan else "Gratuito"
-    if process_count >= process_limit:
-        return _response(403, {
-            "error": f"Has alcanzado el límite de tu plan {plan_name} ({process_limit} procesos). "
-                     "Upgrade tu plan para monitorear más procesos.",
-            "code": "PLAN_LIMIT_REACHED",
-            "current": process_count,
-            "limit": process_limit,
-        })
+    # Enforcement de límite: si el usuario pertenece a un equipo con suscripción
+    # activa, contar TODOS los radicados de TODOS los miembros (dedup) vs límite
+    # del equipo. Si no, contar radicados personales vs plan personal.
+    team_id = obtener_team_de_usuario(_team_members_table, user_id)
+
+    if team_id:
+        team = obtener_team(_teams_table, team_id)
+        if team:
+            owner_plan = _get_user_plan(team.owner_user_id)
+            if owner_plan and owner_plan["planId"] in TEAM_ELIGIBLE_PLANS:
+                # Equipo activo — contar contra límite del equipo
+                process_limit = owner_plan["processLimit"]
+                process_count = contar_procesos_equipo(
+                    _team_members_table, _radicados_table, team_id
+                )
+                if process_count >= process_limit:
+                    return _response(403, {
+                        "error": f"El equipo ha alcanzado el límite de {process_limit} procesos.",
+                        "code": "PLAN_LIMIT_REACHED",
+                        "current": process_count,
+                        "limit": process_limit,
+                    })
+                # Equipo activo con espacio — permitir (skip personal check)
+            else:
+                # Equipo inactivo (suscripción vencida) — caer a plan personal
+                team_id = None
+
+    if not team_id:
+        # Sin equipo o equipo inactivo: contar personal vs plan personal
+        current_radicados = obtener_radicados_usuario(_radicados_table, user_id)
+        process_count = len(current_radicados)
+        plan = _get_user_plan(user_id)
+        process_limit = plan.get("processLimit", 5) if plan else 5
+        plan_name = plan.get("name", "Gratuito") if plan else "Gratuito"
+        if process_count >= process_limit:
+            return _response(403, {
+                "error": f"Has alcanzado el límite de tu plan {plan_name} ({process_limit} procesos). "
+                         "Upgrade tu plan para monitorear más procesos.",
+                "code": "PLAN_LIMIT_REACHED",
+                "current": process_count,
+                "limit": process_limit,
+            })
 
     if fuente == "rama_judicial":
         id_proceso = body.get("id_proceso")
@@ -969,4 +1072,425 @@ def _get_billing_status(event: dict) -> dict:
         "planName": "Gratuito",
         "processLimit": FREE_PLAN_LIMIT,
         "processCount": process_count,
+    })
+
+
+# ============================================
+# TEAMS
+# ============================================
+
+TEAM_ELIGIBLE_PLANS = {"plan-firma", "plan-enterprise"}
+MAX_TEAM_MEMBERS: dict[str, int] = {
+    "plan-firma": 5,
+    "plan-enterprise": 30,
+}
+
+
+def _extract_team_id(path: str) -> str:
+    """Extrae teamId de paths como /teams/{teamId}/..."""
+    parts = path.strip("/").split("/")
+    # /teams/{teamId} or /teams/{teamId}/members etc.
+    if len(parts) >= 2 and parts[0] == "teams":
+        return parts[1]
+    return ""
+
+
+def _is_team_member(team_id: str, user_id: str) -> bool:
+    """Verifica si un usuario es miembro de un equipo."""
+    members = obtener_miembros_team(_team_members_table, team_id)
+    return any(m.user_id == user_id for m in members)
+
+
+def _is_team_owner(team_id: str, user_id: str) -> bool:
+    """Verifica si un usuario es owner del equipo."""
+    team = obtener_team(_teams_table, team_id)
+    if team is None:
+        return False
+    return team.owner_user_id == user_id
+
+
+def _post_team(event: dict) -> dict:
+    """POST /teams — crear equipo."""
+    user_id = _get_user_id(event)
+    body = _get_body(event)
+
+    name = body.get("name", "").strip()
+    if not name:
+        return _response(400, {"error": "Campo 'name' requerido"})
+
+    # Verificar que el usuario tenga plan Firma o Enterprise activo
+    plan = _get_user_plan(user_id)
+    if not plan or plan["planId"] not in TEAM_ELIGIBLE_PLANS:
+        return _response(403, {
+            "error": "Se requiere plan Firma o Enterprise para crear equipos",
+            "code": "PLAN_REQUIRED",
+        })
+
+    # Verificar que no tenga otro equipo como owner
+    existing_teams = obtener_teams_usuario(_team_members_table, _teams_table, user_id)
+    owned = [t for t in existing_teams if t.owner_user_id == user_id]
+    if owned:
+        return _response(409, {"error": "Ya tienes un equipo creado"})
+
+    team_id = Team.generar_id()
+    now = datetime.now(timezone.utc).isoformat()
+
+    team = Team(
+        team_id=team_id,
+        name=name,
+        owner_user_id=user_id,
+        plan_id=plan["planId"],
+        created_at=now,
+    )
+    crear_team(_teams_table, team)
+
+    # Auto-agregar owner como miembro
+    owner_member = TeamMember(
+        team_id=team_id,
+        user_id=user_id,
+        role="owner",
+        joined_at=now,
+    )
+    agregar_miembro_team(_team_members_table, owner_member)
+
+    logger.info("Equipo creado: %s por user %s", team_id, user_id)
+    return _response(201, team.to_dynamo())
+
+
+def _get_teams(event: dict) -> dict:
+    """GET /teams — listar equipos del usuario con estado activo/inactivo."""
+    user_id = _get_user_id(event)
+    teams = obtener_teams_usuario(_team_members_table, _teams_table, user_id)
+    result = []
+    for t in teams:
+        data = t.to_dynamo()
+        owner_plan = _get_user_plan(t.owner_user_id)
+        active = bool(owner_plan and owner_plan["planId"] in TEAM_ELIGIBLE_PLANS)
+        data["active"] = active
+        data["pendingConfirmation"] = t.pending_confirmation
+        data["processLimit"] = owner_plan["processLimit"] if owner_plan else 0
+        data["processCount"] = contar_procesos_equipo(_team_members_table, _radicados_table, t.team_id)
+        data["members"] = [m.to_dynamo() for m in obtener_miembros_team(_team_members_table, t.team_id)]
+        invites = obtener_invitaciones_equipo(_invitations_table, t.team_id)
+        data["pendingInvitations"] = [
+            {"email": inv.email, "inviteId": inv.invite_id, "status": inv.status, "createdAt": inv.created_at}
+            for inv in invites if inv.status == "pending"
+        ]
+        result.append(data)
+    return _response(200, result)
+
+
+def _send_team_email(to: str, subject: str, html: str) -> None:
+    """Envía un email via Resend. No lanza excepciones."""
+    r = _get_resend()
+    if not r:
+        logger.warning("Resend no disponible, email no enviado a %s", to)
+        return
+    try:
+        r.Emails.send({
+            "from": _email_sender,
+            "to": [to],
+            "subject": subject,
+            "html": html,
+        })
+    except Exception:
+        logger.warning("Error enviando email a %s", to)
+
+
+def _post_team_member(event: dict) -> dict:
+    """POST /teams/{teamId}/members — invitar miembro por email.
+
+    Si el email está registrado en Cognito → agregar al equipo + email de notificación.
+    Si no está registrado → guardar invitación pendiente + email de invitación.
+    """
+    user_id = _get_user_id(event)
+    http = event["requestContext"]["http"]
+    path = http["path"]
+    stage = event.get("requestContext", {}).get("stage", "")
+    raw_path = event.get("rawPath", path)
+    if stage and raw_path.startswith(f"/{stage}"):
+        raw_path = raw_path[len(f"/{stage}"):]
+    team_id = _extract_team_id(raw_path)
+
+    if not team_id:
+        return _response(400, {"error": "teamId requerido"})
+
+    if not _is_team_owner(team_id, user_id):
+        return _response(403, {"error": "Solo el dueño del equipo puede invitar miembros"})
+
+    body = _get_body(event)
+    email = body.get("email", "").strip().lower()
+    if not email:
+        return _response(400, {"error": "Campo 'email' requerido"})
+
+    team = obtener_team(_teams_table, team_id)
+    if team is None:
+        return _response(404, {"error": "Equipo no encontrado"})
+
+    # Verificar límite de miembros (incluyendo invitaciones pendientes)
+    max_members = MAX_TEAM_MEMBERS.get(team.plan_id, 5)
+    members = obtener_miembros_team(_team_members_table, team_id)
+    pending_invites = [
+        inv for inv in obtener_invitaciones_equipo(_invitations_table, team_id)
+        if inv.status == "pending"
+    ]
+    if len(members) + len(pending_invites) >= max_members:
+        return _response(403, {
+            "error": f"El equipo ya tiene el máximo de {max_members} miembros (incluyendo invitaciones pendientes)",
+            "code": "TEAM_MEMBER_LIMIT",
+        })
+
+    # Si ya hay invitación pendiente para este email en este equipo, eliminarla (reenvío)
+    existing_invites = obtener_invitaciones_por_email(_invitations_table, email)
+    for inv in existing_invites:
+        if inv.team_id == team_id:
+            eliminar_invitacion(_invitations_table, inv.invite_id)
+
+    # Buscar si el email está registrado en Cognito
+    target_user_id = None
+    try:
+        resp = _cognito.list_users(
+            UserPoolId=_user_pool_id,
+            Filter=f'email = "{email}"',
+            Limit=1,
+        )
+        users = resp.get("Users", [])
+        if users:
+            target_user_id = users[0]["Username"]
+    except Exception:
+        logger.exception("Error buscando usuario por email")
+        return _response(500, {"error": "Error buscando usuario"})
+
+    now = datetime.now(timezone.utc)
+
+    if target_user_id:
+        # Usuario registrado → verificar que no sea ya miembro
+        if _is_team_member(team_id, target_user_id):
+            return _response(409, {"error": "El usuario ya es miembro del equipo"})
+
+        # Agregar directamente
+        member = TeamMember(
+            team_id=team_id,
+            user_id=target_user_id,
+            role="member",
+            joined_at=now.isoformat(),
+        )
+        agregar_miembro_team(_team_members_table, member)
+
+        # Verificar plan personal
+        member_plan = _get_user_plan(target_user_id)
+        has_personal_plan = member_plan is not None and member_plan["planId"] != "plan-gratuito"
+
+        # Email de notificación
+        _send_team_email(
+            to=email,
+            subject=f"Te agregaron al equipo {team.name} — Alertas Judiciales",
+            html=f"""
+            <h2>Te agregaron a un equipo</h2>
+            <p>Ahora eres parte del equipo <strong>{team.name}</strong> en Alertas Judiciales.</p>
+            <p>Todos tus radicados ahora cuentan contra el limite compartido del equipo.</p>
+            {"<p><strong>Nota:</strong> Tienes un plan " + member_plan["name"] + " activo. Ya no lo necesitas porque estas cubierto por el equipo. Puedes cancelarlo desde tu perfil.</p>" if has_personal_plan else ""}
+            <p><a href="{_frontend_url}/dashboard">Ir al dashboard</a></p>
+            """,
+        )
+
+        logger.info("Miembro %s agregado a equipo %s (registrado)", target_user_id, team_id)
+        response_data = member.to_dynamo()
+        response_data["added"] = True
+        return _response(201, response_data)
+
+    else:
+        # Usuario NO registrado → crear invitación pendiente
+        from datetime import timedelta
+
+        invitation = TeamInvitation(
+            invite_id=TeamInvitation.generar_id(),
+            team_id=team_id,
+            email=email,
+            role="member",
+            invited_by=user_id,
+            status="pending",
+            token=TeamInvitation.generar_token(),
+            created_at=now.isoformat(),
+            ttl=int((now + timedelta(days=7)).timestamp()),
+        )
+        guardar_invitacion(_invitations_table, invitation)
+
+        # Email de invitación
+        invite_url = f"{_frontend_url}/invite/{invitation.token}"
+        _send_team_email(
+            to=email,
+            subject=f"Te invitaron al equipo {team.name} — Alertas Judiciales",
+            html=f"""
+            <h2>Te invitaron a un equipo</h2>
+            <p>Te invitaron a unirte al equipo <strong>{team.name}</strong> en Alertas Judiciales.</p>
+            <p>Alertas Judiciales monitorea procesos en SAMAI y te notifica cuando hay novedades.</p>
+            <p><a href="{invite_url}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:white;border-radius:8px;text-decoration:none;">Aceptar invitacion</a></p>
+            <p style="color:#6b7280;font-size:0.85rem;">Esta invitacion expira en 7 dias.</p>
+            """,
+        )
+
+        logger.info("Invitacion creada para %s al equipo %s (no registrado)", email, team_id)
+        return _response(201, {
+            "invited": True,
+            "email": email,
+            "message": f"Invitacion enviada a {email}. La invitacion expira en 7 dias.",
+        })
+
+
+def _delete_team_member(event: dict) -> dict:
+    """DELETE /teams/{teamId}/members/{uid} — quitar miembro."""
+    user_id = _get_user_id(event)
+    http = event["requestContext"]["http"]
+    path = http["path"]
+    stage = event.get("requestContext", {}).get("stage", "")
+    raw_path = event.get("rawPath", path)
+    if stage and raw_path.startswith(f"/{stage}"):
+        raw_path = raw_path[len(f"/{stage}"):]
+
+    parts = raw_path.strip("/").split("/")
+    # /teams/{teamId}/members/{uid}
+    if len(parts) < 4:
+        return _response(400, {"error": "Path incompleto"})
+    team_id = parts[1]
+    target_uid = parts[3]
+
+    # Solo el owner puede quitar miembros (o el propio miembro puede salir)
+    if user_id != target_uid and not _is_team_owner(team_id, user_id):
+        return _response(403, {"error": "No autorizado"})
+
+    # No se puede quitar al owner
+    if _is_team_owner(team_id, target_uid):
+        return _response(400, {"error": "No se puede quitar al dueño del equipo"})
+
+    removed = eliminar_miembro_team(_team_members_table, team_id, target_uid)
+    if not removed:
+        return _response(404, {"error": "Miembro no encontrado"})
+
+    logger.info("Miembro %s removido de equipo %s", target_uid, team_id)
+    return _response(200, {"deleted": True})
+
+
+def _post_team_confirm(event: dict) -> dict:
+    """POST /teams/{teamId}/confirm — owner confirma equipo tras renovar suscripción.
+
+    Quita pendingConfirmation y dispara reactivación de radicados de todos los miembros.
+    """
+    user_id = _get_user_id(event)
+    http = event["requestContext"]["http"]
+    path = http["path"]
+    stage = event.get("requestContext", {}).get("stage", "")
+    raw_path = event.get("rawPath", path)
+    if stage and raw_path.startswith(f"/{stage}"):
+        raw_path = raw_path[len(f"/{stage}"):]
+    team_id = _extract_team_id(raw_path)
+
+    if not team_id:
+        return _response(400, {"error": "teamId requerido"})
+
+    if not _is_team_owner(team_id, user_id):
+        return _response(403, {"error": "Solo el dueño del equipo puede confirmar"})
+
+    team = obtener_team(_teams_table, team_id)
+    if team is None:
+        return _response(404, {"error": "Equipo no encontrado"})
+
+    if not team.pending_confirmation:
+        return _response(200, {"status": "already_confirmed"})
+
+    # Quitar flag
+    confirmar_team(_teams_table, team_id)
+
+    # Reactivar radicados de todos los miembros (async, via monitor)
+    members = obtener_miembros_team(_team_members_table, team_id)
+    for member in members:
+        if member.user_id == user_id:
+            continue  # El owner ya fue reactivado por el webhook
+        try:
+            _lambda_client.invoke(
+                FunctionName=_monitor_function,
+                InvocationType="Event",
+                Payload=json.dumps({"action": "reactivate", "userId": member.user_id}),
+            )
+        except Exception:
+            logger.warning("No se pudo invocar monitor para reactivar user=%s", member.user_id)
+
+    logger.info("Equipo %s confirmado por owner %s, %d miembros reactivandose", team_id, user_id, len(members))
+    return _response(200, {"status": "confirmed", "membersReactivated": len(members) - 1})
+
+
+# ============================================
+# INVITACIONES
+# ============================================
+
+
+def _get_invitation(event: dict) -> dict:
+    """GET /invitations/{token} — consultar una invitación por token (público, sin auth)."""
+    http = event["requestContext"]["http"]
+    path = http["path"]
+    stage = event.get("requestContext", {}).get("stage", "")
+    raw_path = event.get("rawPath", path)
+    if stage and raw_path.startswith(f"/{stage}"):
+        raw_path = raw_path[len(f"/{stage}"):]
+
+    parts = raw_path.strip("/").split("/")
+    if len(parts) < 2:
+        return _response(400, {"error": "Token requerido"})
+    token = parts[1]
+
+    invitation = obtener_invitacion_por_token(_invitations_table, token)
+    if invitation is None:
+        return _response(404, {"error": "Invitacion no encontrada o expirada"})
+
+    team = obtener_team(_teams_table, invitation.team_id)
+    return _response(200, {
+        "token": invitation.token,
+        "teamName": team.name if team else "",
+        "email": invitation.email,
+        "status": invitation.status,
+        "createdAt": invitation.created_at,
+    })
+
+
+def _post_accept_invitation(event: dict) -> dict:
+    """POST /invitations/{token}/accept — aceptar una invitación (requiere auth)."""
+    user_id = _get_user_id(event)
+    http = event["requestContext"]["http"]
+    path = http["path"]
+    stage = event.get("requestContext", {}).get("stage", "")
+    raw_path = event.get("rawPath", path)
+    if stage and raw_path.startswith(f"/{stage}"):
+        raw_path = raw_path[len(f"/{stage}"):]
+
+    parts = raw_path.strip("/").split("/")
+    if len(parts) < 2:
+        return _response(400, {"error": "Token requerido"})
+    token = parts[1]
+
+    invitation = obtener_invitacion_por_token(_invitations_table, token)
+    if invitation is None:
+        return _response(404, {"error": "Invitacion no encontrada o expirada"})
+
+    # Verificar que no sea ya miembro
+    if _is_team_member(invitation.team_id, user_id):
+        marcar_invitacion_aceptada(_invitations_table, invitation.invite_id)
+        return _response(200, {"status": "already_member"})
+
+    # Agregar al equipo
+    now = datetime.now(timezone.utc).isoformat()
+    member = TeamMember(
+        team_id=invitation.team_id,
+        user_id=user_id,
+        role=invitation.role,
+        joined_at=now,
+    )
+    agregar_miembro_team(_team_members_table, member)
+    marcar_invitacion_aceptada(_invitations_table, invitation.invite_id)
+
+    team = obtener_team(_teams_table, invitation.team_id)
+    logger.info("Invitacion aceptada: user=%s equipo=%s", user_id, invitation.team_id)
+    return _response(200, {
+        "status": "accepted",
+        "teamId": invitation.team_id,
+        "teamName": team.name if team else "",
     })

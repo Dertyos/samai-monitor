@@ -134,7 +134,116 @@ def dynamodb_resource(aws_credentials):
             BillingMode="PAY_PER_REQUEST",
         )
 
+        # Teams table
+        dynamodb.create_table(
+            TableName="samai-teams",
+            KeySchema=[
+                {"AttributeName": "teamId", "KeyType": "HASH"},
+            ],
+            AttributeDefinitions=[
+                {"AttributeName": "teamId", "AttributeType": "S"},
+            ],
+            BillingMode="PAY_PER_REQUEST",
+        )
+
+        # Team Members table
+        dynamodb.create_table(
+            TableName="samai-team-members",
+            KeySchema=[
+                {"AttributeName": "teamId", "KeyType": "HASH"},
+                {"AttributeName": "userId", "KeyType": "RANGE"},
+            ],
+            AttributeDefinitions=[
+                {"AttributeName": "teamId", "AttributeType": "S"},
+                {"AttributeName": "userId", "AttributeType": "S"},
+            ],
+            GlobalSecondaryIndexes=[
+                {
+                    "IndexName": "userId-index",
+                    "KeySchema": [
+                        {"AttributeName": "userId", "KeyType": "HASH"},
+                    ],
+                    "Projection": {"ProjectionType": "ALL"},
+                },
+            ],
+            BillingMode="PAY_PER_REQUEST",
+        )
+
+        # Team Invitations table
+        dynamodb.create_table(
+            TableName="samai-team-invitations",
+            KeySchema=[
+                {"AttributeName": "inviteId", "KeyType": "HASH"},
+            ],
+            AttributeDefinitions=[
+                {"AttributeName": "inviteId", "AttributeType": "S"},
+                {"AttributeName": "email", "AttributeType": "S"},
+                {"AttributeName": "teamId", "AttributeType": "S"},
+            ],
+            GlobalSecondaryIndexes=[
+                {
+                    "IndexName": "email-index",
+                    "KeySchema": [
+                        {"AttributeName": "email", "KeyType": "HASH"},
+                    ],
+                    "Projection": {"ProjectionType": "ALL"},
+                },
+                {
+                    "IndexName": "teamId-index",
+                    "KeySchema": [
+                        {"AttributeName": "teamId", "KeyType": "HASH"},
+                    ],
+                    "Projection": {"ProjectionType": "ALL"},
+                },
+            ],
+            BillingMode="PAY_PER_REQUEST",
+        )
+
+        # Billing Plans table
+        dynamodb.create_table(
+            TableName="samai-billing-plans",
+            KeySchema=[
+                {"AttributeName": "planId", "KeyType": "HASH"},
+            ],
+            AttributeDefinitions=[
+                {"AttributeName": "planId", "AttributeType": "S"},
+            ],
+            BillingMode="PAY_PER_REQUEST",
+        )
+
+        # Billing Subscriptions table
+        dynamodb.create_table(
+            TableName="samai-billing-subscriptions",
+            KeySchema=[
+                {"AttributeName": "userId", "KeyType": "HASH"},
+                {"AttributeName": "planId", "KeyType": "RANGE"},
+            ],
+            AttributeDefinitions=[
+                {"AttributeName": "userId", "AttributeType": "S"},
+                {"AttributeName": "planId", "AttributeType": "S"},
+            ],
+            BillingMode="PAY_PER_REQUEST",
+        )
+
         yield dynamodb
+
+
+@pytest.fixture
+def invitations_table(dynamodb_resource):
+    """Mocked Team Invitations DynamoDB table."""
+    return dynamodb_resource.Table("samai-team-invitations")
+
+
+@pytest.fixture
+def billing_plans_table(dynamodb_resource):
+    """Mocked Billing Plans DynamoDB table."""
+    return dynamodb_resource.Table("samai-billing-plans")
+
+
+@pytest.fixture
+def billing_subs_table(dynamodb_resource):
+    """Mocked Billing Subscriptions DynamoDB table."""
+    return dynamodb_resource.Table("samai-billing-subscriptions")
 
 
 @pytest.fixture
@@ -159,3 +268,15 @@ def actuaciones_table(dynamodb_resource):
 def alertas_table(dynamodb_resource):
     """Mocked Alertas DynamoDB table."""
     return dynamodb_resource.Table("samai-alertas")
+
+
+@pytest.fixture
+def teams_table(dynamodb_resource):
+    """Mocked Teams DynamoDB table."""
+    return dynamodb_resource.Table("samai-teams")
+
+
+@pytest.fixture
+def team_members_table(dynamodb_resource):
+    """Mocked Team Members DynamoDB table."""
+    return dynamodb_resource.Table("samai-team-members")

@@ -84,6 +84,13 @@ Resources:
           USER_POOL_ID: !Ref UserPool
           BILLING_SUBSCRIPTIONS_TABLE: !Ref BillingSubscriptionsTable
           BILLING_PLANS_TABLE: !Ref BillingPlansTable
+          TEAMS_TABLE: !Ref TeamsTable
+          TEAM_MEMBERS_TABLE: !Ref TeamMembersTable
+          MONITOR_FUNCTION_NAME: !Ref MonitorFunction
+          TEAM_INVITATIONS_TABLE: !Ref TeamInvitationsTable
+          EMAIL_SENDER: "notificaciones-judiciales@dertyos.com"
+          RESEND_API_KEY_SSM: "/samai-monitor/resend-api-key"
+          FRONTEND_URL: "https://alertas-judiciales.dertyos.com"
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref RadicadosTable
@@ -97,11 +104,28 @@ Resources:
             TableName: !Ref BillingSubscriptionsTable
         - DynamoDBCrudPolicy:
             TableName: !Ref BillingPlansTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref TeamsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref TeamMembersTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref TeamInvitationsTable
         - Statement:
             - Effect: Allow
               Action:
                 - cognito-idp:AdminDeleteUser
+                - cognito-idp:ListUsers
               Resource: !GetAtt UserPool.Arn
+        - Statement:
+            - Effect: Allow
+              Action:
+                - lambda:InvokeFunction
+              Resource: !GetAtt MonitorFunction.Arn
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ssm:GetParameter
+              Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/samai-monitor/resend-api-key"
       Events:
         PostRadicados:
           Type: HttpApi
@@ -217,6 +241,50 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /billing/status
             Method: GET
+        PostTeam:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /teams
+            Method: POST
+        GetTeams:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /teams
+            Method: GET
+        PostTeamMember:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /teams/{teamId}/members
+            Method: POST
+        DeleteTeamMember:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /teams/{teamId}/members/{uid}
+            Method: DELETE
+        PostTeamConfirm:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /teams/{teamId}/confirm
+            Method: POST
+        GetInvitation:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /invitations/{token}
+            Method: GET
+            Auth:
+              Authorizer: NONE
+        PostAcceptInvitation:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /invitations/{token}/accept
+            Method: POST
 
   MonitorFunction:
     Type: AWS::Serverless::Function
@@ -232,6 +300,10 @@ Resources:
           USER_POOL_ID: !Ref UserPool
           EMAIL_SENDER: "notificaciones-judiciales@dertyos.com"
           RESEND_API_KEY_SSM: "/samai-monitor/resend-api-key"
+          BILLING_SUBSCRIPTIONS_TABLE: !Ref BillingSubscriptionsTable
+          BILLING_PLANS_TABLE: !Ref BillingPlansTable
+          TEAMS_TABLE: !Ref TeamsTable
+          TEAM_MEMBERS_TABLE: !Ref TeamMembersTable
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref RadicadosTable
@@ -239,6 +311,14 @@ Resources:
             TableName: !Ref ActuacionesTable
         - DynamoDBCrudPolicy:
             TableName: !Ref AlertasTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BillingSubscriptionsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BillingPlansTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref TeamsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref TeamMembersTable
         - Statement:
             - Effect: Allow
               Action:
@@ -274,11 +354,23 @@ Resources:
           WOMPI_EVENTS_KEY: !Ref WompiEventsKey
           BILLING_SUBSCRIPTIONS_TABLE: !Ref BillingSubscriptionsTable
           BILLING_EVENTS_TABLE: !Ref BillingEventsTable
+          MONITOR_FUNCTION_NAME: !Ref MonitorFunction
+          TEAMS_TABLE: !Ref TeamsTable
+          TEAM_MEMBERS_TABLE: !Ref TeamMembersTable
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref BillingSubscriptionsTable
         - DynamoDBCrudPolicy:
             TableName: !Ref BillingEventsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref TeamsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref TeamMembersTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - lambda:InvokeFunction
+              Resource: !GetAtt MonitorFunction.Arn
       Events:
         Webhook:
           Type: HttpApi
@@ -345,6 +437,18 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /billing/invoices
             Method: GET
+        PostUpgrade:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /billing/upgrade
+            Method: POST
+        PostDowngrade:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /billing/downgrade
+            Method: POST
         GetWompiConfig:
           Type: HttpApi
           Properties:
@@ -476,6 +580,33 @@ Resources:
       Principal: cognito-idp.amazonaws.com
       SourceArn: !Sub "arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*"
 
+  PostConfirmationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: samai-post-confirmation
+      Handler: app.handler
+      CodeUri: backend/functions/post_confirmation/
+      Description: Cognito PostConfirmation - procesa invitaciones pendientes al registrarse
+      MemorySize: 128
+      Timeout: 10
+      Environment:
+        Variables:
+          TEAM_INVITATIONS_TABLE: !Ref TeamInvitationsTable
+          TEAM_MEMBERS_TABLE: !Ref TeamMembersTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref TeamInvitationsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref TeamMembersTable
+
+  PostConfirmationPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt PostConfirmationFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !Sub "arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*"
+
   UserPool:
     Type: AWS::Cognito::UserPool
     DependsOn:
@@ -483,6 +614,8 @@ Resources:
       - CognitoEmailSenderPermission
       - PreSignUpFunction
       - PreSignUpPermission
+      - PostConfirmationFunction
+      - PostConfirmationPermission
     Properties:
       UserPoolName: samai-users
       AutoVerifiedAttributes:
@@ -491,6 +624,7 @@ Resources:
         - email
       LambdaConfig:
         PreSignUp: !GetAtt PreSignUpFunction.Arn
+        PostConfirmation: !GetAtt PostConfirmationFunction.Arn
         CustomEmailSender:
           LambdaArn: !GetAtt CognitoEmailSenderFunction.Arn
           LambdaVersion: V1_0
@@ -628,6 +762,76 @@ Resources:
           AttributeType: S
         - AttributeName: etiquetaId
           AttributeType: S
+
+  # ============================================
+  # TEAMS — DynamoDB Tables
+  # ============================================
+  TeamsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: samai-teams
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: teamId
+          KeyType: HASH
+      AttributeDefinitions:
+        - AttributeName: teamId
+          AttributeType: S
+
+  TeamMembersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: samai-team-members
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: teamId
+          KeyType: HASH
+        - AttributeName: userId
+          KeyType: RANGE
+      AttributeDefinitions:
+        - AttributeName: teamId
+          AttributeType: S
+        - AttributeName: userId
+          AttributeType: S
+      GlobalSecondaryIndexes:
+        - IndexName: userId-index
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  TeamInvitationsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: samai-team-invitations
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: inviteId
+          KeyType: HASH
+      AttributeDefinitions:
+        - AttributeName: inviteId
+          AttributeType: S
+        - AttributeName: email
+          AttributeType: S
+        - AttributeName: teamId
+          AttributeType: S
+      GlobalSecondaryIndexes:
+        - IndexName: email-index
+          KeySchema:
+            - AttributeName: email
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        - IndexName: teamId-index
+          KeySchema:
+            - AttributeName: teamId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
 
   # ============================================
   # BILLING — DynamoDB Tables

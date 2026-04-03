@@ -12,6 +12,7 @@ from models import Radicado, Actuacion, Alerta
 from db import (
     guardar_radicado,
     obtener_radicados_usuario,
+    obtener_radicado,
     obtener_alertas_usuario,
     obtener_ultimo_orden_local,
     guardar_actuaciones,
@@ -343,3 +344,111 @@ class TestSendEmailAlerts:
             _send_email_alerts({USER_A: [alerta]})
 
         mock_resend.Emails.send.assert_not_called()
+
+
+# --- Plan limit enforcement ---
+
+
+class TestEnforcePlanLimits:
+    """Cuando una suscripcion vence, solo los primeros 5 radicados (por createdAt) siguen activos."""
+
+    def _patch_monitor_tables(self, billing_subs, billing_plans, team_members, teams):
+        """Context manager para patchear las tablas del monitor."""
+        return (
+            patch("functions.monitor.app._billing_subs_table", billing_subs),
+            patch("functions.monitor.app._billing_plans_table", billing_plans),
+            patch("functions.monitor.app._team_members_table", team_members),
+            patch("functions.monitor.app._teams_table", teams),
+        )
+
+    def test_free_user_keeps_first_5(self, radicados_table, billing_subs_table, billing_plans_table, team_members_table, teams_table):
+        """Usuario sin suscripcion con 8 radicados: solo primeros 5 quedan activos."""
+        from functions.monitor.app import _enforce_plan_limits
+
+        for i in range(8):
+            rad = Radicado(
+                user_id=USER_A,
+                radicado=f"7300123330002019003430{i}",
+                corporacion=CORP,
+                radicado_formato=f"73001-23-33-000-2019-00343-0{i}",
+                alias=f"Caso {i}",
+                ultimo_orden=0,
+                activo=True,
+                created_at=f"2026-03-{10 + i:02d}T10:00:00",
+            )
+            guardar_radicado(radicados_table, rad)
+
+        patches = self._patch_monitor_tables(billing_subs_table, billing_plans_table, team_members_table, teams_table)
+        with patches[0], patches[1], patches[2], patches[3]:
+            enforced = _enforce_plan_limits(radicados_table)
+
+        assert USER_A in enforced
+        assert enforced[USER_A] == 3  # 8 - 5 = 3 desactivados
+
+        rads = obtener_radicados_usuario(radicados_table, USER_A)
+        rads.sort(key=lambda r: r.created_at)
+        for r in rads[:5]:
+            assert r.activo is True, f"Radicado {r.radicado} deberia estar activo"
+        for r in rads[5:]:
+            assert r.activo is False, f"Radicado {r.radicado} deberia estar inactivo"
+
+    def test_pro_user_keeps_25(self, radicados_table, billing_subs_table, billing_plans_table, team_members_table, teams_table):
+        """Usuario con plan Pro (25) y 8 radicados: todos activos."""
+        from functions.monitor.app import _enforce_plan_limits
+
+        for i in range(8):
+            rad = Radicado(
+                user_id=USER_A,
+                radicado=f"7300123330002019003430{i}",
+                corporacion=CORP,
+                radicado_formato=f"73001-23-33-000-2019-00343-0{i}",
+                alias=f"Caso {i}",
+                ultimo_orden=0,
+                activo=True,
+                created_at=f"2026-03-{10 + i:02d}T10:00:00",
+            )
+            guardar_radicado(radicados_table, rad)
+
+        billing_subs_table.put_item(Item={
+            "userId": USER_A,
+            "planId": "plan-pro",
+            "status": "active",
+        })
+
+        patches = self._patch_monitor_tables(billing_subs_table, billing_plans_table, team_members_table, teams_table)
+        with patches[0], patches[1], patches[2], patches[3]:
+            enforced = _enforce_plan_limits(radicados_table)
+
+        assert USER_A not in enforced
+        rads = obtener_radicados_usuario(radicados_table, USER_A)
+        assert all(r.activo for r in rads)
+
+    def test_reactivates_when_plan_upgraded(self, radicados_table, billing_subs_table, billing_plans_table, team_members_table, teams_table):
+        """Radicados desactivados por limite se reactivan si el plan sube."""
+        from functions.monitor.app import _enforce_plan_limits
+
+        for i in range(8):
+            rad = Radicado(
+                user_id=USER_A,
+                radicado=f"7300123330002019003430{i}",
+                corporacion=CORP,
+                radicado_formato=f"73001-23-33-000-2019-00343-0{i}",
+                alias=f"Caso {i}",
+                ultimo_orden=0,
+                activo=i < 5,
+                created_at=f"2026-03-{10 + i:02d}T10:00:00",
+            )
+            guardar_radicado(radicados_table, rad)
+
+        billing_subs_table.put_item(Item={
+            "userId": USER_A,
+            "planId": "plan-pro",
+            "status": "active",
+        })
+
+        patches = self._patch_monitor_tables(billing_subs_table, billing_plans_table, team_members_table, teams_table)
+        with patches[0], patches[1], patches[2], patches[3]:
+            _enforce_plan_limits(radicados_table)
+
+        rads = obtener_radicados_usuario(radicados_table, USER_A)
+        assert all(r.activo for r in rads)

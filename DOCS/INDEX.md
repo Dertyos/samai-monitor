@@ -1,5 +1,5 @@
 # ÍNDICE MAESTRO — samai-monitor (MVP)
-## Última actualización: 21 de marzo de 2026
+## Última actualización: 3 de abril de 2026
 
 ---
 
@@ -22,9 +22,9 @@
 | Deploy: CI/CD + SES | COMPLETADA | GitLab CI/CD, IAM user, SES production request, CORS fix |
 
 | Billing: Wompi | COMPLETADA | Suscripciones, planes, enforcement, webhook SHA256 |
-| Equipos (Planes compartidos) | EN PROGRESO | Tablas + API types listos, falta backend endpoints + UI |
+| Equipos (Planes compartidos) | COMPLETADA | Teams CRUD, enforcement unificado, pendingConfirmation, reactivacion async |
 
-**Total**: 78 tests backend, 50+ commits, 35+ features implementadas
+**Total**: 143 tests backend, 50+ commits, 35+ features implementadas
 
 ---
 
@@ -42,7 +42,7 @@
 ## backend/layers/shared/python/ — Capa compartida
 | Archivo | Contenido | Estado |
 |---------|-----------|--------|
-| `models.py` | Dataclasses: Radicado, Actuacion, Alerta (from_api, to/from_dynamo) | HECHO |
+| `models.py` | Dataclasses: Radicado, Actuacion, Alerta, Etiqueta, Team, TeamMember | HECHO |
 | `radicado_utils.py` | normalizar, formatear, validar, extraer_corporacion | HECHO |
 | `samai_client.py` | get_actuaciones, get_actuaciones_nuevas, buscar_proceso | HECHO |
 | `db.py` | guardar/obtener/eliminar radicados, actuaciones, alertas, dedup | HECHO |
@@ -68,9 +68,9 @@
 | `conftest.py` | Fixtures pytest: moto DynamoDB, JSON fixtures | CREADO |
 | `test_radicado_utils.py` | 22 tests: normalizar, formatear, validar, extraer | HECHO |
 | `test_samai_client.py` | 14 tests: actuaciones, buscar, errores (requests-mock) | HECHO |
-| `test_db.py` | 14 tests: CRUD radicados, actuaciones, alertas (moto) | HECHO |
+| `test_db.py` | 36 tests: CRUD radicados, actuaciones, alertas, etiquetas, teams (moto) | HECHO |
 | `test_api_handler.py` | 11 tests: todos los endpoints HTTP | HECHO |
-| `test_monitor.py` | 5 tests: check_radicado, multi-usuario, handler | HECHO |
+| `test_monitor.py` | 14 tests: check_radicado, multi-usuario, handler, plan enforcement | HECHO |
 | `fixtures/samai_actuaciones.json` | 177 actuaciones reales (radicado 73001233300020190034300) | GRABADO |
 | `fixtures/samai_proceso.json` | Datos completos de proceso real | GRABADO |
 | `fixtures/estados_extraidos.json` | 9 estados extraidos por scraping | COPIADO |
@@ -85,6 +85,9 @@
 | `DESIGN_CRITIQUE.md` | Auditoría de diseño y accesibilidad (26 mar 2026) — hallazgos WCAG, jerarquía visual, plan P0/P1/P2 |
 | `ESTRATEGIA_SUSCRIPCIONES.md` | Estrategia de suscripciones, pricing, go-to-market, análisis competitivo (3 abr 2026) |
 | `SETUP_BILLING.md` | Guía paso a paso: configurar Wompi, llaves, webhook, seed, sandbox, producción |
+| `EQUIPOS.md` | Equipos / Planes compartidos: tablas, endpoints, enforcement, flujo de renovacion, pendingConfirmation |
+| `GESTION_SUSCRIPCIONES.md` | Upgrade, downgrade, cancelacion, reembolso (void Wompi), prorrateo, pendingPlanId |
+| `VENCIMIENTO_TERMINOS.md` | Vencimiento de términos procesales: investigación APIs, plan técnico, preguntas para abogado |
 
 ## Investigación previa (referencia)
 | Archivo | Ubicación |

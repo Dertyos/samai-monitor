@@ -16,10 +16,12 @@ from typing import Any
 import boto3
 import resend
 
-from models import Actuacion, Alerta
+from models import Actuacion, Alerta, Radicado
 from samai_client import SamaiClient, SamaiApiError
 from rama_judicial_client import RamaJudicialClient, RamaJudicialApiError
 from siugj_client import SiugjClient, SiugjApiError
+from boto3.dynamodb.conditions import Key
+
 from db import (
     obtener_radicados_unicos,
     guardar_actuaciones,
@@ -27,6 +29,11 @@ from db import (
     actualizar_ultimo_orden,
     limpiar_pending_init,
     obtener_alertas_usuario,
+    obtener_radicados_usuario,
+    obtener_team_de_usuario,
+    obtener_team,
+    obtener_miembros_team,
+    contar_procesos_equipo,
 )
 
 logger = logging.getLogger(__name__)
@@ -37,6 +44,22 @@ _dynamodb = boto3.resource("dynamodb")
 _radicados_table = _dynamodb.Table(os.environ.get("RADICADOS_TABLE", "samai-radicados"))
 _actuaciones_table = _dynamodb.Table(os.environ.get("ACTUACIONES_TABLE", "samai-actuaciones"))
 _alertas_table = _dynamodb.Table(os.environ.get("ALERTAS_TABLE", "samai-alertas"))
+_billing_subs_table = _dynamodb.Table(os.environ.get("BILLING_SUBSCRIPTIONS_TABLE", "samai-billing-subscriptions"))
+_billing_plans_table = _dynamodb.Table(os.environ.get("BILLING_PLANS_TABLE", "samai-billing-plans"))
+_teams_table = _dynamodb.Table(os.environ.get("TEAMS_TABLE", "samai-teams"))
+_team_members_table = _dynamodb.Table(os.environ.get("TEAM_MEMBERS_TABLE", "samai-team-members"))
+
+TEAM_ELIGIBLE_PLANS = {"plan-firma", "plan-enterprise"}
+
+FREE_PLAN_LIMIT = 5
+
+PLAN_LIMITS: dict[str, int] = {
+    "plan-gratuito": 5,
+    "plan-pro": 25,
+    "plan-pro-plus": 70,
+    "plan-firma": 150,
+    "plan-enterprise": 1000,
+}
 samai_client = SamaiClient()
 rj_client = RamaJudicialClient()
 siugj_client = SiugjClient()
@@ -56,9 +79,215 @@ except Exception:
     logger.warning("Could not load Resend API key from SSM — emails will fail")
 
 
+def _get_user_plan_limit(user_id: str) -> int:
+    """Obtiene el límite de procesos del plan activo del usuario.
+
+    Retorna FREE_PLAN_LIMIT (5) si no tiene suscripción activa.
+    """
+    try:
+        resp = _billing_subs_table.query(
+            KeyConditionExpression=Key("userId").eq(user_id),
+        )
+        subs = resp.get("Items", [])
+        active = [s for s in subs if s.get("status") in ("active", "trialing")]
+        if not active:
+            return FREE_PLAN_LIMIT
+
+        plan_id = active[0].get("planId", "")
+        limit = PLAN_LIMITS.get(plan_id, FREE_PLAN_LIMIT)
+
+        # Intentar features del plan para límite más preciso
+        plan_resp = _billing_plans_table.get_item(Key={"planId": plan_id})
+        plan_item = plan_resp.get("Item")
+        if plan_item and plan_item.get("features", {}).get("max_processes"):
+            limit = int(plan_item["features"]["max_processes"])
+
+        return limit
+    except Exception:
+        logger.warning("Error consultando plan de %s, usando limite gratuito", user_id)
+        return FREE_PLAN_LIMIT
+
+
+def _get_user_effective_limit(
+    user_id: str,
+    members_table: Any,
+    teams_table: Any,
+) -> int:
+    """Obtiene el límite efectivo para un usuario.
+
+    Si pertenece a un equipo con suscripción activa → límite del equipo.
+    Si no → límite de su plan personal (o 5 si no tiene).
+    """
+    team_id = obtener_team_de_usuario(members_table, user_id)
+    if team_id:
+        team = obtener_team(teams_table, team_id)
+        if team:
+            owner_limit = _get_user_plan_limit(team.owner_user_id)
+            # Verificar que el owner tiene plan de equipo activo
+            resp = _billing_subs_table.query(
+                KeyConditionExpression=Key("userId").eq(team.owner_user_id),
+            )
+            subs = resp.get("Items", [])
+            active = [s for s in subs if s.get("status") in ("active", "trialing")]
+            if active and active[0].get("planId", "") in TEAM_ELIGIBLE_PLANS:
+                return owner_limit
+    # Sin equipo activo → plan personal
+    return _get_user_plan_limit(user_id)
+
+
+def _enforce_plan_limits(radicados_table: Any) -> dict[str, int]:
+    """Desactiva radicados que exceden el límite del plan de cada usuario.
+
+    Para cada usuario:
+    - Si pertenece a un equipo activo → su límite es el del equipo
+    - Si no → límite de su plan personal (gratis = 5)
+    Conserva activos solo los primeros N radicados (por createdAt).
+    Reactiva radicados previamente desactivados si ahora caben en el plan.
+
+    Retorna dict de userId → cantidad de radicados desactivados.
+    """
+    # Scan all radicados, group by userId
+    resp = radicados_table.scan(
+        ProjectionExpression="userId, radicado, activo, createdAt",
+    )
+    items = resp.get("Items", [])
+    while "LastEvaluatedKey" in resp:
+        resp = radicados_table.scan(
+            ProjectionExpression="userId, radicado, activo, createdAt",
+            ExclusiveStartKey=resp["LastEvaluatedKey"],
+        )
+        items.extend(resp.get("Items", []))
+
+    # Group by user
+    user_rads: dict[str, list[dict]] = {}
+    for item in items:
+        uid = item["userId"]
+        user_rads.setdefault(uid, []).append(item)
+
+    enforced: dict[str, int] = {}
+
+    for uid, rads in user_rads.items():
+        limit = _get_user_effective_limit(uid, _team_members_table, _teams_table)
+
+        # Sort by createdAt ascending — first added = kept active
+        rads.sort(key=lambda r: r.get("createdAt", ""))
+
+        for i, rad in enumerate(rads):
+            rad_key = {"userId": uid, "radicado": rad["radicado"]}
+            if i < limit:
+                if not rad.get("activo", True):
+                    radicados_table.update_item(
+                        Key=rad_key,
+                        UpdateExpression="SET activo = :a",
+                        ExpressionAttributeValues={":a": True},
+                    )
+                    logger.info("Reactivado radicado %s de user %s (dentro del limite)", rad["radicado"], uid)
+            else:
+                if rad.get("activo", True):
+                    radicados_table.update_item(
+                        Key=rad_key,
+                        UpdateExpression="SET activo = :a",
+                        ExpressionAttributeValues={":a": False},
+                    )
+                    enforced.setdefault(uid, 0)
+                    enforced[uid] += 1
+                    logger.info("Desactivado radicado %s de user %s (excede limite %d)", rad["radicado"], uid, limit)
+
+    return enforced
+
+
+def _reactivate_and_check_user(user_id: str) -> dict:
+    """Reactiva radicados de un usuario tras renovar suscripción y busca novedades.
+
+    1. Recalcula el límite del usuario (puede haber subido de plan)
+    2. Reactiva radicados que estaban inactivos (dentro del nuevo límite)
+    3. Para cada radicado reactivado, consulta novedades y genera alertas
+    4. Envía correo resumen si hay novedades
+    """
+    limit = _get_user_effective_limit(user_id, _team_members_table, _teams_table)
+    rads = obtener_radicados_usuario(_radicados_table, user_id)
+    rads.sort(key=lambda r: r.created_at)
+
+    reactivated: list[Radicado] = []
+    for i, rad in enumerate(rads):
+        if i < limit and not rad.activo:
+            _radicados_table.update_item(
+                Key={"userId": user_id, "radicado": rad.radicado},
+                UpdateExpression="SET activo = :a",
+                ExpressionAttributeValues={":a": True},
+            )
+            reactivated.append(rad)
+            logger.info("Reactivado radicado %s de user %s (suscripcion renovada)", rad.radicado, user_id)
+        elif i >= limit and rad.activo:
+            _radicados_table.update_item(
+                Key={"userId": user_id, "radicado": rad.radicado},
+                UpdateExpression="SET activo = :a",
+                ExpressionAttributeValues={":a": False},
+            )
+
+    # Check de novedades para los reactivados
+    all_alertas: list[Alerta] = []
+    for rad in reactivated:
+        try:
+            if rad.fuente == "rama_judicial":
+                user_alertas = check_radicado_rj(
+                    rj_client=rj_client,
+                    radicados_table=_radicados_table,
+                    actuaciones_table=_actuaciones_table,
+                    alertas_table=_alertas_table,
+                    id_proceso=rad.id_proceso,
+                    radicado=rad.radicado,
+                )
+            elif rad.fuente == "siugj":
+                user_alertas = check_radicado_siugj(
+                    siugj_client=siugj_client,
+                    radicados_table=_radicados_table,
+                    actuaciones_table=_actuaciones_table,
+                    alertas_table=_alertas_table,
+                    radicado=rad.radicado,
+                )
+            else:
+                user_alertas = check_radicado(
+                    samai_client=samai_client,
+                    radicados_table=_radicados_table,
+                    actuaciones_table=_actuaciones_table,
+                    alertas_table=_alertas_table,
+                    corporacion=rad.corporacion,
+                    radicado=rad.radicado,
+                )
+            for alertas in user_alertas.values():
+                all_alertas.extend(alertas)
+        except Exception:
+            logger.exception("Error chequeando radicado reactivado %s", rad.radicado)
+
+    if all_alertas:
+        _send_email_alerts({user_id: all_alertas})
+
+    return {
+        "reactivated": len(reactivated),
+        "alertas": len(all_alertas),
+    }
+
+
 def handler(event: dict, context: Any) -> dict:
-    """Entry point Lambda — EventBridge trigger."""
+    """Entry point Lambda — EventBridge trigger o invocación por webhook."""
+    action = event.get("action")
+
+    # Invocación directa: reactivar radicados de un usuario tras pago
+    if action == "reactivate":
+        user_id = event.get("userId", "")
+        if not user_id:
+            return {"error": "userId requerido"}
+        logger.info("Reactivacion por pago: user=%s", user_id)
+        return _reactivate_and_check_user(user_id)
+
     logger.info("Monitor iniciado")
+
+    # 0. Enforce plan limits — desactivar radicados que exceden el plan
+    enforced = _enforce_plan_limits(_radicados_table)
+    if enforced:
+        logger.info("Plan enforcement: %d usuarios afectados, %d radicados desactivados",
+                     len(enforced), sum(enforced.values()))
 
     # 1. Obtener radicados únicos
     unicos = obtener_radicados_unicos(_radicados_table)

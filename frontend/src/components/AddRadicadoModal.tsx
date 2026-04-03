@@ -129,17 +129,13 @@ export default function AddRadicadoModal({ onAdd, onClose, error, loading }: Pro
         despacho: selectedRj.despacho,
       };
       if (selectedRj.sistema === "siugj") {
-        // SIUGJ: no idProceso — the radicado itself is the identifier
         onAdd(digits, alias.trim(), "siugj", undefined, meta);
       } else {
-        // CPNU: pass idProceso for fast future lookups
         onAdd(digits, alias.trim(), "rama_judicial", selectedRj.idProceso ?? undefined, meta);
       }
     } else {
-      // SAMAI: despacho from search result if available
       const samaiMeta: AddRadicadoMeta = {};
       if (samaiResults.length > 0) {
-        // The user selected a SAMAI result — grab its despacho
         const matchingResult = samaiResults.find(r => r.llaveProceso.replace(/\D/g, "") === digits);
         if (matchingResult) samaiMeta.despacho = matchingResult.despacho;
       }

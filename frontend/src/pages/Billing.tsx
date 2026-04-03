@@ -7,6 +7,8 @@ import {
   getBillingInvoices,
   createSubscribeIntent,
   cancelSubscription,
+  upgradeSubscription,
+  downgradeSubscription,
   type BillingInvoiceDTO,
 } from "../lib/api";
 import { useTheme } from "../hooks/useTheme";
@@ -94,50 +96,94 @@ export default function Billing() {
     mutationFn: createSubscribeIntent,
   });
 
+  const downgradeMutation = useMutation({
+    mutationFn: (planId: string) => downgradeSubscription(planId),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["billing-status"] });
+      queryClient.invalidateQueries({ queryKey: ["billing-subscription"] });
+      toast.success(data.message);
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   const status = statusQuery.data;
   const sub = subQuery.data?.subscription;
   const isFreePlan = !sub || status?.plan === "plan-gratuito";
 
+  const PLAN_RANK: Record<string, number> = {
+    "plan-gratuito": 0, "plan-pro": 1, "plan-pro-plus": 2, "plan-firma": 3, "plan-enterprise": 4,
+  };
+
+  const openWompiWidget = useCallback(async (intent: { amountInCents: number; reference: string; publicKey: string; integrityHash: string }) => {
+    if (!window.WidgetCheckout) {
+      await new Promise<void>((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = "https://checkout.wompi.co/widget.js";
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error("Error cargando Wompi"));
+        document.head.appendChild(script);
+      });
+    }
+
+    const checkout = new window.WidgetCheckout({
+      currency: "COP",
+      amountInCents: intent.amountInCents,
+      reference: intent.reference,
+      publicKey: intent.publicKey,
+      "signature:integrity": intent.integrityHash,
+      redirectUrl: `${window.location.origin}/billing`,
+    });
+
+    checkout.open((result) => {
+      if (result?.transaction?.id) {
+        toast.success("Pago procesado. Tu suscripcion se activara en unos segundos.");
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ["billing-status"] });
+          queryClient.invalidateQueries({ queryKey: ["billing-subscription"] });
+          queryClient.invalidateQueries({ queryKey: ["billing-invoices"] });
+        }, 5000);
+      }
+    });
+  }, [queryClient, toast]);
+
   const handleSubscribe = useCallback(async (planId: string) => {
     try {
-      const intent = await subscribeMutation.mutateAsync(planId);
+      const currentRank = PLAN_RANK[status?.plan ?? "plan-gratuito"] ?? 0;
+      const targetRank = PLAN_RANK[planId] ?? 0;
 
-      // Cargar widget de Wompi
-      if (!window.WidgetCheckout) {
-        // Cargar script dinamicamente si no esta
-        await new Promise<void>((resolve, reject) => {
-          const script = document.createElement("script");
-          script.src = "https://checkout.wompi.co/widget.js";
-          script.onload = () => resolve();
-          script.onerror = () => reject(new Error("Error cargando Wompi"));
-          document.head.appendChild(script);
+      if (!isFreePlan && targetRank > currentRank) {
+        // Upgrade: cobrar diferencia prorrateada
+        const upgradeResp = await upgradeSubscription(planId);
+        if (upgradeResp.upgraded) {
+          // Upgrade sin cobro (diferencia minima)
+          toast.success(upgradeResp.message ?? "Upgrade completado");
+          queryClient.invalidateQueries({ queryKey: ["billing-status"] });
+          queryClient.invalidateQueries({ queryKey: ["billing-subscription"] });
+          return;
+        }
+        // Abrir Wompi con monto prorrateado
+        await openWompiWidget({
+          amountInCents: upgradeResp.amountInCents!,
+          reference: upgradeResp.reference!,
+          publicKey: upgradeResp.publicKey!,
+          integrityHash: upgradeResp.integrityHash!,
         });
+        return;
       }
 
-      const checkout = new window.WidgetCheckout({
-        currency: "COP",
-        amountInCents: intent.amountInCents,
-        reference: intent.reference,
-        publicKey: intent.publicKey,
-        "signature:integrity": intent.integrityHash,
-        redirectUrl: `${window.location.origin}/billing`,
-      });
+      if (!isFreePlan && targetRank < currentRank && targetRank > 0) {
+        // Downgrade: programar al fin del periodo
+        downgradeMutation.mutate(planId);
+        return;
+      }
 
-      checkout.open((result) => {
-        if (result?.transaction?.id) {
-          toast.success("Pago procesado. Tu suscripcion se activara en unos segundos.");
-          // Refrescar datos despues de un momento (webhook puede tardar)
-          setTimeout(() => {
-            queryClient.invalidateQueries({ queryKey: ["billing-status"] });
-            queryClient.invalidateQueries({ queryKey: ["billing-subscription"] });
-            queryClient.invalidateQueries({ queryKey: ["billing-invoices"] });
-          }, 5000);
-        }
-      });
+      // Nueva suscripcion (desde gratuito)
+      const intent = await subscribeMutation.mutateAsync(planId);
+      await openWompiWidget(intent);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al iniciar pago");
+      toast.error(err instanceof Error ? err.message : "Error al procesar");
     }
-  }, [subscribeMutation, queryClient, toast]);
+  }, [subscribeMutation, downgradeMutation, queryClient, toast, status, isFreePlan, openWompiWidget, PLAN_RANK]);
 
   return (
     <div className={s.page}>
@@ -209,6 +255,18 @@ export default function Billing() {
                 </>
               ) : (
                 <>
+                  {selectedPlan && selectedPlan !== status?.plan && (
+                    <button
+                      className="btn btn-primary"
+                      onClick={() => handleSubscribe(selectedPlan)}
+                      disabled={subscribeMutation.isPending || downgradeMutation.isPending}
+                    >
+                      {(PLAN_RANK[selectedPlan] ?? 0) > (PLAN_RANK[status?.plan ?? ""] ?? 0)
+                        ? "Confirmar upgrade"
+                        : "Confirmar downgrade"
+                      }
+                    </button>
+                  )}
                   <button className="btn btn-secondary" onClick={() => navigate("/planes")}>
                     Cambiar plan
                   </button>
@@ -239,7 +297,7 @@ export default function Billing() {
       {showCancel && (
         <ConfirmModal
           title="Cancelar suscripcion"
-          message="Tu plan seguira activo hasta el final del periodo de facturacion. Despues de eso, volveras al plan gratuito (5 procesos). Tus procesos existentes no se eliminaran."
+          message="Si pagaste hace menos de 24 horas con tarjeta, se intentara el reembolso automatico. De lo contrario, tu plan seguira activo hasta el final del periodo. Despues, volveras al plan gratuito (5 procesos)."
           confirmLabel="Si, cancelar"
           onConfirm={() => cancelMutation.mutate()}
           onCancel={() => setShowCancel(false)}

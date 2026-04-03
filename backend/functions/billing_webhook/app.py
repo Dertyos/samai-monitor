@@ -19,9 +19,15 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 _dynamodb = boto3.resource("dynamodb")
+_lambda_client = boto3.client("lambda")
 _subscriptions_table = _dynamodb.Table(os.environ.get("BILLING_SUBSCRIPTIONS_TABLE", "samai-billing-subscriptions"))
 _events_table = _dynamodb.Table(os.environ.get("BILLING_EVENTS_TABLE", "samai-billing-events"))
+_teams_table = _dynamodb.Table(os.environ.get("TEAMS_TABLE", "samai-teams"))
+_team_members_table = _dynamodb.Table(os.environ.get("TEAM_MEMBERS_TABLE", "samai-team-members"))
 _events_key = os.environ.get("WOMPI_EVENTS_KEY", "")
+_monitor_function = os.environ.get("MONITOR_FUNCTION_NAME", "samai-monitor")
+
+TEAM_ELIGIBLE_PLANS = {"plan-firma", "plan-enterprise"}
 
 
 def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
@@ -55,12 +61,14 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         if existing.get("Items"):
             return _response(200, {"status": "duplicate"})
 
-        # Extraer user_id y plan_id del reference (formato: "sub_{userId}_{planId}_{timestamp}")
+        # Extraer user_id y plan_id del reference
+        # Formatos: "sub_{userId}_{planId}_{ts}" o "upg_{userId}_{planId}_{ts}"
         parts = reference.split("_", 3)
-        if len(parts) < 3 or parts[0] != "sub":
+        if len(parts) < 3 or parts[0] not in ("sub", "upg"):
             logger.warning("Reference no tiene formato esperado: %s", reference)
             return _response(200, {"status": "ignored_reference"})
 
+        ref_type = parts[0]  # "sub" = nueva suscripcion, "upg" = upgrade
         user_id = parts[1]
         plan_id = parts[2]
 
@@ -82,20 +90,92 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         })
 
         if status == "APPROVED":
-            # Activar/renovar suscripcion
-            period_end = now + timedelta(days=30)
-            _subscriptions_table.put_item(Item={
-                "userId": user_id,
-                "planId": plan_id,
-                "status": "active",
-                "wompiTransactionId": txn_id,
-                "currentPeriodStart": now.isoformat(),
-                "currentPeriodEnd": period_end.isoformat(),
-                "cancelAtPeriodEnd": False,
-                "createdAt": now.isoformat(),
-                "updatedAt": now.isoformat(),
-            })
-            logger.info("Suscripcion activada: user=%s plan=%s", user_id, plan_id)
+            if ref_type == "upg":
+                # Upgrade: buscar suscripcion actual y cambiar el plan, mantener periodo
+                existing_subs = _subscriptions_table.query(
+                    KeyConditionExpression=Key("userId").eq(user_id),
+                ).get("Items", [])
+                current = [s for s in existing_subs if s.get("status") in ("active", "trialing")]
+                if current:
+                    old_plan = current[0]["planId"]
+                    # Borrar la suscripcion vieja y crear con el nuevo plan
+                    _subscriptions_table.delete_item(Key={"userId": user_id, "planId": old_plan})
+                    _subscriptions_table.put_item(Item={
+                        "userId": user_id,
+                        "planId": plan_id,
+                        "status": "active",
+                        "wompiTransactionId": txn_id,
+                        "currentPeriodStart": current[0].get("currentPeriodStart", now.isoformat()),
+                        "currentPeriodEnd": current[0].get("currentPeriodEnd", (now + timedelta(days=30)).isoformat()),
+                        "cancelAtPeriodEnd": False,
+                        "createdAt": current[0].get("createdAt", now.isoformat()),
+                        "updatedAt": now.isoformat(),
+                    })
+                    logger.info("Upgrade completado: user=%s %s -> %s", user_id, old_plan, plan_id)
+                else:
+                    logger.warning("Upgrade ref pero sin suscripcion activa: user=%s", user_id)
+            else:
+                # Nueva suscripcion o renovacion
+                # Si habia pendingPlanId (downgrade programado), aplicarlo
+                effective_plan = plan_id
+                existing_subs = _subscriptions_table.query(
+                    KeyConditionExpression=Key("userId").eq(user_id),
+                ).get("Items", [])
+                for old_sub in existing_subs:
+                    pending = old_sub.get("pendingPlanId")
+                    if pending:
+                        effective_plan = pending
+                        logger.info("Aplicando downgrade pendiente: user=%s %s -> %s", user_id, plan_id, pending)
+                    # Limpiar suscripciones viejas
+                    _subscriptions_table.delete_item(
+                        Key={"userId": user_id, "planId": old_sub["planId"]}
+                    )
+
+                period_end = now + timedelta(days=30)
+                _subscriptions_table.put_item(Item={
+                    "userId": user_id,
+                    "planId": effective_plan,
+                    "status": "active",
+                    "wompiTransactionId": txn_id,
+                    "currentPeriodStart": now.isoformat(),
+                    "currentPeriodEnd": period_end.isoformat(),
+                    "cancelAtPeriodEnd": False,
+                    "createdAt": now.isoformat(),
+                    "updatedAt": now.isoformat(),
+                })
+                plan_id = effective_plan  # Para el check de equipo abajo
+            logger.info("Suscripcion activada: user=%s plan=%s type=%s", user_id, plan_id, ref_type)
+
+            # Si es plan de equipo, marcar equipo como pendingConfirmation
+            # para que el owner confirme miembros antes de reactivar a todos
+            if plan_id in TEAM_ELIGIBLE_PLANS:
+                try:
+                    from boto3.dynamodb.conditions import Key as DKey
+                    resp = _team_members_table.query(
+                        IndexName="userId-index",
+                        KeyConditionExpression=DKey("userId").eq(user_id),
+                    )
+                    memberships = resp.get("Items", [])
+                    for m in memberships:
+                        _teams_table.update_item(
+                            Key={"teamId": m["teamId"]},
+                            UpdateExpression="SET pendingConfirmation = :v",
+                            ExpressionAttributeValues={":v": True},
+                        )
+                        logger.info("Equipo %s marcado pendingConfirmation", m["teamId"])
+                except Exception:
+                    logger.warning("No se pudo marcar equipo como pendingConfirmation")
+
+            # Disparar reactivación de radicados del owner + check de novedades (async)
+            try:
+                _lambda_client.invoke(
+                    FunctionName=_monitor_function,
+                    InvocationType="Event",
+                    Payload=json.dumps({"action": "reactivate", "userId": user_id}),
+                )
+                logger.info("Monitor invocado para reactivar radicados de user=%s", user_id)
+            except Exception:
+                logger.warning("No se pudo invocar monitor para reactivar, se hara en el proximo ciclo")
 
         elif status in ("DECLINED", "ERROR"):
             # Marcar como fallida si existia

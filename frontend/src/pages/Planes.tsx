@@ -37,12 +37,16 @@ function PlanCard({
   isCurrentPlan,
   isPopular,
   isAuthenticated,
+  isUpgrade,
+  isDowngrade,
   onSelect,
 }: {
   plan: BillingPlanDTO;
   isCurrentPlan: boolean;
   isPopular: boolean;
   isAuthenticated: boolean;
+  isUpgrade: boolean;
+  isDowngrade: boolean;
   onSelect: () => void;
 }) {
   const features = plan.features as Record<string, unknown>;
@@ -76,10 +80,14 @@ function PlanCard({
         {isCurrentPlan
           ? "Plan actual"
           : plan.amount === 0
-            ? "Empezar gratis"
-            : isAuthenticated
-              ? "Suscribirse"
-              : "Empezar"}
+            ? (isAuthenticated ? "Volver a Gratis" : "Empezar gratis")
+            : isUpgrade
+              ? "Upgrade"
+              : isDowngrade
+                ? "Downgrade"
+                : isAuthenticated
+                  ? "Suscribirse"
+                  : "Empezar"}
       </button>
     </div>
   );
@@ -118,6 +126,7 @@ export default function Planes() {
   });
 
   const currentPlan = statusQuery.data?.plan ?? "plan-gratuito";
+  const currentRank = PLAN_ORDER.indexOf(currentPlan);
 
   const handleSelect = (plan: BillingPlanDTO) => {
     if (!isAuthenticated) {
@@ -172,32 +181,13 @@ export default function Planes() {
             isCurrentPlan={plan.id === currentPlan}
             isPopular={plan.id === "plan-pro"}
             isAuthenticated={isAuthenticated}
+            isUpgrade={isAuthenticated && currentRank >= 0 && PLAN_ORDER.indexOf(plan.id) > currentRank && currentRank > 0}
+            isDowngrade={isAuthenticated && currentRank >= 0 && PLAN_ORDER.indexOf(plan.id) < currentRank && PLAN_ORDER.indexOf(plan.id) > 0}
             onSelect={() => handleSelect(plan)}
           />
         ))}
       </section>
 
-      <section className={s.comparison}>
-        <h2>Comparacion con la competencia</h2>
-        <table className={s.compTable}>
-          <thead>
-            <tr>
-              <th>Procesos</th>
-              <th>Alertas Judiciales</th>
-              <th>Monolegal</th>
-              <th>PleGlex</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr><td>5</td><td className={s.ours}>$0 (gratis)</td><td>$6,675</td><td>$5,000</td></tr>
-            <tr><td>20</td><td className={s.ours}>$19,900</td><td>$26,700</td><td>$20,000</td></tr>
-            <tr><td>50</td><td className={s.ours}>$79,900</td><td>$66,750</td><td>$50,000</td></tr>
-            <tr><td>100</td><td className={s.ours}>$79,900</td><td>$133,500</td><td>$100,000</td></tr>
-            <tr><td>500</td><td className={s.ours}>$249,900</td><td>$667,500</td><td>$500,000</td></tr>
-          </tbody>
-        </table>
-        <p className={s.compNote}>Precios en COP/mes. Competidores cobran por proceso.</p>
-      </section>
 
       <footer className={s.footer}>
         <p>&copy; {new Date().getFullYear()} Dertyos. Todos los derechos reservados.</p>

@@ -15,6 +15,8 @@ import {
   deleteEtiqueta,
   updateRadicadoEtiquetas,
   getBillingStatus,
+  getTeams,
+  confirmTeam,
   type RadicadoDTO,
   type EtiquetaDTO,
   type AddRadicadoMeta,
@@ -103,6 +105,24 @@ export default function Dashboard() {
     queryKey: ["etiquetas"],
     queryFn: getEtiquetas,
     staleTime: 5 * 60 * 1000, // 5 min
+  });
+
+  const teamsQuery = useQuery({
+    queryKey: ["teams"],
+    queryFn: getTeams,
+    staleTime: 60 * 1000, // 1 min — se refresca rápido post-pago
+  });
+
+  const pendingTeam = teamsQuery.data?.find(t => t.active && t.pendingConfirmation);
+
+  const confirmTeamMutation = useMutation({
+    mutationFn: (teamId: string) => confirmTeam(teamId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["teams"] });
+      queryClient.invalidateQueries({ queryKey: ["radicados"] });
+      toast.success("Equipo confirmado. Los radicados de los miembros se estan reactivando.");
+    },
+    onError: (err: Error) => toast.error(err.message),
   });
 
   const etiquetasMap = useMemo(() => {
@@ -327,6 +347,41 @@ export default function Dashboard() {
       </header>
 
       <main className={styles.main}>
+        {pendingTeam && (
+          <div style={{
+            padding: "1rem",
+            marginBottom: "1rem",
+            background: "var(--bg-warning, #fef3c7)",
+            borderRadius: "0.5rem",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "1rem",
+            flexWrap: "wrap",
+          }}>
+            <div>
+              <strong>Tu suscripcion esta activa.</strong>{" "}
+              Tu equipo &quot;{pendingTeam.name}&quot; tiene {pendingTeam.members.length} miembros.
+              Confirma para reactivar los radicados de todos.
+            </div>
+            <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0 }}>
+              <button
+                className="primary"
+                onClick={() => confirmTeamMutation.mutate(pendingTeam.teamId)}
+                disabled={confirmTeamMutation.isPending}
+              >
+                {confirmTeamMutation.isPending ? "Confirmando..." : "Confirmar equipo"}
+              </button>
+              <button
+                className="btn-secondary"
+                onClick={() => navigate("/perfil")}
+              >
+                Administrar miembros
+              </button>
+            </div>
+          </div>
+        )}
+
         {radicadosQuery.isLoading && <StatsBarSkeleton />}
         {radicadosQuery.data && (
           <div className={styles.statsBar}>

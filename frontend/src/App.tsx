@@ -12,6 +12,7 @@ import Privacidad from "./pages/Privacidad";
 import Terminos from "./pages/Terminos";
 import Planes from "./pages/Planes";
 import Billing from "./pages/Billing";
+import Invite from "./pages/Invite";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ToastProvider } from "./hooks/useToast";
 import "./App.css";
@@ -109,6 +110,7 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      <Route path="/invite/:token" element={<Invite />} />
       <Route path="/callback" element={<Callback />} />
       <Route path="/privacidad" element={<Privacidad />} />
       <Route path="/terminos" element={<Terminos />} />

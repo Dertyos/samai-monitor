@@ -10,7 +10,7 @@ from typing import Any
 
 from boto3.dynamodb.conditions import Key
 
-from models import Radicado, Actuacion, Alerta, Etiqueta
+from models import Radicado, Actuacion, Alerta, Etiqueta, Team, TeamMember, TeamInvitation
 
 logger = logging.getLogger(__name__)
 
@@ -418,3 +418,168 @@ def eliminar_cuenta_usuario(
         counts["etiquetas"] += 1
 
     return counts
+
+
+# --- Teams ---
+
+
+def crear_team(table: Any, team: Team) -> None:
+    """Guarda un equipo en DynamoDB."""
+    table.put_item(Item=team.to_dynamo())
+
+
+def obtener_team(table: Any, team_id: str) -> Team | None:
+    """Obtiene un equipo por ID."""
+    resp = table.get_item(Key={"teamId": team_id})
+    item = resp.get("Item")
+    if item is None:
+        return None
+    return Team.from_dynamo(item)
+
+
+def obtener_teams_usuario(
+    members_table: Any, teams_table: Any, user_id: str
+) -> list[Team]:
+    """Obtiene todos los equipos a los que pertenece un usuario."""
+    resp = members_table.query(
+        IndexName="userId-index",
+        KeyConditionExpression=Key("userId").eq(user_id),
+    )
+    memberships = resp.get("Items", [])
+    teams: list[Team] = []
+    for m in memberships:
+        team = obtener_team(teams_table, m["teamId"])
+        if team is not None:
+            teams.append(team)
+    return teams
+
+
+# --- Team Members ---
+
+
+def agregar_miembro_team(table: Any, member: TeamMember) -> None:
+    """Agrega un miembro a un equipo."""
+    table.put_item(Item=member.to_dynamo())
+
+
+def obtener_miembros_team(table: Any, team_id: str) -> list[TeamMember]:
+    """Obtiene todos los miembros de un equipo."""
+    resp = table.query(KeyConditionExpression=Key("teamId").eq(team_id))
+    return [TeamMember.from_dynamo(item) for item in resp.get("Items", [])]
+
+
+def eliminar_miembro_team(table: Any, team_id: str, user_id: str) -> bool:
+    """Elimina un miembro de un equipo. Retorna True si existía."""
+    resp = table.get_item(Key={"teamId": team_id, "userId": user_id})
+    if resp.get("Item") is None:
+        return False
+    table.delete_item(Key={"teamId": team_id, "userId": user_id})
+    return True
+
+
+def marcar_team_pending_confirmation(table: Any, team_id: str) -> None:
+    """Marca un equipo como pendiente de confirmación tras renovar suscripción."""
+    table.update_item(
+        Key={"teamId": team_id},
+        UpdateExpression="SET pendingConfirmation = :v",
+        ExpressionAttributeValues={":v": True},
+    )
+
+
+def confirmar_team(table: Any, team_id: str) -> None:
+    """Quita el flag de pendiente de confirmación del equipo."""
+    table.update_item(
+        Key={"teamId": team_id},
+        UpdateExpression="REMOVE pendingConfirmation",
+    )
+
+
+def obtener_team_de_usuario(members_table: Any, user_id: str) -> str | None:
+    """Obtiene el teamId del equipo al que pertenece un usuario, o None."""
+    resp = members_table.query(
+        IndexName="userId-index",
+        KeyConditionExpression=Key("userId").eq(user_id),
+    )
+    items = resp.get("Items", [])
+    if not items:
+        return None
+    return items[0]["teamId"]
+
+
+def contar_procesos_equipo(
+    members_table: Any, radicados_table: Any, team_id: str
+) -> int:
+    """Cuenta procesos únicos de un equipo (dedup por radicado).
+
+    Obtiene todos los miembros, luego todos sus radicados, y deduplica.
+    """
+    members = obtener_miembros_team(members_table, team_id)
+    radicados_unicos: set[str] = set()
+    for member in members:
+        rads = obtener_radicados_usuario(radicados_table, member.user_id)
+        for rad in rads:
+            radicados_unicos.add(rad.radicado)
+    return len(radicados_unicos)
+
+
+# --- Team Invitations ---
+
+
+def guardar_invitacion(table: Any, invitation: TeamInvitation) -> None:
+    """Guarda una invitación."""
+    table.put_item(Item=invitation.to_dynamo())
+
+
+def obtener_invitacion_por_token(table: Any, token: str) -> TeamInvitation | None:
+    """Busca una invitación por token (scan — poco frecuente)."""
+    from boto3.dynamodb.conditions import Attr
+
+    resp = table.scan(
+        FilterExpression=Attr("token").eq(token) & Attr("status").eq("pending"),
+    )
+    items = resp.get("Items", [])
+    if not items:
+        return None
+    return TeamInvitation.from_dynamo(items[0])
+
+
+def obtener_invitaciones_por_email(table: Any, email: str) -> list[TeamInvitation]:
+    """Obtiene invitaciones pendientes para un email."""
+    import time
+
+    now = int(time.time())
+    resp = table.query(
+        IndexName="email-index",
+        KeyConditionExpression=Key("email").eq(email),
+    )
+    items = resp.get("Items", [])
+    # Filtrar pendientes y no expiradas
+    return [
+        TeamInvitation.from_dynamo(item)
+        for item in items
+        if item.get("status") == "pending" and int(item.get("ttl", 0)) > now
+    ]
+
+
+def obtener_invitaciones_equipo(table: Any, team_id: str) -> list[TeamInvitation]:
+    """Obtiene todas las invitaciones de un equipo (para admin dashboard)."""
+    resp = table.query(
+        IndexName="teamId-index",
+        KeyConditionExpression=Key("teamId").eq(team_id),
+    )
+    return [TeamInvitation.from_dynamo(item) for item in resp.get("Items", [])]
+
+
+def marcar_invitacion_aceptada(table: Any, invite_id: str) -> None:
+    """Marca una invitación como aceptada."""
+    table.update_item(
+        Key={"inviteId": invite_id},
+        UpdateExpression="SET #s = :s",
+        ExpressionAttributeNames={"#s": "status"},
+        ExpressionAttributeValues={":s": "accepted"},
+    )
+
+
+def eliminar_invitacion(table: Any, invite_id: str) -> None:
+    """Elimina (revoca) una invitación."""
+    table.delete_item(Key={"inviteId": invite_id})

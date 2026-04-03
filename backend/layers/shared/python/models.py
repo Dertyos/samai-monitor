@@ -4,6 +4,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from typing import Literal
 
 
 @dataclass
@@ -290,4 +291,127 @@ class Etiqueta:
             nombre=item.get("nombre", ""),
             color=item.get("color", "#6b7280"),
             created_at=item.get("createdAt", ""),
+        )
+
+
+@dataclass
+class Team:
+    """Un equipo que comparte un plan de suscripción."""
+
+    team_id: str
+    name: str
+    owner_user_id: str
+    plan_id: str
+    created_at: str = ""
+    pending_confirmation: bool = False
+
+    @staticmethod
+    def generar_id() -> str:
+        """Genera un ID único para un equipo."""
+        return uuid.uuid4().hex[:16]
+
+    def to_dynamo(self) -> dict:
+        """Convierte a dict para DynamoDB."""
+        item: dict = {
+            "teamId": self.team_id,
+            "name": self.name,
+            "ownerUserId": self.owner_user_id,
+            "planId": self.plan_id,
+            "createdAt": self.created_at,
+        }
+        if self.pending_confirmation:
+            item["pendingConfirmation"] = True
+        return item
+
+    @classmethod
+    def from_dynamo(cls, item: dict) -> Team:
+        """Crea Team desde item DynamoDB."""
+        return cls(
+            team_id=item["teamId"],
+            name=item.get("name", ""),
+            owner_user_id=item["ownerUserId"],
+            plan_id=item.get("planId", ""),
+            created_at=item.get("createdAt", ""),
+            pending_confirmation=item.get("pendingConfirmation", False),
+        )
+
+
+@dataclass
+class TeamMember:
+    """Un miembro de un equipo."""
+
+    team_id: str
+    user_id: str
+    role: Literal["owner", "member"] = "member"
+    joined_at: str = ""
+
+    def to_dynamo(self) -> dict:
+        """Convierte a dict para DynamoDB."""
+        return {
+            "teamId": self.team_id,
+            "userId": self.user_id,
+            "role": self.role,
+            "joinedAt": self.joined_at,
+        }
+
+    @classmethod
+    def from_dynamo(cls, item: dict) -> TeamMember:
+        """Crea TeamMember desde item DynamoDB."""
+        return cls(
+            team_id=item["teamId"],
+            user_id=item["userId"],
+            role=item.get("role", "member"),
+            joined_at=item.get("joinedAt", ""),
+        )
+
+
+@dataclass
+class TeamInvitation:
+    """Una invitación pendiente a un equipo."""
+
+    invite_id: str
+    team_id: str
+    email: str
+    role: Literal["owner", "member"] = "member"
+    invited_by: str = ""
+    status: Literal["pending", "accepted", "expired"] = "pending"
+    token: str = ""
+    created_at: str = ""
+    ttl: int = 0  # epoch para DynamoDB TTL (7 días)
+
+    @staticmethod
+    def generar_id() -> str:
+        return uuid.uuid4().hex[:16]
+
+    @staticmethod
+    def generar_token() -> str:
+        return uuid.uuid4().hex
+
+    def to_dynamo(self) -> dict:
+        item: dict = {
+            "inviteId": self.invite_id,
+            "teamId": self.team_id,
+            "email": self.email,
+            "role": self.role,
+            "invitedBy": self.invited_by,
+            "status": self.status,
+            "token": self.token,
+            "createdAt": self.created_at,
+        }
+        if self.ttl:
+            item["ttl"] = self.ttl
+        return item
+
+    @classmethod
+    def from_dynamo(cls, item: dict) -> TeamInvitation:
+        return cls(
+            invite_id=item["inviteId"],
+            team_id=item["teamId"],
+            email=item.get("email", ""),
+            role=item.get("role", "member"),
+            invited_by=item.get("invitedBy", ""),
+            status=item.get("status", "pending"),
+            token=item.get("token", ""),
+            created_at=item.get("createdAt", ""),
+            ttl=int(item.get("ttl", 0)),
         )
