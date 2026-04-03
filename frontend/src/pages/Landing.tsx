@@ -466,6 +466,8 @@ export default function Landing() {
             <span>Alertas Judiciales by Dertyos</span>
           </div>
           <div className={s.footerLinks}>
+            <a href="/privacidad">Privacidad</a>
+            <a href="/terminos">Terminos</a>
             <a href="mailto:soporte@dertyos.com">Contacto</a>
           </div>
           <p className={s.footerCopy}>

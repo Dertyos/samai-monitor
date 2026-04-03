@@ -8,6 +8,8 @@ import Dashboard from "./pages/Dashboard";
 import DetalleRadicado from "./pages/DetalleRadicado";
 import Perfil from "./pages/Perfil";
 import Callback from "./pages/Callback";
+import Privacidad from "./pages/Privacidad";
+import Terminos from "./pages/Terminos";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ToastProvider } from "./hooks/useToast";
 import "./App.css";
@@ -97,6 +99,8 @@ function AppRoutes() {
         }
       />
       <Route path="/callback" element={<Callback />} />
+      <Route path="/privacidad" element={<Privacidad />} />
+      <Route path="/terminos" element={<Terminos />} />
       {/* Ruta por defecto: redirige a dashboard (ProtectedRoute maneja auth) */}
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
