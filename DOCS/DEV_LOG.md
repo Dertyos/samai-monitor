@@ -636,3 +636,100 @@ actualizó su `ultimoOrden` al correr. No generarán más alertas incorrectas.
 - WAF rules para proteger endpoints
 - Audit logging (CloudTrail)
 - GDPR/Habeas Data compliance (eliminación de datos de usuario)
+
+---
+
+## 2026-04-03 — Billing: Suscripciones con Wompi
+
+### Resumen
+Implementacion completa de billing con Wompi (Bancolombia) como gateway de pagos.
+Evaluamos Stripe (no opera en Colombia), ePayco ($49,900/mes solo por API), y elegimos
+Wompi ($0 mensual, 2.65% + $700 COP por transaccion).
+
+### Componentes implementados
+
+**Backend — 2 Lambdas nuevas**:
+- `billing_webhook/app.py` — recibe webhooks de Wompi, valida firma SHA256, activa suscripciones
+- `billing_api/app.py` — 6 endpoints: planes, suscripcion, subscribe (genera intent + integrity hash), cancelar, facturas, wompi-config
+
+**Backend — Modificaciones**:
+- `api_handler/app.py` — plan enforcement en POST /radicados (403 si excede limite), GET /billing/status, helper `_get_user_plan()`
+- `scripts/seed_plans.py` — seed de 5 planes en DynamoDB (gratuito, pro, pro+, firma, enterprise)
+
+**DynamoDB — 3 tablas nuevas**:
+- `samai-billing-plans` (PK: planId)
+- `samai-billing-subscriptions` (PK: userId, SK: planId, GSI: status-index)
+- `samai-billing-events` (PK: userId, SK: sk, GSI: transaction-id-index, TTL: 365d)
+
+**Frontend**:
+- `/planes` — pagina publica de pricing con 5 planes
+- `/billing` — gestion de suscripcion, Wompi Widget checkout, historial de pagos
+- Dashboard — indicador de uso "X/Y Plan Nombre", redirect a /billing al alcanzar limite
+- Perfil — seccion suscripcion con datos reales
+
+**Infra**:
+- 5 parametros SAM: WompiPublicKey, WompiPrivateKey, WompiEventsKey, WompiIntegrityKey, WompiSandbox
+- GitLab CI/CD variables para las 4 llaves de Wompi
+- Webhook sin Cognito auth (firma SHA256 en su lugar)
+
+### Bug resuelto: firma webhook Wompi
+- Wompi envia `timestamp` en el **root** del body, no dentro de `signature`
+- La doc de Wompi es ambigua al respecto
+- Concatenacion correcta: `{values}{timestamp}{events_key}` donde timestamp viene de `body.timestamp`
+
+### Planes definidos
+| Plan | Precio COP/mes | Procesos |
+|------|---------------|----------|
+| Gratuito | $0 | 5 |
+| Pro | $19,900 | 25 |
+| Pro + | $59,900 | 70 |
+| Firma | $79,900 | 150 |
+| Enterprise | $249,900 | 1,000 |
+
+### Decisiones
+- Alegra (facturacion electronica DIAN) descartada por ahora ($70,000/mes). Se agrega despues.
+- Stripe descartado: no opera en Colombia
+- ePayco descartado: cobra $49,900+/mes solo por API de suscripciones
+- Facturacion electronica futura: Siigo (gratis, 5 facturas/mes) o Factus ($30,000/mes)
+
+### Archivos creados
+- `backend/functions/billing_webhook/app.py`
+- `backend/functions/billing_api/app.py`
+- `backend/scripts/seed_plans.py`
+- `frontend/src/pages/Planes.tsx` + `Planes.module.css`
+- `frontend/src/pages/Billing.tsx` + `Billing.module.css`
+- `DOCS/SETUP_BILLING.md`
+
+### Archivos modificados
+- `template.yaml` (parametros Wompi, 2 Lambdas, 3 tablas)
+- `.gitlab-ci.yml` (variables Wompi)
+- `backend/functions/api_handler/app.py` (enforcement + billing status)
+- `frontend/src/App.tsx` (rutas /planes, /billing)
+- `frontend/src/lib/api.ts` (billing API client)
+- `frontend/src/pages/Dashboard.tsx` (usage indicator)
+- `frontend/src/pages/Landing.tsx` (planes actualizados)
+- `frontend/src/pages/Perfil.tsx` (seccion suscripcion)
+- `DOCS/ESTRATEGIA_SUSCRIPCIONES.md` (Stripe → Wompi)
+
+---
+
+## 2026-04-03 — Equipos (en progreso)
+
+### Resumen
+Feature de planes compartidos: el plan Firma permite hasta 5 usuarios compartiendo 150 procesos.
+Si 2 usuarios del mismo equipo siguen el mismo radicado, cuenta como 1 proceso.
+
+### DynamoDB — 2 tablas nuevas
+- `samai-teams` (PK: teamId)
+- `samai-team-members` (PK: teamId, SK: userId, GSI: userId-index)
+- GSI `teamId-index` agregado a RadicadosTable
+
+### Endpoints nuevos
+- POST/GET /teams
+- POST/DELETE /teams/{teamId}/members
+- POST/GET/DELETE /teams/{teamId}/radicados
+
+### Estado: en progreso
+- template.yaml actualizado con tablas y rutas
+- frontend/src/lib/api.ts con tipos y funciones de teams
+- Falta: backend endpoints en api_handler, db.py CRUD, models.py, frontend UI

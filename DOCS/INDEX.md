@@ -21,7 +21,10 @@
 | Sprint 4: UX Polish | COMPLETADA | Skeletons, CSV export, dropdown, polling, ErrorBoundary |
 | Deploy: CI/CD + SES | COMPLETADA | GitLab CI/CD, IAM user, SES production request, CORS fix |
 
-**Total**: 78 tests backend, 33+ commits, 27+ features implementadas
+| Billing: Wompi | COMPLETADA | Suscripciones, planes, enforcement, webhook SHA256 |
+| Equipos (Planes compartidos) | EN PROGRESO | Tablas + API types listos, falta backend endpoints + UI |
+
+**Total**: 78 tests backend, 50+ commits, 35+ features implementadas
 
 ---
 
@@ -47,8 +50,17 @@
 ## backend/functions/ — Lambdas
 | Archivo | Contenido | Estado |
 |---------|-----------|--------|
-| `api_handler/app.py` | POST/GET/PATCH/DELETE radicados, GET/POST alertas, historial, buscar | HECHO |
+| `api_handler/app.py` | CRUD radicados, alertas, buscar, etiquetas, billing status, teams | HECHO |
 | `monitor/app.py` | check_radicado + handler (dedup → SAMAI → alertas → email) | HECHO |
+| `billing_webhook/app.py` | Webhook Wompi: valida firma SHA256, activa suscripciones | HECHO |
+| `billing_api/app.py` | Planes, suscripciones, facturas, Wompi widget config | HECHO |
+| `cognito_email_sender/app.py` | Custom email sender (verificacion, reset password) | HECHO |
+| `pre_signup/app.py` | PreSignUp trigger (enlaza Google con cuentas nativas) | HECHO |
+
+## backend/scripts/
+| Archivo | Contenido | Estado |
+|---------|-----------|--------|
+| `seed_plans.py` | Seed de 5 planes de billing en DynamoDB | HECHO |
 
 ## backend/tests/ — Tests
 | Archivo | Contenido | Estado |
@@ -72,6 +84,7 @@
 | `NUEVAS_PLATAFORMAS.md` | Investigación técnica: SIUGJ, Siglo XXI (CPNU), SPOA — APIs, CAPTCHAs, dificultad, plan de integración |
 | `DESIGN_CRITIQUE.md` | Auditoría de diseño y accesibilidad (26 mar 2026) — hallazgos WCAG, jerarquía visual, plan P0/P1/P2 |
 | `ESTRATEGIA_SUSCRIPCIONES.md` | Estrategia de suscripciones, pricing, go-to-market, análisis competitivo (3 abr 2026) |
+| `SETUP_BILLING.md` | Guía paso a paso: configurar Wompi, llaves, webhook, seed, sandbox, producción |
 
 ## Investigación previa (referencia)
 | Archivo | Ubicación |
