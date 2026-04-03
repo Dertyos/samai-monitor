@@ -4,6 +4,9 @@ import {
   AuthenticationDetails,
   CognitoUserSession,
   CognitoUserAttribute,
+  CognitoIdToken,
+  CognitoAccessToken,
+  CognitoRefreshToken,
 } from "amazon-cognito-identity-js";
 import { COGNITO_CONFIG } from "../config/auth";
 
@@ -170,4 +173,42 @@ export function changePassword(
       });
     });
   });
+}
+
+export function getGoogleLoginUrl(): string {
+  const callbackUrl = `${window.location.origin}/callback`;
+  const params = new URLSearchParams({
+    identity_provider: "Google",
+    redirect_uri: callbackUrl,
+    response_type: "token",
+    client_id: COGNITO_CONFIG.userPoolClientId,
+    scope: "email openid profile",
+  });
+  return `https://${COGNITO_CONFIG.domain}/oauth2/authorize?${params}`;
+}
+
+export function handleOAuthCallback(hash: string): CognitoUserSession {
+  const params = new URLSearchParams(hash.replace("#", "?"));
+  const idTokenStr = params.get("id_token");
+  const accessTokenStr = params.get("access_token");
+
+  if (!idTokenStr || !accessTokenStr) {
+    throw new Error("Tokens no encontrados en la URL");
+  }
+
+  const idToken = new CognitoIdToken({ IdToken: idTokenStr });
+  const accessToken = new CognitoAccessToken({ AccessToken: accessTokenStr });
+  const refreshToken = new CognitoRefreshToken({ RefreshToken: "" });
+
+  const session = new CognitoUserSession({
+    IdToken: idToken,
+    AccessToken: accessToken,
+    RefreshToken: refreshToken,
+  });
+
+  const username = idToken.payload["cognito:username"] as string || idToken.payload["sub"] as string;
+  const user = new CognitoUser({ Username: username, Pool: userPool });
+  user.setSignInUserSession(session);
+
+  return session;
 }

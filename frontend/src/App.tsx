@@ -7,6 +7,7 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import DetalleRadicado from "./pages/DetalleRadicado";
 import Perfil from "./pages/Perfil";
+import Callback from "./pages/Callback";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ToastProvider } from "./hooks/useToast";
 import "./App.css";
@@ -95,6 +96,7 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      <Route path="/callback" element={<Callback />} />
       {/* Ruta por defecto: redirige a dashboard (ProtectedRoute maneja auth) */}
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
