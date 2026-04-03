@@ -377,7 +377,7 @@ export default function Landing() {
         <RevealSection>
           <h2 className={s.sectionTitle}>Todo lo que necesitas</h2>
           <p className={s.sectionSubtitle}>
-            Disenado por y para abogados administrativistas colombianos.
+            Disenado por y para abogados colombianos.
           </p>
         </RevealSection>
         <div className={s.bentoGrid}>

@@ -183,6 +183,7 @@ export function getGoogleLoginUrl(): string {
     response_type: "token",
     client_id: COGNITO_CONFIG.userPoolClientId,
     scope: "email openid profile",
+    prompt: "select_account",
   });
   return `https://${COGNITO_CONFIG.domain}/oauth2/authorize?${params}`;
 }
