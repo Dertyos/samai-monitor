@@ -201,7 +201,7 @@ export default function Billing() {
                     onClick={() => handleSubscribe(selectedPlan || "plan-pro")}
                     disabled={subscribeMutation.isPending}
                   >
-                    {subscribeMutation.isPending ? "Procesando..." : "Upgrade a Pro — $29,900/mes"}
+                    {subscribeMutation.isPending ? "Procesando..." : "Upgrade a Pro — $19,900/mes"}
                   </button>
                   <button className="btn btn-secondary" onClick={() => navigate("/planes")}>
                     Ver todos los planes

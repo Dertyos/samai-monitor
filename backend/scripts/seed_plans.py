@@ -37,14 +37,14 @@ PLANS = [
     {
         "planId": "plan-pro",
         "name": "Pro",
-        "amount": 29900,
+        "amount": 19900,
         "currency": "cop",
         "interval": "month",
         "intervalCount": 1,
         "trialDays": 7,
         "active": True,
         "features": {
-            "max_processes": 30,
+            "max_processes": 25,
             "alertas_email": True,
             "alertas_push": True,
             "frecuencia_personalizable": True,

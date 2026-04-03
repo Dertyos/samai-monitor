@@ -102,7 +102,7 @@ FREE_PLAN_LIMIT = 5
 # Mapa de límites por planId (fallback si el plan no tiene features.max_processes)
 PLAN_LIMITS: dict[str, int] = {
     "plan-gratuito": 5,
-    "plan-pro": 30,
+    "plan-pro": 25,
     "plan-firma": 150,
     "plan-enterprise": 1000,
 }

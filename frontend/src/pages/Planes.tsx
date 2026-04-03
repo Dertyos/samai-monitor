@@ -107,7 +107,7 @@ export default function Planes() {
   // Planes estáticos para usuarios no autenticados
   const staticPlans: BillingPlanDTO[] = [
     { id: "plan-gratuito", name: "Gratuito", amount: 0, currency: "cop", interval: "month", trialDays: 0, features: { max_processes: 5, alertas_email: true, historial: true, etiquetas: true, exportacion_csv: true, busqueda_samai: true } },
-    { id: "plan-pro", name: "Pro", amount: 29900, currency: "cop", interval: "month", trialDays: 7, features: { max_processes: 30, alertas_email: true, alertas_push: true, frecuencia_personalizable: true, historial: true, etiquetas: true, exportacion_csv: true, busqueda_samai: true } },
+    { id: "plan-pro", name: "Pro", amount: 19900, currency: "cop", interval: "month", trialDays: 7, features: { max_processes: 25, alertas_email: true, alertas_push: true, frecuencia_personalizable: true, historial: true, etiquetas: true, exportacion_csv: true, busqueda_samai: true } },
     { id: "plan-firma", name: "Firma", amount: 79900, currency: "cop", interval: "month", trialDays: 7, features: { max_processes: 150, max_users: 5, alertas_email: true, alertas_push: true, reportes_avanzados: true, soporte_prioritario: true, historial: true, etiquetas: true, exportacion_csv: true, busqueda_samai: true } },
     { id: "plan-enterprise", name: "Enterprise", amount: 249900, currency: "cop", interval: "month", trialDays: 14, features: { max_processes: 1000, max_users: 20, alertas_email: true, alertas_push: true, alertas_whatsapp: true, api_access: true, integraciones: true, account_manager: true, reportes_avanzados: true, soporte_prioritario: true, historial: true, etiquetas: true, exportacion_csv: true, busqueda_samai: true } },
   ];
@@ -191,7 +191,7 @@ export default function Planes() {
           </thead>
           <tbody>
             <tr><td>5</td><td className={s.ours}>$0 (gratis)</td><td>$6,675</td><td>$5,000</td></tr>
-            <tr><td>20</td><td className={s.ours}>$29,900</td><td>$26,700</td><td>$20,000</td></tr>
+            <tr><td>20</td><td className={s.ours}>$19,900</td><td>$26,700</td><td>$20,000</td></tr>
             <tr><td>50</td><td className={s.ours}>$79,900</td><td>$66,750</td><td>$50,000</td></tr>
             <tr><td>100</td><td className={s.ours}>$79,900</td><td>$133,500</td><td>$100,000</td></tr>
             <tr><td>500</td><td className={s.ours}>$249,900</td><td>$667,500</td><td>$500,000</td></tr>

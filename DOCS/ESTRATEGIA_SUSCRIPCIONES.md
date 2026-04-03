@@ -116,11 +116,11 @@ Modelo hibrido: **tier gratuito generoso** para adopcion + **tiers pagos por vol
 - **Objetivo**: Capturar abogados independientes, generar boca a boca, product-led growth
 
 ### Plan Profesional - "Pro"
-- **Precio**: COP $29,900/mes (~USD $7.50)
-- **Procesos**: Hasta 30 procesos
+- **Precio**: COP $19,900/mes (~USD $5)
+- **Procesos**: Hasta 25 procesos
 - **Alertas**: Email + push notifications (PWA)
 - **Features**: Todo lo gratuito + alertas configurables, frecuencia personalizable
-- **Equivalente per-process**: ~COP $1,000/proceso (competitivo con PleGlex)
+- **Equivalente per-process**: ~COP $796/proceso (mas barato que PleGlex)
 - **Objetivo**: Abogados independientes y consultorios pequenos
 
 ### Plan Firma - "Business"
