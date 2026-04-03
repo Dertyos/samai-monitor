@@ -103,6 +103,7 @@ FREE_PLAN_LIMIT = 5
 PLAN_LIMITS: dict[str, int] = {
     "plan-gratuito": 5,
     "plan-pro": 25,
+    "plan-pro-plus": 70,
     "plan-firma": 150,
     "plan-enterprise": 1000,
 }
@@ -110,6 +111,7 @@ PLAN_LIMITS: dict[str, int] = {
 PLAN_NAMES: dict[str, str] = {
     "plan-gratuito": "Gratuito",
     "plan-pro": "Pro",
+    "plan-pro-plus": "Pro +",
     "plan-firma": "Firma",
     "plan-enterprise": "Enterprise",
 }
