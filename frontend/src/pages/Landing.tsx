@@ -431,6 +431,13 @@ export default function Landing() {
             </RevealSection>
           ))}
         </div>
+        <RevealSection>
+          <div style={{ textAlign: "center", marginTop: "1.5rem" }}>
+            <button className={s.ctaOutline} onClick={() => navigate("/planes")}>
+              Ver comparacion detallada
+            </button>
+          </div>
+        </RevealSection>
       </section>
 
       {/* ── FAQ ── */}

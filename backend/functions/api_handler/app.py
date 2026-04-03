@@ -58,6 +58,8 @@ _dynamodb = boto3.resource("dynamodb")
 _radicados_table = _dynamodb.Table(os.environ.get("RADICADOS_TABLE", "samai-radicados"))
 _alertas_table = _dynamodb.Table(os.environ.get("ALERTAS_TABLE", "samai-alertas"))
 _etiquetas_table = _dynamodb.Table(os.environ.get("ETIQUETAS_TABLE", "samai-etiquetas"))
+_billing_subs_table = _dynamodb.Table(os.environ.get("BILLING_SUBSCRIPTIONS_TABLE", "samai-billing-subscriptions"))
+_billing_plans_table = _dynamodb.Table(os.environ.get("BILLING_PLANS_TABLE", "samai-billing-plans"))
 samai_client = SamaiClient()
 rj_client = RamaJudicialClient()
 siugj_client = SiugjClient()
@@ -92,6 +94,59 @@ def _get_body(event: dict) -> dict:
 def _get_path_param(event: dict, param: str) -> str:
     """Extrae parámetro de path."""
     return (event.get("pathParameters") or {}).get(param, "")
+
+
+# Límites por defecto del plan gratuito
+FREE_PLAN_LIMIT = 5
+
+# Mapa de límites por planId (fallback si el plan no tiene features.max_processes)
+PLAN_LIMITS: dict[str, int] = {
+    "plan-gratuito": 5,
+    "plan-pro": 30,
+    "plan-firma": 150,
+    "plan-enterprise": 1000,
+}
+
+PLAN_NAMES: dict[str, str] = {
+    "plan-gratuito": "Gratuito",
+    "plan-pro": "Pro",
+    "plan-firma": "Firma",
+    "plan-enterprise": "Enterprise",
+}
+
+
+def _get_user_plan(user_id: str) -> dict | None:
+    """Obtiene el plan activo del usuario desde billing tables.
+
+    Retorna dict con planId, name, processLimit, o None si no tiene suscripción (plan gratuito).
+    """
+    try:
+        from boto3.dynamodb.conditions import Key as DKey
+
+        resp = _billing_subs_table.query(
+            KeyConditionExpression=DKey("userId").eq(user_id),
+        )
+        subs = resp.get("Items", [])
+        active = [s for s in subs if s.get("status") in ("active", "trialing")]
+        if not active:
+            return None
+
+        plan_id = active[0].get("planId", "")
+        process_limit = PLAN_LIMITS.get(plan_id, FREE_PLAN_LIMIT)
+        plan_name = PLAN_NAMES.get(plan_id, plan_id)
+
+        # Intentar obtener features del plan para límite más preciso
+        plan_resp = _billing_plans_table.get_item(Key={"planId": plan_id})
+        plan_item = plan_resp.get("Item")
+        if plan_item and plan_item.get("features", {}).get("max_processes"):
+            process_limit = int(plan_item["features"]["max_processes"])
+        if plan_item and plan_item.get("name"):
+            plan_name = plan_item["name"]
+
+        return {"planId": plan_id, "name": plan_name, "processLimit": process_limit}
+    except Exception:
+        logger.warning("Error consultando plan del usuario %s, usando límite gratuito", user_id)
+        return None
 
 
 def handler(event: dict, context: Any) -> dict:
@@ -181,6 +236,10 @@ def handler(event: dict, context: Any) -> dict:
         if method == "DELETE" and path == "/cuenta":
             return _delete_cuenta(event)
 
+        # GET /billing/status
+        if method == "GET" and path == "/billing/status":
+            return _get_billing_status(event)
+
         return _response(404, {"error": "Ruta no encontrada"})
 
     except Exception:
@@ -207,6 +266,21 @@ def _post_radicado(event: dict) -> dict:
     existing = obtener_radicado(_radicados_table, user_id, norm)
     if existing is not None and existing.fuente == fuente:
         return _response(409, {"error": "Radicado ya registrado"})
+
+    # Enforcement de límite de plan
+    current_radicados = obtener_radicados_usuario(_radicados_table, user_id)
+    process_count = len(current_radicados)
+    plan = _get_user_plan(user_id)
+    process_limit = plan.get("processLimit", 5) if plan else 5
+    plan_name = plan.get("name", "Gratuito") if plan else "Gratuito"
+    if process_count >= process_limit:
+        return _response(403, {
+            "error": f"Has alcanzado el límite de tu plan {plan_name} ({process_limit} procesos). "
+                     "Upgrade tu plan para monitorear más procesos.",
+            "code": "PLAN_LIMIT_REACHED",
+            "current": process_count,
+            "limit": process_limit,
+        })
 
     if fuente == "rama_judicial":
         id_proceso = body.get("id_proceso")
@@ -871,3 +945,26 @@ def _delete_cuenta(event: dict) -> dict:
         return _response(500, {"error": "Error eliminando cuenta. Contacte soporte."})
 
     return _response(200, {"deleted": counts})
+
+
+def _get_billing_status(event: dict) -> dict:
+    """GET /billing/status — plan actual, uso y límites del usuario."""
+    user_id = _get_user_id(event)
+    radicados = obtener_radicados_usuario(_radicados_table, user_id)
+    process_count = len(radicados)
+
+    plan = _get_user_plan(user_id)
+    if plan:
+        return _response(200, {
+            "plan": plan["planId"],
+            "planName": plan["name"],
+            "processLimit": plan["processLimit"],
+            "processCount": process_count,
+        })
+
+    return _response(200, {
+        "plan": "plan-gratuito",
+        "planName": "Gratuito",
+        "processLimit": FREE_PLAN_LIMIT,
+        "processCount": process_count,
+    })

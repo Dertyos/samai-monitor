@@ -347,50 +347,62 @@ comunidades y referrals (canales gratuitos que deben ser el motor principal en e
 
 | Componente | Tecnologia | Razon |
 |------------|-----------|-------|
-| Procesador de pagos | **Stripe** | Soporta COP, tarjetas colombianas, PSE (via Stripe Colombia) |
-| Gestion de suscripciones | **Stripe Billing** | Tiers, trial periods, upgrades/downgrades, invoices |
-| Limite de features | **DynamoDB** | Agregar campo `plan` al usuario en Cognito/DynamoDB |
-| Frontend billing | **Stripe Checkout** + portal | UI pre-construida, segura, responsive |
-| Webhooks | **Lambda** | Procesar eventos de Stripe (pago exitoso, cancelacion, etc.) |
+| Procesador de pagos | **Wompi** (Bancolombia) | $0 mensual, tarjetas, PSE, Nequi, Bancolombia, Daviplata |
+| Facturacion electronica | **(futuro) Siigo/Factus** | Se activa cuando haya ingresos que lo justifiquen |
+| Gestion de suscripciones | **Custom (DynamoDB + cron)** | Tokenizacion Wompi + cobro desde Lambda |
+| Limite de features | **DynamoDB** | 3 tablas billing (plans, subscriptions, events) |
+| Frontend billing | **Wompi Widget + React** | Widget embebido para checkout, paginas custom para gestion |
+| Webhooks | **Lambda** | Procesar confirmaciones de pago de Wompi (firma SHA256) |
 
-## 6.2 Cambios necesarios en el backend
+**Nota**: Stripe NO opera en Colombia. ePayco cobra $49,900+/mes solo por API.
+Wompi (Bancolombia) es la mejor opcion: API gratis, solo comision por transaccion
+(2.65% + $700 COP + IVA), soporta tarjetas, PSE, Nequi, Bancolombia, Daviplata.
 
-### DynamoDB - Nueva tabla `samai-subscriptions`
+## 6.2 Modulo de billing (plug & play)
+
+Implementacion directa en samai-monitor (2 Lambdas + 3 tablas DynamoDB).
+Wompi Widget en el frontend para el checkout, webhooks para confirmacion.
+
+### Componentes
+- `billing_webhook/app.py`: Lambda que recibe webhooks de Wompi, valida firma SHA256
+- `billing_api/app.py`: Lambda con 6 endpoints REST (planes, suscripcion, facturas, config Wompi)
+- `api_handler/app.py`: plan enforcement en POST /radicados + GET /billing/status
+- `scripts/seed_plans.py`: seed de planes en DynamoDB
+
+### DynamoDB - 3 tablas nuevas
 ```
-PK: userId
-plan: "free" | "pro" | "business" | "enterprise"
-stripeCustomerId: string
-stripeSubscriptionId: string
-processLimit: number (5 | 30 | 150 | 1000)
-currentProcessCount: number
-billingCycleStart: datetime
-billingCycleEnd: datetime
-status: "active" | "past_due" | "cancelled" | "trialing"
+samai-billing-plans        PK: planId
+samai-billing-subscriptions PK: userId + planId, GSI: status-index
+samai-billing-events       PK: userId + sk, GSI: transaction-id-index, TTL: 365 dias
 ```
 
-### API Handler - Nuevos endpoints
+### API Endpoints nuevos (billing)
 ```
-POST   /billing/checkout     -> Crear sesion de Stripe Checkout
-POST   /billing/portal       -> Abrir portal de Stripe para gestionar suscripcion
-GET    /billing/status       -> Obtener plan actual y limites
-POST   /billing/webhooks     -> Recibir webhooks de Stripe (sin auth)
+GET    /billing/plans         -> Listar planes (con auth)
+GET    /billing/subscription  -> Plan actual del usuario (con auth)
+POST   /billing/subscribe     -> Suscribirse a un plan (con auth)
+DELETE /billing/subscription  -> Cancelar suscripcion (con auth)
+GET    /billing/invoices      -> Historial de facturas (con auth)
+POST   /billing/webhook       -> Confirmacion de pago ePayco (SIN auth, firma SHA256)
 ```
 
 ### Enforcement de limites
 - `POST /radicados` debe verificar `currentProcessCount < processLimit`
 - Retornar HTTP 403 con mensaje claro: "Has alcanzado el limite de tu plan. Upgrade a Pro para monitorear hasta 30 procesos."
 - Los procesos existentes siguen monitoreandose si se hace downgrade (no se eliminan, solo se bloquea agregar nuevos)
+- Usuarios sin suscripcion = plan gratuito (5 procesos)
 
 ### Frontend - Nuevas paginas
-- `/pricing` - Landing page publica con planes y precios
-- `/billing` - Dashboard de suscripcion (plan actual, uso, upgrade/downgrade)
+- `/planes` - Pagina publica con planes y precios (seccion de Landing + pagina dedicada)
+- `/billing` - Dashboard de suscripcion (plan actual, uso, upgrade/downgrade, historial facturas)
 - Indicador de uso en Dashboard: "3/5 procesos usados" con barra de progreso
+- Prompt de upgrade cuando el usuario llega al limite
 
 ## 6.3 Orden de implementacion
 
-1. **Sprint 1**: Landing page publica (hero, features, pricing, FAQ, CTA) + analytics (GA4, pixels)
-2. **Sprint 2**: Tabla de suscripciones + enforcement de limites (backend) + pagina de billing (frontend)
-3. **Sprint 3**: Integracion Stripe Checkout + webhooks + portal de billing
+1. **Sprint 1**: Integrar billing-module al template.yaml + enforcement de limites en POST /radicados
+2. **Sprint 2**: Frontend billing (pagina de planes, formulario suscripcion, historial facturas)
+3. **Sprint 3**: Landing page publica con seccion de pricing + analytics (GA4, pixels)
 4. **Sprint 4**: PWA + push notifications (feature Pro)
 5. **Sprint 5**: Multi-usuario (feature Business)
 
@@ -420,7 +432,7 @@ POST   /billing/webhooks     -> Recibir webhooks de Stripe (sin auth)
 | SAMAI cambia/bloquea API | Media | Critico | Diversificar fuentes (CPNU, SIUGJ ya implementados), rate limiting respetuoso |
 | Monolegal baja precios | Media | Alto | Competir en UX y especializacion, no solo en precio |
 | Baja conversion free->pago | Media | Alto | Optimizar limites del tier gratuito (3-5 procesos), onboarding emails |
-| Stripe no disponible en CO | Baja | Alto | Alternativas: Wompi (colombiano), MercadoPago, Bold |
+| Wompi downtime o cambio API | Baja | Alto | Fallback: Bold, MercadoPago |
 | Regulacion de datos judiciales | Baja | Medio | Datos son publicos por ley (principio de publicidad procesal) |
 
 ---
@@ -428,8 +440,8 @@ POST   /billing/webhooks     -> Recibir webhooks de Stripe (sin auth)
 # 9. TIMELINE GENERAL
 
 ```
-Mes 1:    Landing page publica + analytics + pixels de ads
-Mes 1-2:  Implementar billing (Stripe + limites + billing page)
+Mes 1:    Integrar billing-module (ePayco + Alegra) + enforcement limites + billing UI
+Mes 1-2:  Landing page publica + analytics + pixels de ads
 Mes 2-3:  Lanzar tier gratuito + Pro, encender ads, SEO, presencia en comunidades
 Mes 3-4:  PWA + push notifications, referral program, optimizar landing (A/B)
 Mes 4-6:  Plan Business (multi-usuario), partnerships universidades

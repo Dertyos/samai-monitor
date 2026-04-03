@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../hooks/useToast";
-import { deleteCuenta } from "../lib/api";
+import { deleteCuenta, getBillingStatus } from "../lib/api";
+import { useQuery } from "@tanstack/react-query";
 import ConfirmModal from "../components/ConfirmModal";
 import styles from "./Perfil.module.css";
 
@@ -18,6 +19,11 @@ import styles from "./Perfil.module.css";
  */
 export default function Perfil() {
   const navigate = useNavigate();
+  const billingQuery = useQuery({
+    queryKey: ["billing-status"],
+    queryFn: getBillingStatus,
+    staleTime: 5 * 60 * 1000,
+  });
   const { email, signOut, changePassword } = useAuth();
   const toast = useToast();
 
@@ -85,20 +91,30 @@ export default function Perfil() {
 
       {/* Seccion: Suscripcion */}
       <section className={styles.section}>
-        <h3>Suscripción</h3>
+        <h3>Suscripcion</h3>
         <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: "1rem" }}>
-          Administra tu plan actual y facturación.
+          Administra tu plan actual y facturacion.
         </p>
         <div className={styles.infoRow} style={{ marginBottom: "0.5rem" }}>
           <span className={styles.infoLabel}>Plan actual</span>
-          <span className={styles.infoValue}><strong>Gratuito</strong></span>
+          <span className={styles.infoValue}>
+            <strong>{billingQuery.data?.planName ?? "Gratuito"}</strong>
+          </span>
         </div>
+        {billingQuery.data && (
+          <div className={styles.infoRow} style={{ marginBottom: "0.5rem" }}>
+            <span className={styles.infoLabel}>Uso</span>
+            <span className={styles.infoValue}>
+              {billingQuery.data.processCount}/{billingQuery.data.processLimit} procesos
+            </span>
+          </div>
+        )}
         <div className={styles.actions}>
-          <button className="primary" onClick={() => toast.success("Los planes premium estarán disponibles pronto")}>
-            Mejorar plan
+          <button className="primary" onClick={() => navigate("/billing")}>
+            Administrar suscripcion
           </button>
-          <button className="btn-secondary" onClick={() => toast.info("No hay historial de facturación")}>
-            Ver facturas
+          <button className="btn-secondary" onClick={() => navigate("/planes")}>
+            Ver planes
           </button>
         </div>
       </section>

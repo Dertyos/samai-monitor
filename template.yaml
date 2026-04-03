@@ -29,6 +29,24 @@ Parameters:
     Type: String
     Description: ACM certificate ARN for alertas-judiciales.dertyos.com (us-east-1)
     Default: ""
+  WompiPublicKey:
+    Type: String
+    Default: ""
+  WompiPrivateKey:
+    Type: String
+    NoEcho: true
+    Default: ""
+  WompiEventsKey:
+    Type: String
+    NoEcho: true
+    Default: ""
+  WompiIntegrityKey:
+    Type: String
+    NoEcho: true
+    Default: ""
+  WompiSandbox:
+    Type: String
+    Default: "true"
 
 Conditions:
   HasCertificate: !Not [!Equals [!Ref AcmCertificateArn, ""]]
@@ -64,6 +82,8 @@ Resources:
       Environment:
         Variables:
           USER_POOL_ID: !Ref UserPool
+          BILLING_SUBSCRIPTIONS_TABLE: !Ref BillingSubscriptionsTable
+          BILLING_PLANS_TABLE: !Ref BillingPlansTable
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref RadicadosTable
@@ -73,6 +93,10 @@ Resources:
             TableName: !Ref AlertasTable
         - DynamoDBCrudPolicy:
             TableName: !Ref EtiquetasTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BillingSubscriptionsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BillingPlansTable
         - Statement:
             - Effect: Allow
               Action:
@@ -187,6 +211,12 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /cuenta
             Method: DELETE
+        GetBillingStatus:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /billing/status
+            Method: GET
 
   MonitorFunction:
     Type: AWS::Serverless::Function
@@ -226,6 +256,101 @@ Resources:
             Schedule: cron(0 12 * * ? *)
             Description: Daily at 7am COT (12:00 UTC)
             Enabled: true
+
+  # ============================================
+  # BILLING — Lambda Functions (Wompi)
+  # ============================================
+  BillingWebhookFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: samai-billing-webhook
+      Handler: app.handler
+      CodeUri: backend/functions/billing_webhook/
+      Description: Wompi webhook - payment confirmation
+      MemorySize: 256
+      Timeout: 30
+      Environment:
+        Variables:
+          WOMPI_EVENTS_KEY: !Ref WompiEventsKey
+          BILLING_SUBSCRIPTIONS_TABLE: !Ref BillingSubscriptionsTable
+          BILLING_EVENTS_TABLE: !Ref BillingEventsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BillingSubscriptionsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BillingEventsTable
+      Events:
+        Webhook:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /billing/webhook
+            Method: POST
+            Auth:
+              Authorizer: NONE
+
+  BillingApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: samai-billing-api
+      Handler: app.handler
+      CodeUri: backend/functions/billing_api/
+      Description: Billing API - plans, subscriptions, invoices, Wompi config
+      MemorySize: 256
+      Timeout: 30
+      Environment:
+        Variables:
+          WOMPI_PUBLIC_KEY: !Ref WompiPublicKey
+          WOMPI_PRIVATE_KEY: !Ref WompiPrivateKey
+          WOMPI_INTEGRITY_KEY: !Ref WompiIntegrityKey
+          WOMPI_SANDBOX: !Ref WompiSandbox
+          BILLING_SUBSCRIPTIONS_TABLE: !Ref BillingSubscriptionsTable
+          BILLING_EVENTS_TABLE: !Ref BillingEventsTable
+          BILLING_PLANS_TABLE: !Ref BillingPlansTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BillingSubscriptionsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BillingEventsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BillingPlansTable
+      Events:
+        GetPlans:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /billing/plans
+            Method: GET
+        GetSubscription:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /billing/subscription
+            Method: GET
+        PostSubscribe:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /billing/subscribe
+            Method: POST
+        DeleteSubscription:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /billing/subscription
+            Method: DELETE
+        GetInvoices:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /billing/invoices
+            Method: GET
+        GetWompiConfig:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /billing/wompi-config
+            Method: GET
 
   # ============================================
   # API GATEWAY
@@ -503,6 +628,76 @@ Resources:
           AttributeType: S
         - AttributeName: etiquetaId
           AttributeType: S
+
+  # ============================================
+  # BILLING — DynamoDB Tables
+  # ============================================
+  BillingPlansTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: samai-billing-plans
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: planId
+          KeyType: HASH
+      AttributeDefinitions:
+        - AttributeName: planId
+          AttributeType: S
+
+  BillingSubscriptionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: samai-billing-subscriptions
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+        - AttributeName: planId
+          KeyType: RANGE
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: planId
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
+      GlobalSecondaryIndexes:
+        - IndexName: status-index
+          KeySchema:
+            - AttributeName: status
+              KeyType: HASH
+            - AttributeName: userId
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  BillingEventsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: samai-billing-events
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+        - AttributeName: transactionId
+          AttributeType: S
+      GlobalSecondaryIndexes:
+        - IndexName: transaction-id-index
+          KeySchema:
+            - AttributeName: transactionId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
 
   # ============================================
   # FRONTEND — S3 + CloudFront

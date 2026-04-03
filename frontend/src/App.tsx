@@ -10,6 +10,8 @@ import Perfil from "./pages/Perfil";
 import Callback from "./pages/Callback";
 import Privacidad from "./pages/Privacidad";
 import Terminos from "./pages/Terminos";
+import Planes from "./pages/Planes";
+import Billing from "./pages/Billing";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ToastProvider } from "./hooks/useToast";
 import "./App.css";
@@ -95,6 +97,15 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Perfil />
+          </ProtectedRoute>
+        }
+      />
+      <Route path="/planes" element={<Planes />} />
+      <Route
+        path="/billing"
+        element={
+          <ProtectedRoute>
+            <Billing />
           </ProtectedRoute>
         }
       />

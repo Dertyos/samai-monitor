@@ -238,3 +238,91 @@ export async function updateRadicadoEtiquetas(
 export async function deleteCuenta(): Promise<void> {
   await authFetch("/cuenta", { method: "DELETE" });
 }
+
+// --- Billing ---
+
+export interface BillingStatusDTO {
+  plan: string;
+  planName: string;
+  processLimit: number;
+  processCount: number;
+}
+
+export interface BillingPlanDTO {
+  id: string;
+  name: string;
+  amount: number;
+  currency: string;
+  interval: string;
+  trialDays: number;
+  features: Record<string, unknown>;
+}
+
+export interface BillingSubscriptionDTO {
+  planId: string;
+  status: string;
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
+  cancelAtPeriodEnd: boolean;
+}
+
+export interface BillingInvoiceDTO {
+  date: string;
+  amount: number;
+  status: string;
+  transactionId: string;
+  paymentMethod: string;
+  reference: string;
+}
+
+export interface WompiConfigDTO {
+  publicKey: string;
+  sandbox: boolean;
+}
+
+export interface SubscribeResponseDTO {
+  reference: string;
+  amountInCents: number;
+  currency: string;
+  integrityHash: string;
+  publicKey: string;
+  planName: string;
+}
+
+export async function getBillingStatus(): Promise<BillingStatusDTO> {
+  const res = await authFetch("/billing/status");
+  return res.json();
+}
+
+export async function getBillingPlans(): Promise<BillingPlanDTO[]> {
+  const res = await authFetch("/billing/plans");
+  return res.json();
+}
+
+export async function getBillingSubscription(): Promise<{ subscription: BillingSubscriptionDTO | null }> {
+  const res = await authFetch("/billing/subscription");
+  return res.json();
+}
+
+export async function createSubscribeIntent(planId: string): Promise<SubscribeResponseDTO> {
+  const res = await authFetch("/billing/subscribe", {
+    method: "POST",
+    body: JSON.stringify({ planId }),
+  });
+  return res.json();
+}
+
+export async function cancelSubscription(): Promise<{ message: string }> {
+  const res = await authFetch("/billing/subscription", { method: "DELETE" });
+  return res.json();
+}
+
+export async function getBillingInvoices(): Promise<BillingInvoiceDTO[]> {
+  const res = await authFetch("/billing/invoices");
+  return res.json();
+}
+
+export async function getWompiConfig(): Promise<WompiConfigDTO> {
+  const res = await authFetch("/billing/wompi-config");
+  return res.json();
+}

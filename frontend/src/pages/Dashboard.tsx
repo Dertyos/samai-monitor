@@ -14,6 +14,7 @@ import {
   updateEtiqueta,
   deleteEtiqueta,
   updateRadicadoEtiquetas,
+  getBillingStatus,
   type RadicadoDTO,
   type EtiquetaDTO,
   type AddRadicadoMeta,
@@ -81,6 +82,12 @@ export default function Dashboard() {
     queryKey: ["radicados"],
     queryFn: getRadicados,
     staleTime: 2 * 60 * 1000, // 2 min
+  });
+
+  const billingQuery = useQuery({
+    queryKey: ["billing-status"],
+    queryFn: getBillingStatus,
+    staleTime: 5 * 60 * 1000, // 5 min
   });
 
   const filterOptions = useFilterOptions(radicadosQuery.data || []);
@@ -156,6 +163,11 @@ export default function Dashboard() {
       toast.success("Radicado agregado correctamente");
     },
     onError: (err: Error) => {
+      if (err.message.includes("límite") || err.message.includes("PLAN_LIMIT")) {
+        toast.error("Limite de plan alcanzado. Upgrade para agregar mas procesos.");
+        navigate("/billing");
+        return;
+      }
       toast.error(err.message || "Error al agregar radicado");
     },
   });
@@ -332,6 +344,21 @@ export default function Dashboard() {
               <span className={styles.statValue}>{unreadCount}</span>
               <span className={styles.statLabel}>Alertas nuevas</span>
             </div>
+            {billingQuery.data && (
+              <div
+                className={styles.stat}
+                style={{ cursor: "pointer" }}
+                onClick={() => navigate("/billing")}
+                title="Ver mi plan"
+              >
+                <span className={styles.statValue}>
+                  {billingQuery.data.processCount}/{billingQuery.data.processLimit}
+                </span>
+                <span className={styles.statLabel}>
+                  Plan {billingQuery.data.planName}
+                </span>
+              </div>
+            )}
           </div>
         )}
 

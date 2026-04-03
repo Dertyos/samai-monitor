@@ -1,0 +1,293 @@
+/* ============================================
+   BILLING PAGE — Subscription management
+   ============================================ */
+
+.page {
+  min-height: 100vh;
+  padding-bottom: 3rem;
+}
+
+/* ── Nav (same as Planes) ── */
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 1px 0 var(--border);
+}
+[data-theme="dark"] .nav {
+  background: rgba(15, 17, 23, 0.78);
+}
+.navInner {
+  max-width: 900px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.875rem 1.5rem;
+}
+.navBrand {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  cursor: pointer;
+}
+.navTitle {
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--text);
+}
+.navLinks {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.themeBtn {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0.25rem;
+}
+
+/* ── Container ── */
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem;
+}
+
+.title {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 2rem;
+}
+
+/* ── Status Card ── */
+.statusCard {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 12px);
+  padding: 2rem;
+  margin-bottom: 2rem;
+}
+
+.statusHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+
+.planLabel {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.planName {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0.25rem 0 0;
+}
+
+.usage {
+  text-align: right;
+  min-width: 160px;
+}
+
+.usageCount {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.usageLabel {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-left: 0.25rem;
+}
+
+.usageBar {
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  margin-top: 0.5rem;
+  overflow: hidden;
+}
+
+.usageFill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+
+.subDetails {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.subDetails p {
+  margin: 0.25rem 0;
+}
+
+.cancelNotice {
+  color: var(--danger, #ef4444);
+  font-weight: 600;
+}
+
+.actions {
+  margin-top: 1.5rem;
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+/* ── Subscribe Form ── */
+.form {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 12px);
+  padding: 2rem;
+  margin-bottom: 2rem;
+}
+
+.formTitle {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 1.5rem;
+}
+
+.sectionTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 1.5rem 0 0.75rem;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.field label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.field input,
+.field select {
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 8px);
+  font-size: 0.95rem;
+  background: var(--bg, #fff);
+  color: var(--text);
+}
+
+[data-theme="dark"] .field input,
+[data-theme="dark"] .field select {
+  background: var(--bg, #0f1117);
+}
+
+.field input:focus,
+.field select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(var(--primary-rgb, 59, 130, 246), 0.2);
+}
+
+.fieldWide {
+  grid-column: span 2;
+}
+
+.secure {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-top: 1rem;
+}
+
+/* ── Invoices ── */
+.invoicesSection {
+  margin-top: 2rem;
+}
+
+.invoicesSection h2 {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 1rem;
+}
+
+.invoicesTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.invoicesTable th,
+.invoicesTable td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+
+.invoicesTable th {
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--surface);
+}
+
+.ref {
+  font-family: monospace;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.emptyInvoices {
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 2rem;
+}
+
+.loading {
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 2rem;
+}
+
+/* ── Responsive ── */
+@media (max-width: 640px) {
+  .formGrid {
+    grid-template-columns: 1fr;
+  }
+  .fieldWide {
+    grid-column: span 1;
+  }
+  .statusHeader {
+    flex-direction: column;
+  }
+  .usage {
+    text-align: left;
+  }
+}
