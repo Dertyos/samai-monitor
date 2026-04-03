@@ -1053,11 +1053,32 @@ def _delete_cuenta(event: dict) -> dict:
 
 
 def _get_billing_status(event: dict) -> dict:
-    """GET /billing/status — plan actual, uso y límites del usuario."""
+    """GET /billing/status — plan actual, uso y límites del usuario.
+
+    Si el usuario pertenece a un equipo activo, muestra el plan del equipo.
+    """
     user_id = _get_user_id(event)
     radicados = obtener_radicados_usuario(_radicados_table, user_id)
     process_count = len(radicados)
 
+    # Verificar si pertenece a un equipo activo
+    team_id = obtener_team_de_usuario(_team_members_table, user_id)
+    if team_id:
+        team = obtener_team(_teams_table, team_id)
+        if team:
+            owner_plan = _get_user_plan(team.owner_user_id)
+            if owner_plan and owner_plan["planId"] in TEAM_ELIGIBLE_PLANS:
+                team_count = contar_procesos_equipo(_team_members_table, _radicados_table, team_id)
+                return _response(200, {
+                    "plan": owner_plan["planId"],
+                    "planName": f"{owner_plan['name']} (equipo: {team.name})",
+                    "processLimit": owner_plan["processLimit"],
+                    "processCount": team_count,
+                    "teamId": team_id,
+                    "teamName": team.name,
+                })
+
+    # Plan personal
     plan = _get_user_plan(user_id)
     if plan:
         return _response(200, {
@@ -1157,6 +1178,18 @@ def _post_team(event: dict) -> dict:
     return _response(201, team.to_dynamo())
 
 
+def _resolve_user_email(user_id: str) -> str:
+    """Resuelve el email de un usuario via Cognito. Retorna userId si falla."""
+    try:
+        resp = _cognito.admin_get_user(UserPoolId=_user_pool_id, Username=user_id)
+        for attr in resp.get("UserAttributes", []):
+            if attr["Name"] == "email":
+                return attr["Value"]
+    except Exception:
+        pass
+    return user_id
+
+
 def _get_teams(event: dict) -> dict:
     """GET /teams — listar equipos del usuario con estado activo/inactivo."""
     user_id = _get_user_id(event)
@@ -1170,7 +1203,13 @@ def _get_teams(event: dict) -> dict:
         data["pendingConfirmation"] = t.pending_confirmation
         data["processLimit"] = owner_plan["processLimit"] if owner_plan else 0
         data["processCount"] = contar_procesos_equipo(_team_members_table, _radicados_table, t.team_id)
-        data["members"] = [m.to_dynamo() for m in obtener_miembros_team(_team_members_table, t.team_id)]
+        members_raw = obtener_miembros_team(_team_members_table, t.team_id)
+        members_data = []
+        for m in members_raw:
+            md = m.to_dynamo()
+            md["email"] = _resolve_user_email(m.user_id)
+            members_data.append(md)
+        data["members"] = members_data
         invites = obtener_invitaciones_equipo(_invitations_table, t.team_id)
         data["pendingInvitations"] = [
             {"email": inv.email, "inviteId": inv.invite_id, "status": inv.status, "createdAt": inv.created_at}

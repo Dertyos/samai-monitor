@@ -388,6 +388,7 @@ export interface TeamDTO {
 export interface TeamMemberDTO {
   teamId: string;
   userId: string;
+  email: string;
   role: "owner" | "member";
   joinedAt: string;
 }

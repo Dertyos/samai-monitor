@@ -114,6 +114,7 @@ Resources:
             - Effect: Allow
               Action:
                 - cognito-idp:AdminDeleteUser
+                - cognito-idp:AdminGetUser
                 - cognito-idp:ListUsers
               Resource: !GetAtt UserPool.Arn
         - Statement:

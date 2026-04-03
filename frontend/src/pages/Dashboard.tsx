@@ -114,6 +114,9 @@ export default function Dashboard() {
   });
 
   const pendingTeam = teamsQuery.data?.find(t => t.active && t.pendingConfirmation);
+  const hasTeamPlan = billingQuery.data?.plan === "plan-firma" || billingQuery.data?.plan === "plan-enterprise";
+  const hasNoTeam = !teamsQuery.isLoading && (!teamsQuery.data || teamsQuery.data.length === 0);
+  const showCreateTeamBanner = hasTeamPlan && hasNoTeam;
 
   const confirmTeamMutation = useMutation({
     mutationFn: (teamId: string) => confirmTeam(teamId),
@@ -347,6 +350,32 @@ export default function Dashboard() {
       </header>
 
       <main className={styles.main}>
+        {showCreateTeamBanner && (
+          <div style={{
+            padding: "1rem",
+            marginBottom: "1rem",
+            background: "var(--bg-info, #dbeafe)",
+            borderRadius: "0.5rem",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "1rem",
+            flexWrap: "wrap",
+          }}>
+            <div>
+              <strong>Tu plan {billingQuery.data?.planName} esta activo.</strong>{" "}
+              Puedes crear un equipo e invitar hasta {billingQuery.data?.plan === "plan-enterprise" ? "30" : "5"} miembros para compartir el monitoreo.
+            </div>
+            <button
+              className="primary"
+              onClick={() => navigate("/perfil")}
+              style={{ flexShrink: 0 }}
+            >
+              Crear equipo
+            </button>
+          </div>
+        )}
+
         {pendingTeam && (
           <div style={{
             padding: "1rem",

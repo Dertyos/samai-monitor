@@ -220,7 +220,7 @@ export default function Perfil() {
                     {myTeam.members.map((m) => (
                       <li key={m.userId} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.35rem 0", fontSize: "0.85rem" }}>
                         <span>
-                          {m.userId}
+                          {m.email}
                           {m.role === "owner" && <span style={{ marginLeft: "0.5rem", color: "var(--text-secondary)", fontSize: "0.75rem" }}>(dueno)</span>}
                         </span>
                         {m.role !== "owner" && myTeam.active && (
