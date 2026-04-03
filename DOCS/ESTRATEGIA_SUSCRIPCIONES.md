@@ -188,6 +188,110 @@ Modelo hibrido: **tier gratuito generoso** para adopcion + **tiers pagos por vol
 - "Invita a un colega, ambos obtienen 1 mes de Pro gratis"
 - Los abogados son una comunidad cerrada donde el boca a boca es poderoso
 
+#### E. Landing Page de conversion (CRITICO)
+
+La landing page es el **primer punto de contacto** para todo el trafico de publicidad (Google Ads, Facebook Ads, LinkedIn Ads). Sin ella, el dinero en ads se desperdicia.
+
+**URL**: `alertas-judiciales.dertyos.com` (ruta `/` publica, sin auth)
+
+**Estructura de la landing page**:
+
+1. **Hero section**
+   - Headline: "Nunca pierdas una actuacion judicial" (o similar orientado al dolor)
+   - Subheadline: "Monitoreo automatico de procesos en SAMAI. Alertas diarias por email. Gratis para siempre."
+   - CTA principal: boton "Empieza gratis" (lleva a `/login` con modo registro)
+   - CTA secundario: "Ver planes" (scroll a seccion de pricing)
+   - Imagen/mockup del dashboard en accion
+
+2. **Seccion de dolor / problema**
+   - "Revisar SAMAI manualmente todos los dias consume horas"
+   - "Un auto que se te pasa puede costarle el caso a tu cliente"
+   - "Los vencimientos de terminos no esperan"
+   - Estadistica: "342 juzgados administrativos generan miles de actuaciones diarias"
+
+3. **Seccion de solucion / features**
+   - Monitoreo automatico diario (7 AM)
+   - Alertas por email instantaneas
+   - Dashboard con todos tus procesos en un solo lugar
+   - Historial completo de actuaciones
+   - Descarga de providencias PDF
+   - Etiquetas y filtros personalizados
+   - Dark mode (detalle que demuestra cuidado en UX)
+   - Cada feature con icono + descripcion breve + screenshot
+
+4. **Social proof / confianza**
+   - "Usado por X abogados en Colombia" (counter en vivo cuando tengamos traccion)
+   - Testimonios (conseguir 3-5 beta testers que den feedback)
+   - Logos de universidades/firmas aliadas (cuando existan)
+   - "Datos 100% publicos — usamos la API oficial de SAMAI"
+
+5. **Seccion de pricing**
+   - Tabla comparativa de los 4 planes (Gratis, Pro, Firma, Corporativo)
+   - Highlight en plan Pro como "Mas popular"
+   - Toggle mensual/anual (con descuento del 20% anual)
+   - CTA en cada plan: "Empezar" / "Empezar gratis"
+   - Comparacion vs competencia: "5 procesos gratis. La competencia cobra desde el primero."
+
+6. **FAQ**
+   - "Es seguro?" -> Datos publicos, API oficial, AWS, Cognito
+   - "Que pasa si me paso del limite?" -> No pierdes datos, solo se bloquea agregar nuevos
+   - "Puedo cancelar cuando quiera?" -> Si, sin compromisos
+   - "Cubren Rama Judicial?" -> Proximo, ya en desarrollo
+   - "Necesito tarjeta de credito para el plan gratis?" -> No
+
+7. **CTA final**
+   - "Empieza a monitorear tus procesos hoy. Es gratis."
+   - Boton grande "Crear cuenta gratis"
+
+8. **Footer**
+   - Links: Terminos de servicio, Politica de privacidad, Contacto
+   - Email de soporte
+   - Redes sociales
+
+**Requisitos tecnicos de la landing page**:
+
+| Aspecto | Detalle |
+|---------|---------|
+| Framework | Misma app React (ruta `/` publica) o pagina estatica separada en S3 |
+| SEO | SSR o pre-rendering para indexacion (meta tags, Open Graph, schema.org) |
+| Velocidad | Lighthouse score 90+, lazy load imagenes, above-the-fold optimizado |
+| Responsive | Mobile-first (70%+ del trafico colombiano es movil) |
+| Analytics | Google Analytics 4 + pixel de Facebook Ads + LinkedIn Insight Tag |
+| A/B testing | Variantes del headline y CTA (Google Optimize o similar) |
+| UTM tracking | Parametros UTM en todas las URLs de ads para medir ROI por canal |
+| Conversion tracking | Eventos: page_view, cta_click, signup_started, signup_completed |
+
+**Flujo de conversion desde publicidad**:
+
+```
+Ad (Google/FB/LinkedIn)
+  -> Landing page (/)
+    -> CTA "Empieza gratis"
+      -> Registro (/login?mode=register)
+        -> Onboarding (agregar primer proceso)
+          -> Dashboard (valor inmediato)
+            -> Upgrade a Pro (cuando llegue al limite de 5)
+```
+
+**Presupuesto de ads sugerido (Fase 1)**:
+
+| Canal | Presupuesto/mes (COP) | ~USD | Targeting |
+|-------|----------------------|------|-----------|
+| Google Ads | $500,000 | $125 | Keywords: "consulta SAMAI", "procesos contencioso administrativo" |
+| Facebook/Instagram Ads | $300,000 | $75 | Abogados Colombia, interes en derecho administrativo |
+| LinkedIn Ads | $200,000 | $50 | Titulo: abogado, ubicacion: Colombia |
+| **Total** | **$1,000,000** | **$250** | |
+
+**Metricas de la landing page**:
+
+| Metrica | Meta |
+|---------|------|
+| Tasa de conversion (visita -> registro) | 5-10% |
+| Costo por registro (CPA) | < COP $5,000 (~USD $1.25) |
+| Bounce rate | < 50% |
+| Tiempo en pagina | > 60 segundos |
+| CTR en ads | > 2% |
+
 ## 5.2 Fase 2: Partnerships (Meses 3-6)
 
 **Objetivo**: 2,000 usuarios registrados, 200 pagando
@@ -278,10 +382,11 @@ POST   /billing/webhooks     -> Recibir webhooks de Stripe (sin auth)
 
 ## 6.3 Orden de implementacion
 
-1. **Sprint 1**: Tabla de suscripciones + enforcement de limites (backend) + pagina de pricing (frontend)
-2. **Sprint 2**: Integracion Stripe Checkout + webhooks + portal de billing
-3. **Sprint 3**: PWA + push notifications (feature Pro)
-4. **Sprint 4**: Multi-usuario (feature Business)
+1. **Sprint 1**: Landing page publica (hero, features, pricing, FAQ, CTA) + analytics (GA4, pixels)
+2. **Sprint 2**: Tabla de suscripciones + enforcement de limites (backend) + pagina de billing (frontend)
+3. **Sprint 3**: Integracion Stripe Checkout + webhooks + portal de billing
+4. **Sprint 4**: PWA + push notifications (feature Pro)
+5. **Sprint 5**: Multi-usuario (feature Business)
 
 ---
 
@@ -317,9 +422,10 @@ POST   /billing/webhooks     -> Recibir webhooks de Stripe (sin auth)
 # 9. TIMELINE GENERAL
 
 ```
-Mes 1-2:  Implementar billing (Stripe + limites + pricing page)
-Mes 2-3:  Lanzar tier gratuito + Pro, SEO basico, presencia en comunidades
-Mes 3-4:  PWA + push notifications, referral program
+Mes 1:    Landing page publica + analytics + pixels de ads
+Mes 1-2:  Implementar billing (Stripe + limites + billing page)
+Mes 2-3:  Lanzar tier gratuito + Pro, encender ads, SEO, presencia en comunidades
+Mes 3-4:  PWA + push notifications, referral program, optimizar landing (A/B)
 Mes 4-6:  Plan Business (multi-usuario), partnerships universidades
 Mes 6-9:  Activar multi-jurisdiccion (CPNU, SIUGJ), features IA basicas
 Mes 9-12: Plan Enterprise, gobierno, expansion LATAM (investigar)
