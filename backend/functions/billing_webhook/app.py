@@ -28,7 +28,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Recibe POST de Wompi con evento de transaccion."""
     try:
         body = _parse_body(event)
-        logger.info("Webhook recibido: event=%s signature=%s", body.get("event"), body.get("signature"))
+        logger.info("Webhook FULL BODY: %s", json.dumps(body, default=str)[:2000])
 
         if not _validate_signature(body):
             logger.warning("Firma invalida en webhook")
