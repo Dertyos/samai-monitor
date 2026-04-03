@@ -28,17 +28,12 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Recibe POST de Wompi con evento de transaccion."""
     try:
         body = _parse_body(event)
-        logger.info("Webhook FULL BODY: %s", json.dumps(body, default=str)[:2000])
+        logger.info("Webhook recibido: event=%s", body.get("event"))
 
         # Validar firma SHA256
-        sig_valid = _validate_signature(body)
-        is_sandbox = _events_key.startswith("test_")
-        if not sig_valid:
-            if is_sandbox:
-                logger.warning("Firma invalida en sandbox — Wompi sandbox tiene bugs conocidos con checksum, procesando")
-            else:
-                logger.warning("Firma invalida en webhook de produccion")
-                return _response(401, {"error": "Invalid signature"})
+        if not _validate_signature(body):
+            logger.warning("Firma invalida en webhook")
+            return _response(401, {"error": "Invalid signature"})
 
         event_type = body.get("event", "")
         if event_type != "transaction.updated":
@@ -130,7 +125,7 @@ def _validate_signature(body: dict[str, Any]) -> bool:
 
     sig = body.get("signature", {})
     properties = sig.get("properties", [])
-    timestamp = sig.get("timestamp", "")
+    timestamp = body.get("timestamp", "")  # timestamp esta en el root, no en signature
     checksum = sig.get("checksum", "")
 
     if not properties or not checksum:
@@ -150,13 +145,8 @@ def _validate_signature(body: dict[str, Any]) -> bool:
                 break
         values += str(value)
 
-    # Wompi puede o no enviar timestamp; solo incluirlo si existe
-    if timestamp:
-        concat = f"{values}{timestamp}{_events_key}"
-    else:
-        concat = f"{values}{_events_key}"
+    concat = f"{values}{timestamp}{_events_key}"
     computed = hashlib.sha256(concat.encode()).hexdigest()
-    logger.info("Signature debug: concat=%s match=%s", concat, computed == checksum)
     return computed == checksum
 
 
