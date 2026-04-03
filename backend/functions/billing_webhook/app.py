@@ -30,12 +30,14 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         body = _parse_body(event)
         logger.info("Webhook FULL BODY: %s", json.dumps(body, default=str)[:2000])
 
-        # Validar firma — en sandbox se omite si falla (Wompi sandbox no siempre envia timestamp)
-        if not _validate_signature(body):
-            if _events_key.startswith("test_"):
-                logger.warning("Firma invalida en sandbox, procesando de todas formas")
+        # Validar firma SHA256
+        sig_valid = _validate_signature(body)
+        is_sandbox = _events_key.startswith("test_")
+        if not sig_valid:
+            if is_sandbox:
+                logger.warning("Firma invalida en sandbox — Wompi sandbox tiene bugs conocidos con checksum, procesando")
             else:
-                logger.warning("Firma invalida en webhook")
+                logger.warning("Firma invalida en webhook de produccion")
                 return _response(401, {"error": "Invalid signature"})
 
         event_type = body.get("event", "")
