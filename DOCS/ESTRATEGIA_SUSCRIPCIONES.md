@@ -273,21 +273,27 @@ Ad (Google/FB/LinkedIn)
             -> Upgrade a Pro (cuando llegue al limite de 5)
 ```
 
-**Presupuesto de ads sugerido (Fase 1)**:
+**Presupuesto de ads sugerido (Fase 1 - bootstrap)**:
+
+Presupuesto lean para validar canales antes de escalar. Priorizar el canal con mejor CPA y duplicar ahi.
 
 | Canal | Presupuesto/mes (COP) | ~USD | Targeting |
 |-------|----------------------|------|-----------|
-| Google Ads | $500,000 | $125 | Keywords: "consulta SAMAI", "procesos contencioso administrativo" |
-| Facebook/Instagram Ads | $300,000 | $75 | Abogados Colombia, interes en derecho administrativo |
-| LinkedIn Ads | $200,000 | $50 | Titulo: abogado, ubicacion: Colombia |
-| **Total** | **$1,000,000** | **$250** | |
+| Google Ads | $50,000 | $12.50 | Keywords exactas: "consulta SAMAI", "alertas judiciales" (long-tail, bajo CPC) |
+| Facebook/Instagram Ads | $50,000 | $12.50 | Abogados Colombia, interes en derecho administrativo, 25-55 anos |
+| LinkedIn Ads | $0 (pausado) | $0 | Muy caro por click, activar solo si sobra presupuesto |
+| **Total** | **$100,000** | **$25** | |
+
+**Nota**: Con COP $100,000/mes y un CPC estimado de $500-1,000, obtenemos ~100-200 clicks/mes.
+Si la landing convierte al 5-10%, eso son 5-20 registros/mes solo de ads. El resto viene de SEO,
+comunidades y referrals (canales gratuitos que deben ser el motor principal en esta fase).
 
 **Metricas de la landing page**:
 
 | Metrica | Meta |
 |---------|------|
 | Tasa de conversion (visita -> registro) | 5-10% |
-| Costo por registro (CPA) | < COP $5,000 (~USD $1.25) |
+| Costo por registro (CPA) | < COP $5,000 (~USD $1.25) — con $100K/mes eso son ~20 registros pagos |
 | Bounce rate | < 50% |
 | Tiempo en pagina | > 60 segundos |
 | CTR en ads | > 2% |
