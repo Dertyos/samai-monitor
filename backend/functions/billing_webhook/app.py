@@ -29,6 +29,15 @@ _monitor_function = os.environ.get("MONITOR_FUNCTION_NAME", "samai-monitor")
 
 TEAM_ELIGIBLE_PLANS = {"plan-firma", "plan-enterprise"}
 
+# Rank de planes por precio — para evitar degradar si llega un webhook tardío
+PLAN_RANK: dict[str, int] = {
+    "plan-gratuito": 0,
+    "plan-pro": 1,
+    "plan-pro-plus": 2,
+    "plan-firma": 3,
+    "plan-enterprise": 4,
+}
+
 
 def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Recibe POST de Wompi con evento de transaccion."""
@@ -116,17 +125,35 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                     logger.warning("Upgrade ref pero sin suscripcion activa: user=%s", user_id)
             else:
                 # Nueva suscripcion o renovacion
-                # Si habia pendingPlanId (downgrade programado), aplicarlo
                 effective_plan = plan_id
                 existing_subs = _subscriptions_table.query(
                     KeyConditionExpression=Key("userId").eq(user_id),
                 ).get("Items", [])
-                for old_sub in existing_subs:
-                    pending = old_sub.get("pendingPlanId")
+                active_subs = [s for s in existing_subs if s.get("status") in ("active", "trialing")]
+
+                if active_subs:
+                    current_plan = active_subs[0].get("planId", "")
+                    current_rank = PLAN_RANK.get(current_plan, 0)
+                    new_rank = PLAN_RANK.get(plan_id, 0)
+
+                    if new_rank < current_rank:
+                        # Webhook tardío de un plan inferior — no degradar
+                        logger.warning(
+                            "Webhook tardio: user=%s tiene %s (rank %d), ignorando %s (rank %d)",
+                            user_id, current_plan, current_rank, plan_id, new_rank,
+                        )
+                        return _response(200, {"status": "ignored_late_webhook"})
+
+                # Buscar pendingPlanId en cualquier suscripcion (activa o cancelada)
+                for sub in existing_subs:
+                    pending = sub.get("pendingPlanId")
                     if pending:
                         effective_plan = pending
                         logger.info("Aplicando downgrade pendiente: user=%s %s -> %s", user_id, plan_id, pending)
-                    # Limpiar suscripciones viejas
+                        break
+
+                # Limpiar suscripciones viejas
+                for old_sub in existing_subs:
                     _subscriptions_table.delete_item(
                         Key={"userId": user_id, "planId": old_sub["planId"]}
                     )

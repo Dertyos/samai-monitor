@@ -46,7 +46,7 @@ function InvoicesList({ invoices }: { invoices: BillingInvoiceDTO[] }) {
       <tbody>
         {invoices.map((inv) => (
           <tr key={inv.transactionId}>
-            <td>{new Date(inv.date).toLocaleDateString("es-CO")}</td>
+            <td>{new Date(inv.date).toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" })}</td>
             <td>{formatCOP(inv.amount)}</td>
             <td>{inv.paymentMethod}</td>
             <td className={s.ref}>{inv.transactionId}</td>
@@ -108,7 +108,8 @@ export default function Billing() {
 
   const status = statusQuery.data;
   const sub = subQuery.data?.subscription;
-  const isFreePlan = !sub || status?.plan === "plan-gratuito";
+  const isInTeam = !!(status as Record<string, unknown>)?.teamId;
+  const isFreePlan = !isInTeam && (!sub || status?.plan === "plan-gratuito");
 
   const PLAN_RANK: Record<string, number> = {
     "plan-gratuito": 0, "plan-pro": 1, "plan-pro-plus": 2, "plan-firma": 3, "plan-enterprise": 4,
@@ -240,7 +241,12 @@ export default function Billing() {
             )}
 
             <div className={s.actions}>
-              {isFreePlan ? (
+              {isInTeam ? (
+                <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                  Estas cubierto por el equipo <strong>{(status as Record<string, unknown>)?.teamName as string}</strong>.
+                  No necesitas suscripcion personal.
+                </p>
+              ) : isFreePlan ? (
                 <>
                   <button
                     className="btn btn-primary"

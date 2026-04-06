@@ -155,7 +155,10 @@ def _post_subscribe(event: dict) -> dict:
     )
     active = [s for s in resp.get("Items", []) if s.get("status") in ("active", "trialing")]
     if active:
-        return _response(409, {"error": "Ya tienes una suscripcion activa"})
+        return _response(409, {
+            "error": "Ya tienes una suscripcion activa. Usa upgrade/downgrade para cambiar de plan.",
+            "code": "ALREADY_SUBSCRIBED",
+        })
 
     # Obtener plan
     plan_resp = _plans_table.get_item(Key={"planId": plan_id})
