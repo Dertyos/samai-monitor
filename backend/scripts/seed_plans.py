@@ -70,6 +70,7 @@ PLANS = [
             "exportacion_csv": True,
             "busqueda_samai": True,
             "soporte_email": True,
+            "alerta_personalizada": True,
         },
     },
     {
@@ -89,6 +90,7 @@ PLANS = [
             "exportacion_csv": True,
             "busqueda_samai": True,
             "soporte_email": True,
+            "alerta_personalizada": True,
         },
     },
     {
@@ -108,6 +110,7 @@ PLANS = [
             "exportacion_csv": True,
             "busqueda_samai": True,
             "soporte_email": True,
+            "alerta_personalizada": True,
         },
     },
 ]

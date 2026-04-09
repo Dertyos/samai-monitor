@@ -8,7 +8,7 @@ from datetime import datetime
 import pytest
 from moto import mock_aws
 
-from models import Radicado, Actuacion, Alerta
+from models import Radicado, Actuacion, Alerta, AlertSchedule
 from db import (
     guardar_radicado,
     obtener_radicados_usuario,
@@ -16,6 +16,7 @@ from db import (
     obtener_alertas_usuario,
     obtener_ultimo_orden_local,
     guardar_actuaciones,
+    guardar_alert_schedule,
 )
 
 
@@ -452,3 +453,135 @@ class TestEnforcePlanLimits:
 
         rads = obtener_radicados_usuario(radicados_table, USER_A)
         assert all(r.activo for r in rads)
+
+
+@pytest.mark.unit
+class TestProcessCustomAlerts:
+    """_process_custom_alerts: hourly check para alertas personalizadas."""
+
+    def _patch_monitor_tables(
+        self, radicados, actuaciones, alertas, billing_subs, billing_plans,
+        team_members, teams, alert_schedules,
+    ):
+        return (
+            patch("functions.monitor.app._radicados_table", radicados),
+            patch("functions.monitor.app._actuaciones_table", actuaciones),
+            patch("functions.monitor.app._alertas_table", alertas),
+            patch("functions.monitor.app._billing_subs_table", billing_subs),
+            patch("functions.monitor.app._billing_plans_table", billing_plans),
+            patch("functions.monitor.app._team_members_table", team_members),
+            patch("functions.monitor.app._teams_table", teams),
+            patch("functions.monitor.app._alert_schedules_table", alert_schedules),
+        )
+
+    def test_skips_hour_12(self, dynamodb_resource):
+        """Hora 12 UTC (7 AM COT) se salta — el daily scan lo cubre."""
+        from functions.monitor.app import _process_custom_alerts
+
+        with patch("functions.monitor.app.datetime") as mock_dt:
+            mock_dt.now.return_value.hour = 12
+            mock_dt.now.return_value.isoformat.return_value = "2026-04-08T12:00:00+00:00"
+            result = _process_custom_alerts()
+
+        assert result["skipped"] is True
+
+    def test_no_users_at_hour(
+        self, radicados_table, actuaciones_table, alertas_table,
+        billing_subs_table, billing_plans_table, team_members_table,
+        teams_table, alert_schedules_table,
+    ):
+        """Sin usuarios configurados a la hora actual, retorna 0."""
+        from functions.monitor.app import _process_custom_alerts
+
+        patches = self._patch_monitor_tables(
+            radicados_table, actuaciones_table, alertas_table,
+            billing_subs_table, billing_plans_table, team_members_table,
+            teams_table, alert_schedules_table,
+        )
+
+        with (
+            patches[0], patches[1], patches[2], patches[3],
+            patches[4], patches[5], patches[6], patches[7],
+            patch("functions.monitor.app.datetime") as mock_dt,
+        ):
+            mock_dt.now.return_value.hour = 15
+            mock_dt.now.return_value.isoformat.return_value = "2026-04-08T15:00:00+00:00"
+            result = _process_custom_alerts()
+
+        assert result["processed"] == 0
+
+    def test_processes_matching_user(
+        self, radicados_table, actuaciones_table, alertas_table,
+        billing_subs_table, billing_plans_table, team_members_table,
+        teams_table, alert_schedules_table,
+    ):
+        """Usuario con schedule a hora 17 UTC es procesado cuando la hora es 17."""
+        from functions.monitor.app import _process_custom_alerts
+
+        # Setup: usuario con plan pro-plus y schedule a hora 17
+        billing_subs_table.put_item(Item={
+            "userId": USER_A, "planId": "plan-pro-plus", "status": "active",
+        })
+        schedule = AlertSchedule(
+            user_id=USER_A, alert_hour_utc=17, alert_hour_cot=12,
+            created_at="2026-04-08T10:00:00Z",
+        )
+        guardar_alert_schedule(alert_schedules_table, schedule)
+
+        # Radicado activo sin novedades (samai_client retorna [])
+        guardar_radicado(radicados_table, _make_radicado(USER_A, 175))
+
+        patches = self._patch_monitor_tables(
+            radicados_table, actuaciones_table, alertas_table,
+            billing_subs_table, billing_plans_table, team_members_table,
+            teams_table, alert_schedules_table,
+        )
+
+        with (
+            patches[0], patches[1], patches[2], patches[3],
+            patches[4], patches[5], patches[6], patches[7],
+            patch("functions.monitor.app.datetime") as mock_dt,
+            patch("functions.monitor.app.samai_client") as mock_samai,
+        ):
+            mock_dt.now.return_value.hour = 17
+            mock_dt.now.return_value.isoformat.return_value = "2026-04-08T17:00:00+00:00"
+            mock_samai.get_actuaciones_nuevas.return_value = []
+            result = _process_custom_alerts()
+
+        assert result["processed"] == 1
+        assert result["users_alerted"] == 0
+
+    def test_skips_ineligible_user(
+        self, radicados_table, actuaciones_table, alertas_table,
+        billing_subs_table, billing_plans_table, team_members_table,
+        teams_table, alert_schedules_table,
+    ):
+        """Usuario que downgraded a plan-pro es saltado aunque tenga schedule."""
+        from functions.monitor.app import _process_custom_alerts
+
+        # Setup: usuario con plan-pro (no elegible) pero schedule existente
+        billing_subs_table.put_item(Item={
+            "userId": USER_A, "planId": "plan-pro", "status": "active",
+        })
+        schedule = AlertSchedule(
+            user_id=USER_A, alert_hour_utc=17, alert_hour_cot=12,
+            created_at="2026-04-08T10:00:00Z",
+        )
+        guardar_alert_schedule(alert_schedules_table, schedule)
+
+        patches = self._patch_monitor_tables(
+            radicados_table, actuaciones_table, alertas_table,
+            billing_subs_table, billing_plans_table, team_members_table,
+            teams_table, alert_schedules_table,
+        )
+
+        with (
+            patches[0], patches[1], patches[2], patches[3],
+            patches[4], patches[5], patches[6], patches[7],
+            patch("functions.monitor.app.datetime") as mock_dt,
+        ):
+            mock_dt.now.return_value.hour = 17
+            mock_dt.now.return_value.isoformat.return_value = "2026-04-08T17:00:00+00:00"
+            result = _process_custom_alerts()
+
+        assert result["processed"] == 0

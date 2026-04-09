@@ -427,3 +427,34 @@ export async function confirmTeam(teamId: string): Promise<{ status: string; mem
   return res.json();
 }
 
+// --- Alert Schedules ---
+
+export interface AlertScheduleDTO {
+  alertHourCot: number;
+  alertHourUtc: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AlertScheduleResponseDTO {
+  schedule: AlertScheduleDTO | null;
+  eligible: boolean;
+}
+
+export async function getAlertSchedule(): Promise<AlertScheduleResponseDTO> {
+  const res = await authFetch("/alert-schedule");
+  return res.json();
+}
+
+export async function putAlertSchedule(hourCot: number): Promise<{ schedule: AlertScheduleDTO }> {
+  const res = await authFetch("/alert-schedule", {
+    method: "PUT",
+    body: JSON.stringify({ hourCot }),
+  });
+  return res.json();
+}
+
+export async function deleteAlertSchedule(): Promise<void> {
+  await authFetch("/alert-schedule", { method: "DELETE" });
+}
+

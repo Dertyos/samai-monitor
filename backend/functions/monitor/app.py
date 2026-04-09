@@ -20,6 +20,7 @@ from models import Actuacion, Alerta, Radicado
 from samai_client import SamaiClient, SamaiApiError
 from rama_judicial_client import RamaJudicialClient, RamaJudicialApiError
 from siugj_client import SiugjClient, SiugjApiError
+from spoa_client import SpoaClient, SpoaApiError
 from boto3.dynamodb.conditions import Key
 
 from db import (
@@ -34,6 +35,7 @@ from db import (
     obtener_team,
     obtener_miembros_team,
     contar_procesos_equipo,
+    obtener_schedules_por_hora,
 )
 
 logger = logging.getLogger(__name__)
@@ -48,8 +50,10 @@ _billing_subs_table = _dynamodb.Table(os.environ.get("BILLING_SUBSCRIPTIONS_TABL
 _billing_plans_table = _dynamodb.Table(os.environ.get("BILLING_PLANS_TABLE", "samai-billing-plans"))
 _teams_table = _dynamodb.Table(os.environ.get("TEAMS_TABLE", "samai-teams"))
 _team_members_table = _dynamodb.Table(os.environ.get("TEAM_MEMBERS_TABLE", "samai-team-members"))
+_alert_schedules_table = _dynamodb.Table(os.environ.get("ALERT_SCHEDULES_TABLE", "samai-alert-schedules"))
 
 TEAM_ELIGIBLE_PLANS = {"plan-firma", "plan-enterprise"}
+CUSTOM_ALERT_ELIGIBLE_PLANS = {"plan-pro-plus", "plan-firma", "plan-enterprise"}
 
 FREE_PLAN_LIMIT = 5
 
@@ -63,6 +67,7 @@ PLAN_LIMITS: dict[str, int] = {
 samai_client = SamaiClient()
 rj_client = RamaJudicialClient()
 siugj_client = SiugjClient()
+spoa_client = SpoaClient()
 
 # Resend API key — cargada desde SSM en cold start
 def _load_resend_api_key() -> str:
@@ -246,6 +251,14 @@ def _reactivate_and_check_user(user_id: str) -> dict:
                     alertas_table=_alertas_table,
                     radicado=rad.radicado,
                 )
+            elif rad.fuente == "spoa":
+                user_alertas = check_radicado_spoa(
+                    spoa_client=spoa_client,
+                    radicados_table=_radicados_table,
+                    actuaciones_table=_actuaciones_table,
+                    alertas_table=_alertas_table,
+                    radicado=rad.radicado,
+                )
             else:
                 user_alertas = check_radicado(
                     samai_client=samai_client,
@@ -280,6 +293,10 @@ def handler(event: dict, context: Any) -> dict:
             return {"error": "userId requerido"}
         logger.info("Reactivacion por pago: user=%s", user_id)
         return _reactivate_and_check_user(user_id)
+
+    # Hourly trigger: procesar alertas personalizadas
+    if action == "custom_alert_check":
+        return _process_custom_alerts()
 
     logger.info("Monitor iniciado")
 
@@ -318,6 +335,14 @@ def handler(event: dict, context: Any) -> dict:
                     alertas_table=_alertas_table,
                     radicado=radicado,
                 )
+            elif fuente == "spoa":
+                user_alertas = check_radicado_spoa(
+                    spoa_client=spoa_client,
+                    radicados_table=_radicados_table,
+                    actuaciones_table=_actuaciones_table,
+                    alertas_table=_alertas_table,
+                    radicado=radicado,
+                )
             else:
                 user_alertas = check_radicado(
                     samai_client=samai_client,
@@ -346,6 +371,122 @@ def handler(event: dict, context: Any) -> dict:
     }
     logger.info("Monitor completado: %s", result)
     return result
+
+
+def _process_custom_alerts() -> dict:
+    """Procesa alertas personalizadas para la hora UTC actual.
+
+    Consulta la tabla de schedules para la hora actual,
+    verifica elegibilidad de cada usuario, y chequea sus radicados.
+    """
+    current_hour = datetime.now(timezone.utc).hour
+
+    # Saltar hora 12 UTC (7 AM COT) — el scan diario completo ya lo cubre
+    if current_hour == 12:
+        logger.info("Custom alert check: skipping hour 12 (daily scan handles it)")
+        return {"skipped": True, "reason": "daily_scan_hour"}
+
+    schedules = obtener_schedules_por_hora(_alert_schedules_table, current_hour)
+    if not schedules:
+        logger.info("Custom alert check: no users at hour %d UTC", current_hour)
+        return {"processed": 0, "users_alerted": 0, "total_alertas": 0}
+
+    logger.info("Custom alert check: %d users at hour %d UTC", len(schedules), current_hour)
+
+    all_user_alertas: dict[str, list[Alerta]] = {}
+    processed = 0
+
+    for schedule in schedules:
+        user_id = schedule.user_id
+
+        # Verificar que el usuario aun tiene plan elegible
+        plan_id = _get_user_active_plan_id(user_id)
+        if plan_id not in CUSTOM_ALERT_ELIGIBLE_PLANS:
+            logger.info("Custom alert: user %s ya no tiene plan elegible (%s), saltando", user_id, plan_id)
+            continue
+
+        alertas = _check_user_radicados(user_id)
+        if alertas:
+            all_user_alertas[user_id] = alertas
+        processed += 1
+
+    if all_user_alertas:
+        _send_email_alerts(all_user_alertas)
+
+    result = {
+        "processed": processed,
+        "users_alerted": len(all_user_alertas),
+        "total_alertas": sum(len(a) for a in all_user_alertas.values()),
+    }
+    logger.info("Custom alert check completado: %s", result)
+    return result
+
+
+def _get_user_active_plan_id(user_id: str) -> str:
+    """Obtiene el planId activo del usuario, o cadena vacia si no tiene."""
+    try:
+        resp = _billing_subs_table.query(
+            KeyConditionExpression=Key("userId").eq(user_id),
+        )
+        subs = resp.get("Items", [])
+        active = [s for s in subs if s.get("status") in ("active", "trialing")]
+        if active:
+            return active[0].get("planId", "")
+    except Exception:
+        logger.warning("Error consultando plan de %s", user_id)
+    return ""
+
+
+def _check_user_radicados(user_id: str) -> list[Alerta]:
+    """Chequea todos los radicados activos de un usuario y retorna alertas generadas."""
+    rads = obtener_radicados_usuario(_radicados_table, user_id)
+    active_rads = [r for r in rads if r.activo]
+    if not active_rads:
+        return []
+
+    all_alertas: list[Alerta] = []
+    for rad in active_rads:
+        try:
+            if rad.fuente == "rama_judicial":
+                user_alertas = check_radicado_rj(
+                    rj_client=rj_client,
+                    radicados_table=_radicados_table,
+                    actuaciones_table=_actuaciones_table,
+                    alertas_table=_alertas_table,
+                    id_proceso=rad.id_proceso,
+                    radicado=rad.radicado,
+                )
+            elif rad.fuente == "siugj":
+                user_alertas = check_radicado_siugj(
+                    siugj_client=siugj_client,
+                    radicados_table=_radicados_table,
+                    actuaciones_table=_actuaciones_table,
+                    alertas_table=_alertas_table,
+                    radicado=rad.radicado,
+                )
+            elif rad.fuente == "spoa":
+                user_alertas = check_radicado_spoa(
+                    spoa_client=spoa_client,
+                    radicados_table=_radicados_table,
+                    actuaciones_table=_actuaciones_table,
+                    alertas_table=_alertas_table,
+                    radicado=rad.radicado,
+                )
+            else:
+                user_alertas = check_radicado(
+                    samai_client=samai_client,
+                    radicados_table=_radicados_table,
+                    actuaciones_table=_actuaciones_table,
+                    alertas_table=_alertas_table,
+                    corporacion=rad.corporacion,
+                    radicado=rad.radicado,
+                )
+            for alertas in user_alertas.values():
+                all_alertas.extend(alertas)
+        except Exception:
+            logger.exception("Error chequeando radicado %s de user %s (custom alert)", rad.radicado, user_id)
+
+    return all_alertas
 
 
 def check_radicado(
@@ -596,6 +737,84 @@ def check_radicado_siugj(
     return user_alertas
 
 
+def check_radicado_spoa(
+    *,
+    spoa_client: SpoaClient,
+    radicados_table: Any,
+    actuaciones_table: Any,
+    alertas_table: Any,
+    radicado: str,
+) -> dict[str, list[Alerta]]:
+    """Consulta SPOA para un NUNC, detecta novedades, crea alertas.
+
+    Mismo patrón que check_radicado_siugj pero usa SpoaClient.
+    Retorna dict de userId → lista de alertas generadas.
+    """
+    from boto3.dynamodb.conditions import Key
+
+    resp = radicados_table.query(
+        IndexName="radicado-index",
+        KeyConditionExpression=Key("radicado").eq(radicado),
+    )
+    all_followers = resp.get("Items", [])
+    followers = [f for f in all_followers if f.get("activo", True) and f.get("fuente") == "spoa"]
+    if not followers:
+        return {}
+
+    min_orden = min(int(item.get("ultimoOrden", 0)) for item in followers)
+
+    nuevas = spoa_client.get_actuaciones_nuevas(radicado, desde_id=min_orden)
+    if not nuevas:
+        return {}
+
+    guardar_actuaciones(actuaciones_table, nuevas)
+
+    max_orden = max(a.orden for a in nuevas)
+    max_act = max(nuevas, key=lambda a: a.orden)
+    fecha_ultima = max_act.fecha
+    now = datetime.now(timezone.utc).isoformat()
+
+    user_alertas: dict[str, list[Alerta]] = {}
+    for item in followers:
+        user_id = item["userId"]
+        user_ultimo_orden = int(item.get("ultimoOrden", 0))
+        pending_init = item.get("pendingInit", False)
+
+        nuevas_para_user = [a for a in nuevas if a.orden > user_ultimo_orden]
+        if not nuevas_para_user:
+            continue
+
+        if pending_init:
+            logger.info(
+                "NUNC %s usuario %s: pendingInit=True, inicializando a orden=%d sin alertar",
+                radicado, user_id, max_orden,
+            )
+            actualizar_ultimo_orden(radicados_table, user_id, radicado, max_orden, fecha_ultima)
+            limpiar_pending_init(radicados_table, user_id, radicado)
+            continue
+
+        alertas_user: list[Alerta] = []
+        for act in nuevas_para_user:
+            alerta = Alerta(
+                user_id=user_id,
+                radicado=radicado,
+                orden=act.orden,
+                nombre_actuacion=act.nombre,
+                fecha_actuacion=act.fecha,
+                anotacion=act.anotacion,
+                created_at=now,
+                enviado=False,
+                fuente="spoa",
+            )
+            guardar_alerta(alertas_table, alerta)
+            alertas_user.append(alerta)
+
+        user_alertas[user_id] = alertas_user
+        actualizar_ultimo_orden(radicados_table, user_id, radicado, max_orden, fecha_ultima)
+
+    return user_alertas
+
+
 def _send_email_alerts(user_alertas: dict[str, list[Alerta]]) -> None:
     """Envía correos de alerta via Resend."""
     sender = os.environ.get("EMAIL_SENDER", "alertas@alertas-judiciales.dertyos.com")
@@ -647,13 +866,18 @@ def _build_alert_email(alertas: list[Alerta]) -> tuple[str, str]:
 
     rows = ""
     for radicado, rad_alertas in by_radicado.items():
-        fmt = f"{radicado[:5]}-{radicado[5:7]}-{radicado[7:9]}-{radicado[9:12]}-{radicado[12:16]}-{radicado[16:21]}-{radicado[21:23]}"
         # Use the appropriate portal URL based on source
         rad_fuentes = {a.fuente for a in rad_alertas}
-        if "rama_judicial" in rad_fuentes or "siugj" in rad_fuentes:
+        if "spoa" in rad_fuentes:
+            fmt = f"NUNC: {radicado}"
+            portal_url = "https://consulta-web.fiscalia.gov.co/"
+            portal_label = "Ver en Fiscalía"
+        elif "rama_judicial" in rad_fuentes or "siugj" in rad_fuentes:
+            fmt = f"{radicado[:5]}-{radicado[5:7]}-{radicado[7:9]}-{radicado[9:12]}-{radicado[12:16]}-{radicado[16:21]}-{radicado[21:23]}"
             portal_url = "https://consultaprocesos.ramajudicial.gov.co/procesos/Index"
             portal_label = "Ver en Rama Judicial"
         else:
+            fmt = f"{radicado[:5]}-{radicado[5:7]}-{radicado[7:9]}-{radicado[9:12]}-{radicado[12:16]}-{radicado[16:21]}-{radicado[21:23]}"
             portal_url = f"https://samai.consejodeestado.gov.co/Vistas/Casos/list_procesos.aspx?guid={fmt}"
             portal_label = "Ver en SAMAI"
         rows += (

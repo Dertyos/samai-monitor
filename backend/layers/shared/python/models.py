@@ -91,6 +91,35 @@ class Actuacion:
             doc_hash=None,
         )
 
+    @classmethod
+    def from_spoa_api(
+        cls, fecha: str, descripcion: str, orden: int, nunc: str
+    ) -> Actuacion:
+        """Crea Actuacion desde campo ACTUACIONES del SPOA (Fiscalia).
+
+        El campo ACTUACIONES del SPOA es un string pipe-delimited:
+          'fecha#descripcion|fecha#descripcion|...'
+        Cada item se parsea externamente y se pasa aquí ya separado.
+
+        Mapeo:
+          orden (posición inversa en la lista) → orden
+          descripcion → nombre
+          fecha       → fecha
+          nunc        → radicado
+        """
+        return cls(
+            radicado=nunc,
+            orden=orden,
+            nombre=descripcion.strip(),
+            fecha=fecha.strip(),
+            anotacion="",
+            registro="",
+            codigo="",
+            estado="",
+            decision=None,
+            doc_hash=None,
+        )
+
     def to_dynamo(self) -> dict:
         """Convierte a dict para DynamoDB."""
         item = {
@@ -414,4 +443,38 @@ class TeamInvitation:
             token=item.get("token", ""),
             created_at=item.get("createdAt", ""),
             ttl=int(item.get("ttl", 0)),
+        )
+
+
+@dataclass
+class AlertSchedule:
+    """Alerta personalizada — una por usuario (planes Pro+, Firma, Enterprise)."""
+
+    user_id: str
+    alert_hour_utc: int  # 0-23, hora en UTC
+    alert_hour_cot: int  # 0-23, hora en COT (para display)
+    created_at: str = ""
+    updated_at: str = ""
+
+    def to_dynamo(self) -> dict:
+        """Convierte a dict para DynamoDB."""
+        item: dict = {
+            "userId": self.user_id,
+            "alertHourUtc": self.alert_hour_utc,
+            "alertHourCot": self.alert_hour_cot,
+            "createdAt": self.created_at,
+        }
+        if self.updated_at:
+            item["updatedAt"] = self.updated_at
+        return item
+
+    @classmethod
+    def from_dynamo(cls, item: dict) -> AlertSchedule:
+        """Crea AlertSchedule desde item DynamoDB."""
+        return cls(
+            user_id=item["userId"],
+            alert_hour_utc=int(item["alertHourUtc"]),
+            alert_hour_cot=int(item["alertHourCot"]),
+            created_at=item.get("createdAt", ""),
+            updated_at=item.get("updatedAt", ""),
         )

@@ -88,6 +88,7 @@ Resources:
           TEAM_MEMBERS_TABLE: !Ref TeamMembersTable
           MONITOR_FUNCTION_NAME: !Ref MonitorFunction
           TEAM_INVITATIONS_TABLE: !Ref TeamInvitationsTable
+          ALERT_SCHEDULES_TABLE: !Ref AlertSchedulesTable
           EMAIL_SENDER: "notificaciones-judiciales@dertyos.com"
           RESEND_API_KEY_SSM: "/samai-monitor/resend-api-key"
           FRONTEND_URL: "https://alertas-judiciales.dertyos.com"
@@ -110,6 +111,8 @@ Resources:
             TableName: !Ref TeamMembersTable
         - DynamoDBCrudPolicy:
             TableName: !Ref TeamInvitationsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AlertSchedulesTable
         - Statement:
             - Effect: Allow
               Action:
@@ -292,6 +295,24 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /invitations/{inviteId}
             Method: DELETE
+        GetAlertSchedule:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /alert-schedule
+            Method: GET
+        PutAlertSchedule:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /alert-schedule
+            Method: PUT
+        DeleteAlertSchedule:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /alert-schedule
+            Method: DELETE
 
   MonitorFunction:
     Type: AWS::Serverless::Function
@@ -311,6 +332,7 @@ Resources:
           BILLING_PLANS_TABLE: !Ref BillingPlansTable
           TEAMS_TABLE: !Ref TeamsTable
           TEAM_MEMBERS_TABLE: !Ref TeamMembersTable
+          ALERT_SCHEDULES_TABLE: !Ref AlertSchedulesTable
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref RadicadosTable
@@ -326,6 +348,8 @@ Resources:
             TableName: !Ref TeamsTable
         - DynamoDBCrudPolicy:
             TableName: !Ref TeamMembersTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AlertSchedulesTable
         - Statement:
             - Effect: Allow
               Action:
@@ -343,6 +367,13 @@ Resources:
             Schedule: cron(0 12 * * ? *)
             Description: Daily at 7am COT (12:00 UTC)
             Enabled: true
+        HourlyCustomAlerts:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 * * * ? *)
+            Description: Hourly check for custom alert schedules
+            Enabled: true
+            Input: '{"action": "custom_alert_check"}'
 
   # ============================================
   # BILLING — Lambda Functions (Wompi)
@@ -909,6 +940,30 @@ Resources:
       TimeToLiveSpecification:
         AttributeName: ttl
         Enabled: true
+
+  # ============================================
+  # ALERT SCHEDULES — Custom alert times
+  # ============================================
+  AlertSchedulesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: samai-alert-schedules
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: alertHourUtc
+          AttributeType: N
+      GlobalSecondaryIndexes:
+        - IndexName: alertHourUtc-index
+          KeySchema:
+            - AttributeName: alertHourUtc
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
 
   # ============================================
   # FRONTEND — S3 + CloudFront

@@ -20,12 +20,15 @@ from radicado_utils import (
     extraer_corporacion,
     extraer_especialidad,
     validar_radicado,
+    validar_nunc,
+    normalizar_nunc,
     parse_ciudad,
     RadicadoInvalido,
 )
 from samai_client import SamaiClient, SamaiApiError
 from rama_judicial_client import RamaJudicialClient, RamaJudicialApiError
 from siugj_client import SiugjClient, SiugjApiError
+from spoa_client import SpoaClient, SpoaApiError
 from db import (
     guardar_radicado,
     obtener_radicados_usuario,
@@ -61,7 +64,11 @@ from db import (
     obtener_invitaciones_equipo,
     marcar_invitacion_aceptada,
     eliminar_invitacion,
+    guardar_alert_schedule,
+    obtener_alert_schedule,
+    eliminar_alert_schedule,
 )
+from models import AlertSchedule
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -80,7 +87,10 @@ _team_members_table = _dynamodb.Table(os.environ.get("TEAM_MEMBERS_TABLE", "sama
 _lambda_client = boto3.client("lambda")
 _monitor_function = os.environ.get("MONITOR_FUNCTION_NAME", "samai-monitor")
 _invitations_table = _dynamodb.Table(os.environ.get("TEAM_INVITATIONS_TABLE", "samai-team-invitations"))
+_alert_schedules_table = _dynamodb.Table(os.environ.get("ALERT_SCHEDULES_TABLE", "samai-alert-schedules"))
 _email_sender = os.environ.get("EMAIL_SENDER", "notificaciones-judiciales@dertyos.com")
+
+CUSTOM_ALERT_ELIGIBLE_PLANS = {"plan-pro-plus", "plan-firma", "plan-enterprise"}
 _frontend_url = os.environ.get("FRONTEND_URL", "https://alertas-judiciales.dertyos.com")
 
 # Resend — cargado lazy para no fallar si SSM no está disponible
@@ -108,6 +118,7 @@ def _get_resend():
 samai_client = SamaiClient()
 rj_client = RamaJudicialClient()
 siugj_client = SiugjClient()
+spoa_client = SpoaClient()
 
 
 def _response(status: int, body: Any = None) -> dict:
@@ -320,6 +331,19 @@ def handler(event: dict, context: Any) -> dict:
         if method == "DELETE" and path.startswith("/invitations/"):
             return _delete_invitation(event)
 
+        # --- Alert Schedules ---
+        # GET /alert-schedule
+        if method == "GET" and path == "/alert-schedule":
+            return _get_alert_schedule(event)
+
+        # PUT /alert-schedule
+        if method == "PUT" and path == "/alert-schedule":
+            return _put_alert_schedule(event)
+
+        # DELETE /alert-schedule
+        if method == "DELETE" and path == "/alert-schedule":
+            return _delete_alert_schedule(event)
+
         return _response(404, {"error": "Ruta no encontrada"})
 
     except Exception:
@@ -336,11 +360,17 @@ def _post_radicado(event: dict) -> dict:
     if not raw:
         return _response(400, {"error": "Campo 'radicado' requerido"})
 
-    if not validar_radicado(raw):
-        return _response(400, {"error": f"Radicado inválido: {raw}"})
-
-    norm = normalizar_radicado(raw)
     fuente = body.get("fuente", "samai")
+
+    # SPOA usa NUNC de 21 dígitos; las demás fuentes usan radicado de 23
+    if fuente == "spoa":
+        if not validar_nunc(raw):
+            return _response(400, {"error": f"NUNC inválido (debe ser 21 dígitos): {raw}"})
+        norm = normalizar_nunc(raw)
+    else:
+        if not validar_radicado(raw):
+            return _response(400, {"error": f"Radicado inválido: {raw}"})
+        norm = normalizar_radicado(raw)
 
     # Check duplicado — un mismo radicado puede estar en ambas fuentes
     existing = obtener_radicado(_radicados_table, user_id, norm)
@@ -391,7 +421,42 @@ def _post_radicado(event: dict) -> dict:
                 "limit": process_limit,
             })
 
-    if fuente == "rama_judicial":
+    if fuente == "spoa":
+        pending_init = False
+        try:
+            max_orden = spoa_client.get_max_id(norm)
+        except SpoaApiError:
+            logger.warning("No se pudo obtener max_id de SPOA para %s, usando 0", norm)
+            max_orden = 0
+            pending_init = True
+
+        # Obtener metadata del caso
+        despacho = ""
+        ciudad = ""
+        try:
+            info = spoa_client.get_caso_info(norm)
+            if info:
+                despacho = info.get("despacho", "")
+                ciudad = info.get("ciudad", "")
+        except SpoaApiError:
+            pass
+
+        rad = Radicado(
+            user_id=user_id,
+            radicado=norm,
+            corporacion="",
+            radicado_formato=norm,  # NUNC se muestra sin formato especial
+            alias=body.get("alias", ""),
+            ultimo_orden=max_orden,
+            activo=True,
+            created_at=datetime.now(timezone.utc).isoformat(),
+            fuente="spoa",
+            pending_init=pending_init,
+            despacho=despacho,
+            ciudad=ciudad,
+            especialidad="Penal",
+        )
+    elif fuente == "rama_judicial":
         id_proceso = body.get("id_proceso")
         if not id_proceso:
             return _response(400, {"error": "Campo 'id_proceso' requerido para fuente rama_judicial"})
@@ -625,7 +690,9 @@ def _get_historial(event: dict) -> dict:
     if rad is None:
         return _response(404, {"error": "Radicado no encontrado"})
 
-    if rad.fuente == "rama_judicial":
+    if rad.fuente == "spoa":
+        actuaciones = spoa_client.get_actuaciones(rad.radicado)
+    elif rad.fuente == "rama_judicial":
         if rad.id_proceso is None:
             return _response(400, {"error": "Radicado sin id_proceso"})
         actuaciones = rj_client.get_todas_actuaciones(rad.id_proceso)
@@ -656,7 +723,53 @@ def _get_detalle(event: dict) -> dict:
     if rad is None:
         return _response(404, {"error": "Radicado no encontrado"})
 
-    if rad.fuente == "siugj":
+    if rad.fuente == "spoa":
+        info = spoa_client.get_caso_info(rad.radicado)
+        actuaciones = spoa_client.get_actuaciones(rad.radicado)
+        if info is None:
+            return _response(404, {"error": "NUNC no encontrado en SPOA"})
+
+        # Lazy enrichment
+        if not rad.despacho and info.get("despacho"):
+            meta = {
+                "despacho": info.get("despacho", ""),
+                "ciudad": info.get("ciudad", ""),
+                "especialidad": "Penal",
+            }
+            try:
+                actualizar_metadata(_radicados_table, user_id, radicado_id, meta)
+            except Exception:
+                pass
+
+        return _response(200, {
+            "proceso": {
+                "despacho": info.get("despacho", ""),
+                "ponente": "",
+                "tipoProceso": f"Penal — {info.get('caso_ley', '')}",
+                "claseActuacion": info.get("caso_etapa", ""),
+                "fechaUltimaActuacion": info.get("fecha_ultima_actuacion", ""),
+                "casoEstado": info.get("caso_estado", ""),
+                "casoEtapa": info.get("caso_etapa", ""),
+                "casoLey": info.get("caso_ley", ""),
+                "delitos": info.get("delitos", ""),
+                "seccional": info.get("seccional", ""),
+            },
+            "partes": [],
+            "actuaciones": [
+                {
+                    "orden": a.orden,
+                    "nombre": a.nombre,
+                    "fecha": a.fecha,
+                    "anotacion": a.anotacion,
+                    "estado": a.estado,
+                    "decision": a.decision,
+                    "docHash": a.doc_hash,
+                }
+                for a in actuaciones
+            ],
+            "fuente": "spoa",
+        })
+    elif rad.fuente == "siugj":
         procesos = siugj_client.buscar_por_radicado(rad.radicado)
         p = procesos[0] if procesos else {}
         actuaciones = siugj_client.get_actuaciones(rad.radicado)
@@ -1567,4 +1680,87 @@ def _delete_invitation(event: dict) -> dict:
 
     eliminar_invitacion(_invitations_table, invite_id)
     logger.info("Invitacion %s revocada por user %s", invite_id, user_id)
+    return _response(200, {"deleted": True})
+
+
+# ============================================
+# Alert Schedules
+# ============================================
+
+
+def _is_custom_alert_eligible(user_id: str) -> bool:
+    """Verifica si el usuario tiene un plan que permite alertas personalizadas."""
+    plan = _get_user_plan(user_id)
+    if not plan:
+        return False
+    return plan["planId"] in CUSTOM_ALERT_ELIGIBLE_PLANS
+
+
+def _get_alert_schedule(event: dict) -> dict:
+    """GET /alert-schedule — obtiene la alerta personalizada del usuario."""
+    user_id = _get_user_id(event)
+    schedule = obtener_alert_schedule(_alert_schedules_table, user_id)
+    eligible = _is_custom_alert_eligible(user_id)
+
+    if schedule is None:
+        return _response(200, {"schedule": None, "eligible": eligible})
+
+    return _response(200, {
+        "schedule": {
+            "alertHourCot": schedule.alert_hour_cot,
+            "alertHourUtc": schedule.alert_hour_utc,
+            "createdAt": schedule.created_at,
+            "updatedAt": schedule.updated_at,
+        },
+        "eligible": eligible,
+    })
+
+
+def _put_alert_schedule(event: dict) -> dict:
+    """PUT /alert-schedule — crear o actualizar alerta personalizada."""
+    user_id = _get_user_id(event)
+
+    if not _is_custom_alert_eligible(user_id):
+        return _response(403, {"error": "Tu plan no incluye alertas personalizadas. Disponible en Pro+, Firma y Enterprise."})
+
+    body = _get_body(event)
+    hour_cot = body.get("hourCot")
+
+    if hour_cot is None or not isinstance(hour_cot, int) or not 0 <= hour_cot <= 23:
+        return _response(400, {"error": "hourCot debe ser un entero entre 0 y 23"})
+
+    if hour_cot == 7:
+        return _response(400, {"error": "No puedes configurar la alerta a las 7:00 AM porque ya existe la alerta diaria obligatoria a esa hora."})
+
+    hour_utc = (hour_cot + 5) % 24
+    now = datetime.now(timezone.utc).isoformat()
+
+    existing = obtener_alert_schedule(_alert_schedules_table, user_id)
+    schedule = AlertSchedule(
+        user_id=user_id,
+        alert_hour_utc=hour_utc,
+        alert_hour_cot=hour_cot,
+        created_at=existing.created_at if existing else now,
+        updated_at=now if existing else "",
+    )
+    guardar_alert_schedule(_alert_schedules_table, schedule)
+    logger.info("Alert schedule guardado: user=%s hourCot=%d hourUtc=%d", user_id, hour_cot, hour_utc)
+
+    return _response(200, {
+        "schedule": {
+            "alertHourCot": schedule.alert_hour_cot,
+            "alertHourUtc": schedule.alert_hour_utc,
+            "createdAt": schedule.created_at,
+            "updatedAt": schedule.updated_at,
+        },
+    })
+
+
+def _delete_alert_schedule(event: dict) -> dict:
+    """DELETE /alert-schedule — eliminar alerta personalizada."""
+    user_id = _get_user_id(event)
+    deleted = eliminar_alert_schedule(_alert_schedules_table, user_id)
+    if not deleted:
+        return _response(404, {"error": "No tienes una alerta personalizada configurada"})
+    logger.info("Alert schedule eliminado: user=%s", user_id)
     return _response(200, {"deleted": True})

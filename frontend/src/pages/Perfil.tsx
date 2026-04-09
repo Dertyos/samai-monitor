@@ -2,10 +2,17 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../hooks/useToast";
-import { deleteCuenta, getBillingStatus, getTeams, createTeam, addTeamMember, removeTeamMember, revokeInvitation, type TeamDTO } from "../lib/api";
+import { deleteCuenta, getBillingStatus, getTeams, createTeam, addTeamMember, removeTeamMember, revokeInvitation, getAlertSchedule, putAlertSchedule, deleteAlertSchedule, type TeamDTO } from "../lib/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import ConfirmModal from "../components/ConfirmModal";
 import styles from "./Perfil.module.css";
+
+function formatHourCot(hour: number): string {
+  if (hour === 0) return "12:00 AM";
+  if (hour < 12) return `${hour}:00 AM`;
+  if (hour === 12) return "12:00 PM";
+  return `${hour - 12}:00 PM`;
+}
 
 /**
  * Perfil — pagina de cuenta del usuario autenticado.
@@ -84,6 +91,34 @@ export default function Perfil() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["teams"] });
       toast.success("Invitacion cancelada");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  // Alert Schedule
+  const alertScheduleQuery = useQuery({
+    queryKey: ["alert-schedule"],
+    queryFn: getAlertSchedule,
+    staleTime: 5 * 60 * 1000,
+  });
+  const [selectedHour, setSelectedHour] = useState<number>(8);
+  const [showHourPicker, setShowHourPicker] = useState(false);
+
+  const saveAlertMutation = useMutation({
+    mutationFn: (hourCot: number) => putAlertSchedule(hourCot),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["alert-schedule"] });
+      setShowHourPicker(false);
+      toast.success("Alerta personalizada guardada");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const deleteAlertMutation = useMutation({
+    mutationFn: () => deleteAlertSchedule(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["alert-schedule"] });
+      toast.success("Alerta personalizada eliminada");
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -173,6 +208,103 @@ export default function Perfil() {
             Ver planes
           </button>
         </div>
+      </section>
+
+      {/* Seccion: Alertas */}
+      <section className={styles.section}>
+        <h3>Alertas</h3>
+        <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: "1rem" }}>
+          Configura cuando quieres recibir notificaciones de cambios en tus procesos.
+        </p>
+
+        {/* Alerta fija 7 AM */}
+        <div className={styles.infoRow} style={{ marginBottom: "0.5rem" }}>
+          <span className={styles.infoLabel}>Diaria</span>
+          <span className={styles.infoValue}>
+            7:00 AM (COT) — <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>obligatoria, todos los planes</span>
+          </span>
+        </div>
+
+        {/* Alerta personalizada */}
+        {alertScheduleQuery.data?.eligible ? (
+          <>
+            {alertScheduleQuery.data.schedule ? (
+              <div className={styles.infoRow} style={{ marginBottom: "0.75rem" }}>
+                <span className={styles.infoLabel}>Adicional</span>
+                <span className={styles.infoValue}>
+                  {formatHourCot(alertScheduleQuery.data.schedule.alertHourCot)}
+                </span>
+              </div>
+            ) : !showHourPicker ? (
+              <div className={styles.infoRow} style={{ marginBottom: "0.75rem" }}>
+                <span className={styles.infoLabel}>Adicional</span>
+                <span className={styles.infoValue} style={{ color: "var(--text-secondary)" }}>No configurada</span>
+              </div>
+            ) : null}
+
+            {showHourPicker || alertScheduleQuery.data.schedule ? (
+              <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+                <select
+                  value={showHourPicker ? selectedHour : (alertScheduleQuery.data.schedule?.alertHourCot ?? 8)}
+                  onChange={(e) => {
+                    setSelectedHour(Number(e.target.value));
+                    if (!showHourPicker) setShowHourPicker(true);
+                  }}
+                  style={{ padding: "0.35rem 0.5rem", fontSize: "0.85rem", borderRadius: "0.375rem", border: "1px solid var(--border)", background: "var(--card-bg)", color: "var(--text)" }}
+                >
+                  {Array.from({ length: 24 }, (_, i) => i).filter(h => h !== 7).map(h => (
+                    <option key={h} value={h}>{formatHourCot(h)}</option>
+                  ))}
+                </select>
+                {(showHourPicker || (alertScheduleQuery.data.schedule && selectedHour !== alertScheduleQuery.data.schedule.alertHourCot)) && (
+                  <button
+                    className="primary"
+                    style={{ fontSize: "0.8rem", padding: "0.35rem 0.75rem" }}
+                    disabled={saveAlertMutation.isPending}
+                    onClick={() => saveAlertMutation.mutate(showHourPicker ? selectedHour : selectedHour)}
+                  >
+                    {saveAlertMutation.isPending ? "..." : "Guardar"}
+                  </button>
+                )}
+                {alertScheduleQuery.data.schedule && (
+                  <button
+                    className="btn-danger"
+                    style={{ fontSize: "0.8rem", padding: "0.35rem 0.75rem" }}
+                    disabled={deleteAlertMutation.isPending}
+                    onClick={() => deleteAlertMutation.mutate()}
+                  >
+                    {deleteAlertMutation.isPending ? "..." : "Eliminar"}
+                  </button>
+                )}
+                {showHourPicker && !alertScheduleQuery.data.schedule && (
+                  <button
+                    className="btn-secondary"
+                    style={{ fontSize: "0.8rem", padding: "0.35rem 0.75rem" }}
+                    onClick={() => setShowHourPicker(false)}
+                  >
+                    Cancelar
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className={styles.actions}>
+                <button className="primary" onClick={() => setShowHourPicker(true)}>
+                  Agregar alerta adicional
+                </button>
+              </div>
+            )}
+          </>
+        ) : (
+          <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginTop: "0.5rem" }}>
+            La alerta adicional esta disponible en planes{" "}
+            <button
+              onClick={() => navigate("/planes")}
+              style={{ background: "none", border: "none", color: "var(--primary)", cursor: "pointer", padding: 0, fontSize: "0.85rem", textDecoration: "underline" }}
+            >
+              Pro+, Firma y Enterprise
+            </button>.
+          </div>
+        )}
       </section>
 
       {/* Seccion: Mi Equipo */}

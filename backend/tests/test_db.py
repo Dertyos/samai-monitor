@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import pytest
-from models import Radicado, Actuacion, Alerta, Etiqueta, Team, TeamMember, TeamInvitation
+from models import Radicado, Actuacion, Alerta, Etiqueta, Team, TeamMember, TeamInvitation, AlertSchedule
 from db import (
     guardar_radicado,
     obtener_radicados_usuario,
@@ -37,6 +37,10 @@ from db import (
     marcar_invitacion_aceptada,
     eliminar_invitacion,
     obtener_team_de_usuario,
+    guardar_alert_schedule,
+    obtener_alert_schedule,
+    eliminar_alert_schedule,
+    obtener_schedules_por_hora,
 )
 
 
@@ -581,4 +585,74 @@ class TestInvitaciones:
         guardar_invitacion(invitations_table, inv)
 
         results = obtener_invitaciones_por_email(invitations_table, "nuevo@test.com")
+        assert len(results) == 0
+
+
+# ============================================
+# Alert Schedules
+# ============================================
+
+
+def _make_alert_schedule(
+    user_id: str = USER_ID, hour_utc: int = 17, hour_cot: int = 12,
+) -> AlertSchedule:
+    return AlertSchedule(
+        user_id=user_id,
+        alert_hour_utc=hour_utc,
+        alert_hour_cot=hour_cot,
+        created_at="2026-04-08T10:00:00Z",
+    )
+
+
+@pytest.mark.unit
+class TestAlertSchedules:
+    def test_guardar_y_obtener(self, alert_schedules_table):
+        schedule = _make_alert_schedule()
+        guardar_alert_schedule(alert_schedules_table, schedule)
+        result = obtener_alert_schedule(alert_schedules_table, USER_ID)
+        assert result is not None
+        assert result.alert_hour_utc == 17
+        assert result.alert_hour_cot == 12
+        assert result.user_id == USER_ID
+
+    def test_obtener_inexistente(self, alert_schedules_table):
+        result = obtener_alert_schedule(alert_schedules_table, "no-existe")
+        assert result is None
+
+    def test_upsert_actualiza_hora(self, alert_schedules_table):
+        schedule = _make_alert_schedule()
+        guardar_alert_schedule(alert_schedules_table, schedule)
+        schedule.alert_hour_utc = 20
+        schedule.alert_hour_cot = 15
+        schedule.updated_at = "2026-04-08T12:00:00Z"
+        guardar_alert_schedule(alert_schedules_table, schedule)
+        result = obtener_alert_schedule(alert_schedules_table, USER_ID)
+        assert result is not None
+        assert result.alert_hour_utc == 20
+        assert result.alert_hour_cot == 15
+
+    def test_eliminar_existente(self, alert_schedules_table):
+        schedule = _make_alert_schedule()
+        guardar_alert_schedule(alert_schedules_table, schedule)
+        deleted = eliminar_alert_schedule(alert_schedules_table, USER_ID)
+        assert deleted is True
+        assert obtener_alert_schedule(alert_schedules_table, USER_ID) is None
+
+    def test_eliminar_inexistente(self, alert_schedules_table):
+        deleted = eliminar_alert_schedule(alert_schedules_table, "no-existe")
+        assert deleted is False
+
+    def test_obtener_por_hora(self, alert_schedules_table):
+        guardar_alert_schedule(alert_schedules_table, _make_alert_schedule("u1", 14, 9))
+        guardar_alert_schedule(alert_schedules_table, _make_alert_schedule("u2", 14, 9))
+        guardar_alert_schedule(alert_schedules_table, _make_alert_schedule("u3", 20, 15))
+
+        results = obtener_schedules_por_hora(alert_schedules_table, 14)
+        assert len(results) == 2
+        user_ids = {r.user_id for r in results}
+        assert user_ids == {"u1", "u2"}
+
+    def test_obtener_por_hora_sin_resultados(self, alert_schedules_table):
+        guardar_alert_schedule(alert_schedules_table, _make_alert_schedule("u1", 14, 9))
+        results = obtener_schedules_por_hora(alert_schedules_table, 3)
         assert len(results) == 0

@@ -249,6 +249,28 @@ def dynamodb_resource(aws_credentials):
             BillingMode="PAY_PER_REQUEST",
         )
 
+        # Alert Schedules table
+        dynamodb.create_table(
+            TableName="samai-alert-schedules",
+            KeySchema=[
+                {"AttributeName": "userId", "KeyType": "HASH"},
+            ],
+            AttributeDefinitions=[
+                {"AttributeName": "userId", "AttributeType": "S"},
+                {"AttributeName": "alertHourUtc", "AttributeType": "N"},
+            ],
+            GlobalSecondaryIndexes=[
+                {
+                    "IndexName": "alertHourUtc-index",
+                    "KeySchema": [
+                        {"AttributeName": "alertHourUtc", "KeyType": "HASH"},
+                    ],
+                    "Projection": {"ProjectionType": "ALL"},
+                },
+            ],
+            BillingMode="PAY_PER_REQUEST",
+        )
+
         yield dynamodb
 
 
@@ -304,3 +326,9 @@ def teams_table(dynamodb_resource):
 def team_members_table(dynamodb_resource):
     """Mocked Team Members DynamoDB table."""
     return dynamodb_resource.Table("samai-team-members")
+
+
+@pytest.fixture
+def alert_schedules_table(dynamodb_resource):
+    """Mocked Alert Schedules DynamoDB table."""
+    return dynamodb_resource.Table("samai-alert-schedules")

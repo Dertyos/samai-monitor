@@ -705,3 +705,159 @@ class TestInvitationsEndpoints:
             KeyConditionExpression=Key("teamId").eq("team-1"),
         ).get("Items", [])
         assert any(m["userId"] == "user-123" for m in members)
+
+
+# ============================================
+# Alert Schedules
+# ============================================
+
+
+def _seed_subscription(dynamodb_resource, user_id: str, plan_id: str) -> None:
+    """Seed una suscripcion activa para un usuario."""
+    table = dynamodb_resource.Table("samai-billing-subscriptions")
+    table.put_item(Item={
+        "userId": user_id,
+        "planId": plan_id,
+        "status": "active",
+        "currentPeriodStart": "2026-04-01T00:00:00Z",
+        "currentPeriodEnd": "2026-05-01T00:00:00Z",
+    })
+
+
+@pytest.mark.unit
+class TestAlertSchedule:
+    """GET/PUT/DELETE /alert-schedule — alertas personalizadas."""
+
+    def test_get_empty(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        event = _make_event(method="GET", path="/alert-schedule")
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 200
+        data = json.loads(resp["body"])
+        assert data["schedule"] is None
+        assert data["eligible"] is False
+
+    def test_get_eligible_no_schedule(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        _seed_subscription(dynamodb_resource, "user-123", "plan-pro-plus")
+        event = _make_event(method="GET", path="/alert-schedule")
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 200
+        data = json.loads(resp["body"])
+        assert data["schedule"] is None
+        assert data["eligible"] is True
+
+    def test_put_eligible(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        _seed_subscription(dynamodb_resource, "user-123", "plan-pro-plus")
+        event = _make_event(method="PUT", path="/alert-schedule", body={"hourCot": 14})
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 200
+        data = json.loads(resp["body"])
+        assert data["schedule"]["alertHourCot"] == 14
+        assert data["schedule"]["alertHourUtc"] == 19  # (14+5)%24
+
+    def test_put_ineligible_free(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        event = _make_event(method="PUT", path="/alert-schedule", body={"hourCot": 14})
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 403
+
+    def test_put_ineligible_pro(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        _seed_subscription(dynamodb_resource, "user-123", "plan-pro")
+        event = _make_event(method="PUT", path="/alert-schedule", body={"hourCot": 14})
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 403
+
+    def test_put_invalid_hour_negative(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        _seed_subscription(dynamodb_resource, "user-123", "plan-firma")
+        event = _make_event(method="PUT", path="/alert-schedule", body={"hourCot": -1})
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 400
+
+    def test_put_invalid_hour_24(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        _seed_subscription(dynamodb_resource, "user-123", "plan-firma")
+        event = _make_event(method="PUT", path="/alert-schedule", body={"hourCot": 24})
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 400
+
+    def test_put_conflict_7am(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        _seed_subscription(dynamodb_resource, "user-123", "plan-enterprise")
+        event = _make_event(method="PUT", path="/alert-schedule", body={"hourCot": 7})
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 400
+        data = json.loads(resp["body"])
+        assert "7:00 AM" in data["error"]
+
+    def test_put_update_existing(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        _seed_subscription(dynamodb_resource, "user-123", "plan-pro-plus")
+        # Crear
+        event = _make_event(method="PUT", path="/alert-schedule", body={"hourCot": 14})
+        handler(event, _context())
+        # Actualizar
+        event = _make_event(method="PUT", path="/alert-schedule", body={"hourCot": 20})
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 200
+        data = json.loads(resp["body"])
+        assert data["schedule"]["alertHourCot"] == 20
+        assert data["schedule"]["updatedAt"] != ""
+
+    def test_delete_existing(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        _seed_subscription(dynamodb_resource, "user-123", "plan-pro-plus")
+        # Crear
+        event = _make_event(method="PUT", path="/alert-schedule", body={"hourCot": 14})
+        handler(event, _context())
+        # Eliminar
+        event = _make_event(method="DELETE", path="/alert-schedule")
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 200
+        # Verificar que ya no existe
+        event = _make_event(method="GET", path="/alert-schedule")
+        resp = handler(event, _context())
+        data = json.loads(resp["body"])
+        assert data["schedule"] is None
+
+    def test_delete_nonexistent(self, dynamodb_resource):
+        from functions.api_handler.app import handler
+
+        event = _make_event(method="DELETE", path="/alert-schedule")
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 404
+
+    def test_put_midnight_wraps_utc(self, dynamodb_resource):
+        """hourCot=0 (midnight) -> hourUtc=5."""
+        from functions.api_handler.app import handler
+
+        _seed_subscription(dynamodb_resource, "user-123", "plan-pro-plus")
+        event = _make_event(method="PUT", path="/alert-schedule", body={"hourCot": 0})
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 200
+        data = json.loads(resp["body"])
+        assert data["schedule"]["alertHourUtc"] == 5
+
+    def test_put_late_night_wraps_utc(self, dynamodb_resource):
+        """hourCot=22 -> hourUtc=3."""
+        from functions.api_handler.app import handler
+
+        _seed_subscription(dynamodb_resource, "user-123", "plan-pro-plus")
+        event = _make_event(method="PUT", path="/alert-schedule", body={"hourCot": 22})
+        resp = handler(event, _context())
+        assert resp["statusCode"] == 200
+        data = json.loads(resp["body"])
+        assert data["schedule"]["alertHourUtc"] == 3

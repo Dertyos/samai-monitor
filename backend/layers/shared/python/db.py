@@ -10,7 +10,7 @@ from typing import Any
 
 from boto3.dynamodb.conditions import Key
 
-from models import Radicado, Actuacion, Alerta, Etiqueta, Team, TeamMember, TeamInvitation
+from models import Radicado, Actuacion, Alerta, Etiqueta, Team, TeamMember, TeamInvitation, AlertSchedule
 
 logger = logging.getLogger(__name__)
 
@@ -583,3 +583,40 @@ def marcar_invitacion_aceptada(table: Any, invite_id: str) -> None:
 def eliminar_invitacion(table: Any, invite_id: str) -> None:
     """Elimina (revoca) una invitación."""
     table.delete_item(Key={"inviteId": invite_id})
+
+
+# ============================================
+# Alert Schedules
+# ============================================
+
+
+def guardar_alert_schedule(table: Any, schedule: AlertSchedule) -> None:
+    """Guarda o actualiza un alert schedule (put_item — upsert)."""
+    table.put_item(Item=schedule.to_dynamo())
+
+
+def obtener_alert_schedule(table: Any, user_id: str) -> AlertSchedule | None:
+    """Obtiene el alert schedule de un usuario, o None si no tiene."""
+    resp = table.get_item(Key={"userId": user_id})
+    item = resp.get("Item")
+    if not item:
+        return None
+    return AlertSchedule.from_dynamo(item)
+
+
+def eliminar_alert_schedule(table: Any, user_id: str) -> bool:
+    """Elimina el alert schedule de un usuario. Retorna True si existia."""
+    resp = table.delete_item(
+        Key={"userId": user_id},
+        ReturnValues="ALL_OLD",
+    )
+    return bool(resp.get("Attributes"))
+
+
+def obtener_schedules_por_hora(table: Any, hour_utc: int) -> list[AlertSchedule]:
+    """Obtiene todos los alert schedules para una hora UTC (via GSI)."""
+    resp = table.query(
+        IndexName="alertHourUtc-index",
+        KeyConditionExpression=Key("alertHourUtc").eq(hour_utc),
+    )
+    return [AlertSchedule.from_dynamo(item) for item in resp.get("Items", [])]
